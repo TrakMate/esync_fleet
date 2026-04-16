@@ -1,0 +1,39 @@
+name: Deploy Esync FleetManagement Portal to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main   
+      
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: stable
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Flutter Web
+        run: flutter build web --release --base-href "/esync_fleet/"
+
+      - name: Move build/web/assets/assets/* to build/web/assets/ and clean up
+        run: |
+          mv build/web/assets/assets/* build/web/assets/
+          rm -rf build/web/assets/assets/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/web
+          publish_branch: web-deploy
+          force_orphan: true
