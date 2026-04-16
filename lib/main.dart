@@ -77,7 +77,7 @@ class ESyncFleetApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp.router(
-      title: 'TrakFleet',
+      title: 'Esync Fleet',
       debugShowCheckedModeBanner: false,
       routerConfig: AppRouter.router,
       themeMode: themeProvider.themeMode,

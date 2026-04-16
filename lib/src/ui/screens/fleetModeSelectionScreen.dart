@@ -31,6 +31,13 @@ class _FleetModeSelectionScreenState extends State<FleetModeSelectionScreen>
 
   final List<Map<String, dynamic>> fleetModes = [
     {
+      'title': 'EV Fleet',
+      'description': 'Track EV performance, charging, range, and energy usage.',
+      'icon': 'icons/battery.svg',
+      'bgColor': const Color(0xFFE8FFF1),
+      'iconColor': const Color(0xFF00C853),
+    },
+    {
       'title': 'ICE Fleet',
       'description':
           'Manage fuel-based fleet operations with advanced monitoring.',
@@ -38,12 +45,14 @@ class _FleetModeSelectionScreenState extends State<FleetModeSelectionScreen>
       'bgColor': const Color(0xFFE8F0FF),
       'iconColor': const Color(0xFF3D5AFE),
     },
+
     {
-      'title': 'EV Fleet',
-      'description': 'Track EV performance, charging, range, and energy usage.',
-      'icon': 'icons/battery.svg',
-      'bgColor': const Color(0xFFE8FFF1),
-      'iconColor': const Color(0xFF00C853),
+      'title': 'Service & Dealer Management',
+      'description':
+          'Optimize dealer and service operations with centralized management and performance tracking.',
+      'icon': 'icons/service.svg',
+      'bgColor': const Color(0xFFFBF5D6),
+      'iconColor': const Color(0xFFFFA000),
     },
     {
       'title': 'Combine Fleet',
@@ -553,7 +562,7 @@ class _FleetModeSelectionScreenState extends State<FleetModeSelectionScreen>
                 const SizedBox(height: 10),
 
                 Text(
-                  'Welcome to Fleet Management',
+                  'Welcome to Esync OEM',
                   style: GoogleFonts.urbanist(
                     fontSize: 38,
                     fontWeight: FontWeight.w800,
@@ -595,8 +604,8 @@ class _FleetModeSelectionScreenState extends State<FleetModeSelectionScreen>
                           fleetModes
                               .where(
                                 (m) =>
-                                    m['title'] == 'ICE Fleet' ||
-                                    m['title'] == 'EV Fleet',
+                                    m['title'] == 'EV Fleet' ||
+                                    m['title'] == 'Service & Dealer Management',
                               )
                               .toList();
                       // ------ FIX OUT OF RANGE ------

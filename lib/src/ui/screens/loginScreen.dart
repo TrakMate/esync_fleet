@@ -59,8 +59,11 @@ class _LoginScreenState extends State<LoginScreen> {
           flex: (widthFactor * 200).toInt(),
           child: Stack(
             children: [
+              Positioned.fill(
+                child: Image.asset('images/ESYNC.png', fit: BoxFit.cover),
+              ),
               //Animated geometric shapes behind everything
-              const AnimatedShapesBackground(),
+              // const AnimatedShapesBackground(),
 
               //Full gradient background overlay
               Container(
@@ -69,8 +72,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.blue.shade700.withOpacity(0.8),
-                      Colors.blue.shade400.withOpacity(0.6),
+                      tGreen8.withOpacity(0.5),
+                      tGreen8.withOpacity(0.2),
                     ],
                   ),
                 ),
@@ -79,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
               // Glass/frosted blur overlay
               ClipRRect(
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                   child: Container(color: Colors.white.withOpacity(0.1)),
                 ),
               ),
@@ -88,40 +91,57 @@ class _LoginScreenState extends State<LoginScreen> {
               Padding(
                 padding: const EdgeInsets.all(40.0),
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Manage your fleet efficiently',
-                        style: GoogleFonts.urbanist(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: tWhite,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.5,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Title (centered separately)
+                        Center(
+                          child: Text(
+                            'Powering the Future of Electric Mobility',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.urbanist(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: tWhite,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 15),
-                      Text(
-                        'TrakFleet provides professional telematics solutions to streamline your fleet operations.',
-                        style: GoogleFonts.urbanist(
-                          fontSize: 18,
-                          color: tWhite.withOpacity(0.8),
+
+                        const SizedBox(height: 15),
+
+                        // Description
+                        Text(
+                          'eSync is redefining electric mobility through innovative technology, smart connectivity, and sustainable solutions designed for next-generation transportation.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: tWhite,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildPoint(
-                        'Real-time GPS tracking for accurate fleet location monitoring.',
-                      ),
-                      _buildPoint(
-                        'Detailed driver behavior reports to improve safety and efficiency.',
-                      ),
-                      _buildPoint(
-                        'Automated maintenance alerts to reduce downtime and costs.',
-                      ),
-                      _buildPoint(
-                        'Customizable analytics dashboards to monitor fleet performance at a glance.',
-                      ),
-                    ],
+
+                        const SizedBox(height: 20),
+
+                        // Points (left aligned for readability)
+                        _buildPoint(
+                          'Advanced electric vehicle solutions built for performance and reliability.',
+                        ),
+                        _buildPoint(
+                          'Smart IoT-enabled systems for seamless connectivity and control.',
+                        ),
+                        _buildPoint(
+                          'Sustainable and eco-friendly mobility designed for modern lifestyles.',
+                        ),
+                        _buildPoint(
+                          'Continuous innovation focused on shaping the future of transportation.',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -305,7 +325,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     // context.go('/fleetmodeselection');
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: tBlue1,
+                    backgroundColor: tGreen8,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -315,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: GoogleFonts.urbanist(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: tWhite,
+                      color: tBlack,
                     ),
                   ),
                 ),
@@ -324,7 +344,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               Center(
                 child: Text(
-                  '© TrakMate Design Solutions Pvt Ltd',
+                  '© ESYNC, Hero EDU Systems Pvt. Ltd.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
@@ -422,22 +442,24 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         isDark
             ? SvgPicture.asset(
-              'icons/shortlogo_dark.svg',
-              width: 50,
-              height: 50,
+              'icons/esync_logo.svg',
+              width: 25,
+              height: 25,
+              color: tGreen8,
             )
             : SvgPicture.asset(
-              'icons/shortlogo_light.svg',
-              width: 50,
-              height: 50,
+              'icons/esync_logo.svg',
+              width: 25,
+              height: 25,
+              color: tGreen8,
             ),
-        const SizedBox(width: 2),
+        const SizedBox(width: 10),
         Text(
-          'TrakFleet',
+          'ESYNC OEM',
           style: GoogleFonts.urbanist(
-            fontSize: 30,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: isDark ? tBlue : tBlue2,
+            color: tGreen8,
           ),
         ),
       ],
@@ -485,11 +507,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Text(
-        '• $text',
-        style: GoogleFonts.urbanist(
-          fontSize: 16,
-          color: Colors.white.withOpacity(0.7),
-        ),
+        '$text',
+        style: GoogleFonts.urbanist(fontSize: 16, color: tWhite),
       ),
     );
   }

@@ -23,7 +23,7 @@ class FleetTitleBar extends StatelessWidget {
           },
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 5),
-            foregroundColor: tBlue,
+            foregroundColor: tGreen8,
           ),
           child: Row(
             children: [
@@ -31,7 +31,7 @@ class FleetTitleBar extends StatelessWidget {
                 'icons/home.svg',
                 width: 18,
                 height: 18,
-                color: tBlue,
+                color: tGreen8,
               ),
               const SizedBox(width: 5),
               Text(
@@ -39,7 +39,7 @@ class FleetTitleBar extends StatelessWidget {
                 style: GoogleFonts.urbanist(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: tBlue,
+                  color: tGreen8,
                 ),
               ),
             ],

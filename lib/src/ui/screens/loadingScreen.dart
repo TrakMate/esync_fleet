@@ -28,8 +28,8 @@ class _LoadingScreenState extends State<LoadingScreen>
     Future.delayed(const Duration(seconds: 5), () {
       if (mounted) {
         // Navigate or perform next action (e.g., check login)
-        // context.go('/login');
-        context.go('/landing');
+        context.go('/login');
+        // context.go('/landing');
       }
     });
   }
@@ -61,24 +61,22 @@ class _LoadingScreenState extends State<LoadingScreen>
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    isDark
-                        ? SvgPicture.asset(
-                          'icons/shortlogo_dark.svg',
-                          width: 65,
-                          height: 65,
-                        )
-                        : SvgPicture.asset(
-                          'icons/shortlogo_light.svg',
-                          width: 65,
-                          height: 65,
-                        ),
+                    SvgPicture.asset(
+                      'icons/esync_logo.svg',
+                      width: 25,
+                      height: 25,
+                      color: tGreen8,
+                    ),
+
+                    SizedBox(width: 10),
+
                     // App Title
                     Text(
-                      'TrakFleet',
+                      'Esync OEM',
                       style: GoogleFonts.urbanist(
-                        fontSize: 35,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? tBlue : tBlue2,
+                        color: tGreen8,
                         // letterSpacing: 1.2,
                       ),
                     ),

@@ -1646,7 +1646,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             _buildLabelBox("Group Name", tBlue, isDark),
             const SizedBox(width: 5),
-            // _buildDynamicDropdown(isDark),
+            _buildDynamicDropdown(isDark),
           ],
         ),
         const SizedBox(height: 5),
@@ -1707,81 +1707,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Widget _buildDynamicDropdown(bool isDark) {
-  //   return Container(
-  //     padding: const EdgeInsets.symmetric(horizontal: 8),
-  //     decoration: BoxDecoration(
-  //       color: tTransparent,
-  //       border: Border.all(width: 0.6, color: isDark ? tWhite : tBlack),
-  //     ),
-  //     child: DropdownButtonHideUnderline(
-  //       child: DropdownButton2<String>(
-  //         isExpanded: false,
-  //         hint: Text(
-  //           'Select Group',
-  //           style: GoogleFonts.urbanist(fontSize: 12.5, color: tGrey),
-  //         ),
+  Widget _buildDynamicDropdown(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: tTransparent,
+        border: Border.all(width: 0.6, color: isDark ? tWhite : tBlack),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton2<String>(
+          isExpanded: false,
+          hint: Text(
+            'Select Group',
+            style: GoogleFonts.urbanist(fontSize: 12.5, color: tGrey),
+          ),
 
-  //         items:
-  //             groupsList
-  //                 .map(
-  //                   (group) => DropdownMenuItem<String>(
-  //                     value: group.id,
-  //                     child: Text(
-  //                       group.name ?? '',
-  //                       style: GoogleFonts.urbanist(
-  //                         fontSize: 12.5,
-  //                         color: isDark ? tWhite : tBlack,
-  //                         fontWeight: FontWeight.w600,
-  //                       ),
-  //                     ),
-  //                   ),
-  //                 )
-  //                 .toList();
+          items:
+              groupsList
+                  .map(
+                    (group) => DropdownMenuItem<String>(
+                      value: group.id,
+                      child: Text(
+                        group.name ?? '',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 12.5,
+                          color: isDark ? tWhite : tBlack,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
 
-  //         value: selectedGroup,
+          value: selectedGroup,
 
-  //         onChanged: (value) {
-  //           setState(() {
-  //             selectedGroup = value;
-  //           });
-  //           fetchAllDashboardData();
-  //         },
+          onChanged: (value) {
+            setState(() {
+              selectedGroup = value;
+            });
+            fetchAllDashboardData();
+          },
 
-  //         iconStyleData: IconStyleData(
-  //           icon: Icon(
-  //             CupertinoIcons.chevron_down,
-  //             size: 16,
-  //             color: isDark ? tWhite : tBlack,
-  //           ),
-  //         ),
+          iconStyleData: IconStyleData(
+            icon: Icon(
+              CupertinoIcons.chevron_down,
+              size: 16,
+              color: isDark ? tWhite : tBlack,
+            ),
+          ),
 
-  //         dropdownStyleData: DropdownStyleData(
-  //           padding: EdgeInsets.zero,
-  //           maxHeight: 200,
-  //           decoration: BoxDecoration(
-  //             color: isDark ? tBlack : tWhite,
-  //             boxShadow: [
-  //               BoxShadow(
-  //                 spreadRadius: 2,
-  //                 blurRadius: 10,
-  //                 color:
-  //                     isDark
-  //                         ? tWhite.withOpacity(0.25)
-  //                         : tBlack.withOpacity(0.15),
-  //               ),
-  //             ],
-  //           ),
-  //         ),
+          dropdownStyleData: DropdownStyleData(
+            padding: EdgeInsets.zero,
+            maxHeight: 200,
+            decoration: BoxDecoration(
+              color: isDark ? tBlack : tWhite,
+              boxShadow: [
+                BoxShadow(
+                  spreadRadius: 2,
+                  blurRadius: 10,
+                  color:
+                      isDark
+                          ? tWhite.withOpacity(0.25)
+                          : tBlack.withOpacity(0.15),
+                ),
+              ],
+            ),
+          ),
 
-  //         buttonStyleData: const ButtonStyleData(
-  //           padding: EdgeInsets.zero,
-  //           height: 30,
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
+          buttonStyleData: const ButtonStyleData(
+            padding: EdgeInsets.zero,
+            height: 30,
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildDynamicDatePicker(bool isDark) {
     return Column(

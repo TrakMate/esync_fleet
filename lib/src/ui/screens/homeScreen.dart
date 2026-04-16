@@ -572,22 +572,21 @@ class _HomeScreenState extends State<HomeScreen>
                 }
               },
               child: SvgPicture.asset(
-                isDark
-                    ? 'icons/shortlogo_dark.svg'
-                    : 'icons/shortlogo_light.svg',
-                width: 35,
-                height: 35,
+                'icons/esync_logo.svg',
+                width: 20,
+                height: 20,
+                color: tGreen8,
               ),
             );
           },
         ),
-        const SizedBox(width: 2),
+        const SizedBox(width: 10),
         Text(
-          'TrakFleet',
+          'Esync OEM',
           style: GoogleFonts.urbanist(
             fontSize: 22,
             fontWeight: FontWeight.bold,
-            color: isDark ? tBlue : tBlue2,
+            color: tGreen8,
           ),
         ),
       ],
@@ -644,7 +643,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 height: 20,
                                 color:
                                     isSelected
-                                        ? tBlue
+                                        ? tGreen8
                                         : (isDark ? tWhite : tBlack),
                               ),
                               const SizedBox(width: 3),
@@ -658,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen>
                                           : FontWeight.w400,
                                   color:
                                       isSelected
-                                          ? tBlue
+                                          ? tGreen8
                                           : (isDark ? tWhite : tBlack),
                                 ),
                               ),
@@ -671,7 +670,7 @@ class _HomeScreenState extends State<HomeScreen>
                             height: 2,
                             width: isSelected ? 35 : 0,
                             decoration: BoxDecoration(
-                              color: tBlue,
+                              color: tGreen8,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -793,7 +792,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Center(
       child: Text(
-        '© $currentYear Trakmate Design Solutions Pvt Ltd. All rights reserved.',
+        '© $currentYear ESYNC, Hero EDU Systems Pvt. Ltd. All rights reserved.',
         textAlign: TextAlign.center,
         style: GoogleFonts.urbanist(
           fontSize: 11,
