@@ -60,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: Image.asset('images/ESYNC.png', fit: BoxFit.cover),
+                child: Image.asset('images/bg-cycle.png', fit: BoxFit.cover),
               ),
 
               //Full gradient background overlay
