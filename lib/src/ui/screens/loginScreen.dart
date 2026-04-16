@@ -62,8 +62,6 @@ class _LoginScreenState extends State<LoginScreen> {
               Positioned.fill(
                 child: Image.asset('images/ESYNC.png', fit: BoxFit.cover),
               ),
-              //Animated geometric shapes behind everything
-              // const AnimatedShapesBackground(),
 
               //Full gradient background overlay
               Container(
@@ -72,18 +70,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
+                      tGreen8.withOpacity(0.1),
                       tGreen8.withOpacity(0.5),
-                      tGreen8.withOpacity(0.2),
                     ],
                   ),
-                ),
-              ),
-
-              // Glass/frosted blur overlay
-              ClipRRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                  child: Container(color: Colors.white.withOpacity(0.1)),
                 ),
               ),
 
@@ -93,41 +83,37 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Center(
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.5,
+                      // maxWidth: MediaQuery.of(context).size.width * 0.5,
+                      maxWidth: 700,
                     ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title (centered separately)
-                        Center(
-                          child: Text(
-                            'Powering the Future of Electric Mobility',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.urbanist(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: tWhite,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 15),
-
-                        // Description
                         Text(
-                          'eSync is redefining electric mobility through innovative technology, smart connectivity, and sustainable solutions designed for next-generation transportation.',
-                          textAlign: TextAlign.center,
+                          'Powering the Future of Electric Mobility',
                           style: GoogleFonts.urbanist(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 34,
+                            fontWeight: FontWeight.bold,
                             color: tWhite,
+                            height: 1.3,
                           ),
                         ),
 
                         const SizedBox(height: 20),
 
-                        // Points (left aligned for readability)
+                        Text(
+                          'eSync is redefining electric mobility through innovative technology, smart connectivity, and sustainable solutions designed for next-generation transportation.',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w400,
+                            color: tWhite.withOpacity(0.95),
+                            height: 1.6,
+                          ),
+                        ),
+
+                        const SizedBox(height: 30),
+
                         _buildPoint(
                           'Advanced electric vehicle solutions built for performance and reliability.',
                         ),
@@ -135,10 +121,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           'Smart IoT-enabled systems for seamless connectivity and control.',
                         ),
                         _buildPoint(
-                          'Sustainable and eco-friendly mobility designed for modern lifestyles.',
+                          'Sustainable and eco-friendly mobility for modern transportation.',
                         ),
                         _buildPoint(
-                          'Continuous innovation focused on shaping the future of transportation.',
+                          'Continuous innovation shaping the future of e-mobility.',
                         ),
                       ],
                     ),
@@ -152,11 +138,48 @@ class _LoginScreenState extends State<LoginScreen> {
         // Right side with login form
         Expanded(
           flex: ((1 - widthFactor) * 100).toInt(),
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.all(40),
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: _buildLoginForm(),
+          // child: Center(
+          //   child: Container(
+          //     padding: const EdgeInsets.all(40),
+          //     constraints: const BoxConstraints(maxWidth: 400),
+          //     child: _buildLoginForm(),
+          //   ),
+          // ),
+          child: Container(
+            padding: const EdgeInsets.all(40),
+            child: Column(
+              children: [
+                /// Top header row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _brandLogo(),
+
+                    Consumer<ThemeProvider>(
+                      builder: (context, themeProvider, _) {
+                        final isDark =
+                            Theme.of(context).brightness == Brightness.dark;
+
+                        return _buildTextButton(
+                          iconPath: isDark ? 'icons/moon.svg' : 'icons/sun.svg',
+                          onTap: () => themeProvider.toggleTheme(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                /// Center login form
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 400),
+                      child: _buildLoginForm(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -235,10 +258,9 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _brandLogo(),
+              // _brandLogo(),
 
-              const SizedBox(height: 10),
-
+              // const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -250,10 +272,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: isDark ? tWhite : tBlack,
                     ),
                   ),
-                  _buildTextButton(
-                    iconPath: isDark ? 'icons/moon.svg' : 'icons/sun.svg',
-                    onTap: () => themeProvider.toggleTheme(),
-                  ),
+                  // _buildTextButton(
+                  //   iconPath: isDark ? 'icons/moon.svg' : 'icons/sun.svg',
+                  //   onTap: () => themeProvider.toggleTheme(),
+                  // ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -435,32 +457,63 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _brandLogo() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        isDark
-            ? SvgPicture.asset(
-              'icons/esync_logo.svg',
-              width: 25,
-              height: 25,
-              color: tGreen8,
-            )
-            : SvgPicture.asset(
-              'icons/esync_logo.svg',
-              width: 25,
-              height: 25,
-              color: tGreen8,
-            ),
-        const SizedBox(width: 10),
-        Text(
-          'ESYNC OEM',
-          style: GoogleFonts.urbanist(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: tGreen8.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(0),
+          ),
+          child: SvgPicture.asset(
+            'icons/esync_logo.svg',
+            width: 30,
+            height: 30,
             color: tGreen8,
           ),
+        ),
+
+        const SizedBox(width: 10),
+
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hero ESYNC',
+              style: GoogleFonts.urbanist(
+                fontSize: 25,
+                fontWeight: FontWeight.bold,
+                color: tGreen8,
+                letterSpacing: 0.5,
+              ),
+            ),
+
+            Row(
+              children: [
+                Text(
+                  'OEM Portal',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: tGreen8,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 5),
+
+                Container(
+                  width: 70,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [tOrange1, tWhite, tGreen3],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     );
@@ -505,10 +558,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildPoint(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Text(
-        '$text',
-        style: GoogleFonts.urbanist(fontSize: 16, color: tWhite),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.check_circle, color: tGreen8, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.urbanist(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: tWhite,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

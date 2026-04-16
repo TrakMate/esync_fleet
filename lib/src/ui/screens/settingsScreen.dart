@@ -163,11 +163,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         width: double.infinity,
         padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         decoration: BoxDecoration(
-          color: isSelected ? tBlue.withOpacity(0.15) : tTransparent,
+          color: isSelected ? tGreen8.withOpacity(0.15) : tTransparent,
           border: Border(
             right: BorderSide(
               width: 6,
-              color: isSelected ? tBlue : tTransparent,
+              color: isSelected ? tGreen8 : tTransparent,
             ),
           ),
         ),
@@ -176,7 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: GoogleFonts.urbanist(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: isSelected ? tBlue : (isDark ? tWhite : tBlack),
+            color: isSelected ? tGreen8 : (isDark ? tWhite : tBlack),
           ),
         ),
       ),
@@ -224,13 +224,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Container(
               decoration: BoxDecoration(
                 color: tTransparent,
-                border: Border.all(width: 0.8, color: tBlue),
+                border: Border.all(width: 0.8, color: tGreen8),
               ),
               padding: EdgeInsets.all(6),
               child: Container(
                 width: 150,
                 height: 159,
-                decoration: BoxDecoration(color: tBlue),
+                decoration: BoxDecoration(color: tGreen8),
               ),
             ),
 
@@ -254,7 +254,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildDetailRow("Name", _fullname ?? 'Guest User', isDark),
                 SizedBox(height: 12),
 
-                _buildDetailRow("Mail ID", "baxy.team@gmail.com", isDark),
+                _buildDetailRow(
+                  "Mail ID",
+                  "hero.motors@esync.hero.co.in",
+                  isDark,
+                ),
                 SizedBox(height: 12),
 
                 _buildDetailRow("Phone Number", "+91 727626", isDark),
@@ -263,7 +267,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildDetailRow("Role", _role ?? 'Guest', isDark),
                 SizedBox(height: 12),
 
-                _buildDetailRow("Organization", "BAXY Corp", isDark),
+                _buildDetailRow("Organization", "Hero ESYNC Company", isDark),
               ],
             ),
           ],

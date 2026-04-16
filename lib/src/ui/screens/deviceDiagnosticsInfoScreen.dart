@@ -1016,7 +1016,7 @@ class _DeviceDiagnosticsInfoScreenState
         children: [
           // SvgPicture.asset('icons/struck1.svg', width: 80, height: 80),
           Image.asset(
-            'images/truck1.png',
+            'images/Hero_lectro_Bike.png',
             width: 100,
             height: 100,
             fit: BoxFit.contain,

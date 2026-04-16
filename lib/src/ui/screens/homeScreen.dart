@@ -151,28 +151,6 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
-          // ----------------------- RADAR SWEEP -----------------------
-          Positioned(
-            bottom: 40,
-            left: 30,
-            child: SizedBox(
-              width: 420,
-              height: 420,
-              child: AnimatedBuilder(
-                animation: _animController,
-                builder: (context, child) {
-                  return CustomPaint(
-                    painter: RadarSweepPainter(
-                      rotation: _animController.value * 2 * pi,
-                      color: Colors.greenAccent.withOpacity(0.18),
-                      isDark: isDark,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
           // ----------------------- FLOATING SHAPES (parallax) -----------------------
           Positioned(
             top: 80,
@@ -555,11 +533,9 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ---------------- Brand Logo ----------------
   Widget _brandLogo() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Builder(
           builder: (ctx) {
@@ -571,23 +547,63 @@ class _HomeScreenState extends State<HomeScreen>
                   scaffold.openDrawer();
                 }
               },
-              child: SvgPicture.asset(
-                'icons/esync_logo.svg',
-                width: 20,
-                height: 20,
-                color: tGreen8,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: tGreen8.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(0),
+                ),
+                child: SvgPicture.asset(
+                  'icons/esync_logo.svg',
+                  width: 20,
+                  height: 20,
+                  color: tGreen8,
+                ),
               ),
             );
           },
         ),
+
         const SizedBox(width: 10),
-        Text(
-          'Esync OEM',
-          style: GoogleFonts.urbanist(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: tGreen8,
-          ),
+
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hero ESYNC',
+              style: GoogleFonts.urbanist(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: tGreen8,
+                letterSpacing: 0.5,
+              ),
+            ),
+
+            Row(
+              children: [
+                Text(
+                  'OEM Portal',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: tGreen8,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 5),
+
+                Container(
+                  width: 55,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [tOrange1, tWhite, tGreen3],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     );

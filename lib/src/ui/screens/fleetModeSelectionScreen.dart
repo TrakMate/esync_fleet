@@ -361,28 +361,6 @@ class _FleetModeSelectionScreenState extends State<FleetModeSelectionScreen>
             ),
           ),
 
-          // ----------------------- RADAR SWEEP -----------------------
-          Positioned(
-            bottom: 40,
-            left: 30,
-            child: SizedBox(
-              width: 420,
-              height: 420,
-              child: AnimatedBuilder(
-                animation: _animController,
-                builder: (context, child) {
-                  return CustomPaint(
-                    painter: RadarSweepPainter(
-                      rotation: _animController.value * 2 * pi,
-                      color: Colors.greenAccent.withOpacity(0.18),
-                      isDark: isDark,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
           // ----------------------- FLOATING SHAPES (parallax) -----------------------
           Positioned(
             top: 80,
@@ -562,9 +540,9 @@ class _FleetModeSelectionScreenState extends State<FleetModeSelectionScreen>
                 const SizedBox(height: 10),
 
                 Text(
-                  'Welcome to Esync OEM',
+                  'Welcome to Hero ESYNC OEM Portal',
                   style: GoogleFonts.urbanist(
-                    fontSize: 38,
+                    fontSize: 35,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -576,7 +554,7 @@ class _FleetModeSelectionScreenState extends State<FleetModeSelectionScreen>
                     final isDark =
                         Theme.of(context).brightness == Brightness.dark;
                     return Text(
-                      'Select a fleet mode to get started',
+                      'Select your preferred mode to get started with monitoring and management.',
                       style: GoogleFonts.urbanist(
                         fontSize: 16,
                         color:

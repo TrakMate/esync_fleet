@@ -72,9 +72,9 @@ class _LoadingScreenState extends State<LoadingScreen>
 
                     // App Title
                     Text(
-                      'Esync OEM',
+                      'Hero ESYNC OEM',
                       style: GoogleFonts.urbanist(
-                        fontSize: 28,
+                        fontSize: 30,
                         fontWeight: FontWeight.bold,
                         color: tGreen8,
                         // letterSpacing: 1.2,
@@ -87,7 +87,7 @@ class _LoadingScreenState extends State<LoadingScreen>
 
                 // Subtext
                 Text(
-                  'Managing Your Fleet, Simplified',
+                  'Monitor, Manage, Optimize Your E-Bikes',
                   style: GoogleFonts.urbanist(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
@@ -115,7 +115,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           gradient: LinearGradient(
-                            colors: [isDark ? tBlue : tBlue2, tOrange1],
+                            colors: [tOrange1, tWhite, tGreen3],
                           ),
                         ),
                       ),

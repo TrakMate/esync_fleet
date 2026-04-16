@@ -112,6 +112,10 @@ const tGreen = Color(0xFF66CC00);
 const tGreen1 = Color(0xFF233b3b);
 const tGreen2 = Color(0xFFB6FF00);
 const tGreen3 = Color(0xFF56D722);
+const tGreen4 = Color(0xFF59FF17);
+const tGreen5 = Color(0xFF006400);
+const tGreen6 = Color(0xFF4BD200);
+const tGreen7 = Color(0xFF136207);
 const tGreen8 = Color(0xFF39F0A5);
 
 const tGreenDark = Color(0xFF006400);
