@@ -1876,11 +1876,14 @@ class _DeviceDiagnosticsInfoScreenState
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: tBlue1,
+              color: tGreen8,
               borderRadius: BorderRadius.circular(4),
+              gradient: SweepGradient(
+                colors: [tGreen8, tGreen8.withOpacity(0.6)],
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: tBlue1.withOpacity(0.4),
+                  color: tGreen8.withOpacity(0.4),
                   blurRadius: 6,
                   offset: Offset(0, 2),
                 ),
@@ -1890,7 +1893,7 @@ class _DeviceDiagnosticsInfoScreenState
               text,
               style: TextStyle(
                 fontSize: 13,
-                color: tWhite,
+                color: tBlack,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1899,8 +1902,7 @@ class _DeviceDiagnosticsInfoScreenState
       );
     }
 
-    // ✅ Case 1: No Data → only button
-    if (hasNoData) {
+    if (!showStatsGraphs) {
       return buildButton("View More", () {
         setState(() {
           showStatsGraphs = true;
@@ -1908,16 +1910,19 @@ class _DeviceDiagnosticsInfoScreenState
       });
     }
 
-    // ✅ Case 2: Collapsed → only button
     if (hasNoData) {
-      return buildButton("View More", () {
-        setState(() {
-          showStatsGraphs = true;
-        });
-      });
+      return Column(
+        children: [
+          /// 🔹 View Less
+          buildButton("View Less", () {
+            setState(() {
+              showStatsGraphs = false;
+            });
+          }),
+        ],
+      );
     }
 
-    // ✅ Case 3: Expanded → show graphs + View Less
     return Column(
       children: [
         Row(
@@ -2777,7 +2782,7 @@ class _DeviceDiagnosticsInfoScreenState
           // color: isSelected ? tBlue.withOpacity(0.15) : Colors.transparent,
           gradient:
               isSelected
-                  ? SweepGradient(colors: [tBlue, tBlue.withOpacity(0.6)])
+                  ? SweepGradient(colors: [tGreen8, tGreen8.withOpacity(0.6)])
                   : SweepGradient(colors: [tTransparent, tTransparent]),
           borderRadius: BorderRadius.circular(5),
           border: Border.all(
@@ -2797,8 +2802,8 @@ class _DeviceDiagnosticsInfoScreenState
             fontWeight: FontWeight.bold,
             color:
                 isDark
-                    ? (isSelected ? tWhite : tWhite.withOpacity(0.7))
-                    : (isSelected ? tWhite : tBlack.withOpacity(0.7)),
+                    ? (isSelected ? tBlack : tWhite.withOpacity(0.8))
+                    : (isSelected ? tBlack : tBlack.withOpacity(0.7)),
           ),
         ),
       ),

@@ -266,7 +266,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
           context: context,
           fromDate: '',
           toDate: '',
-          imei: imei,
+          // imei: imei,
           groupId: groupId,
           rangeDays: rangeDays,
           status: statusParam,
@@ -310,7 +310,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
           context: context,
           fromDate: fromDateApi,
           toDate: toDateApi,
-          imei: imei,
+          // imei: imei,
           groupId: groupId,
           rangeDays: rangeDays,
           status: statusParam,
@@ -500,7 +500,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
 
                 const SizedBox(height: 15),
                 Text(
-                  'Search by  IMEI or Group Id',
+                  'Search by Group',
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -509,11 +509,11 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                 ),
                 const SizedBox(height: 10),
                 _searchField(isDark),
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
                 ElevatedButton(
                   onPressed: isLoading ? null : _downloadReport,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: tBlue,
+                    backgroundColor: tGreen8,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -551,7 +551,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                             style: GoogleFonts.urbanist(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: tWhite,
+                              color: tBlack,
                             ),
                           ),
                 ),
@@ -640,18 +640,18 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                 if (showStatusColors && isEVFleet != null && option != 'All') {
                   selectedColor = _statusColor(option, isEVFleet);
                 } else if (!showStatusColors) {
-                  selectedColor = tBlue; // For availability chips
+                  selectedColor = tGreen8; // For availability chips
                 }
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tWhite,
+                  checkmarkColor: tBlack,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
@@ -816,8 +816,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
         /// SEARCH FIELD
         Autocomplete<String>(
           optionsBuilder: (TextEditingValue textEditingValue) {
-            final allOptions = [..._imeis, ..._groups.map((g) => g.name ?? '')];
-
+            final allOptions = _groups.map((g) => g.name ?? '').toList();
             if (textEditingValue.text.isEmpty) {
               return allOptions;
             }
@@ -874,7 +873,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                 color: isDark ? tWhite : tBlack,
               ),
               decoration: InputDecoration(
-                hintText: "Enter Group Name or IMEI",
+                hintText: "Enter Group Name ",
                 hintStyle: GoogleFonts.urbanist(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -1119,14 +1118,17 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                   });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: tBlue,
-                  foregroundColor: tWhite,
+                  backgroundColor: tGreen8,
+                  foregroundColor: tBlack,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
 
-                child: const Text("Apply Filters"),
+                child: const Text(
+                  "Apply Filters",
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],

@@ -208,10 +208,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return GridView.builder(
       // padding: const EdgeInsets.all(10),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3, // 3 items per row
+        crossAxisCount: 3,
         crossAxisSpacing: 15,
         mainAxisSpacing: 15,
-        childAspectRatio: 0.6, // Adjust card height/width
+        childAspectRatio: 0.65, // Adjust card height/width
       ),
       itemCount: reportCards.length,
       itemBuilder: (context, index) {

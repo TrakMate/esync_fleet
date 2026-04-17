@@ -46,7 +46,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? apiDate;
 
   String? selectedGroup;
-  // String get dateParam => selectedDate.toUtc().toIso8601String();
   final DashboardApiService _dashboardApi = DashboardApiService();
 
   bool isLoadingGroups = false;
@@ -465,16 +464,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final NumberFormat format = NumberFormat('#,##,###');
 
-  String formatEnergy(num valueInKw) {
-    final int digits = valueInKw.toStringAsFixed(0).length;
-
-    if (digits >= 6) {
-      double mw = valueInKw / 1000;
-      return "${mw.toStringAsFixed(2)} kw ";
-    }
-
-    return "${valueInKw.toStringAsFixed(0)} ";
-  }
   // List<Map<String, dynamic>> getEVBackendStatus() {
   //   final total = totalVehicles;
   //   if (total == 0) return [];
@@ -609,6 +598,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (utc == null || utc.isEmpty) return '';
     final dateTime = DateTime.parse(utc).toLocal();
     return DateFormat('dd MMM yyyy, HH:mm:ss').format(dateTime);
+  }
+
+  String formatEnergy(num valueInKw) {
+    final int digits = valueInKw.toStringAsFixed(0).length;
+
+    if (digits > 3) {
+      double mw = valueInKw / 1000;
+      return "${mw.toStringAsFixed(2)} MW";
+    }
+
+    return "${valueInKw.toStringAsFixed(0)} kW";
   }
 
   @override
@@ -1279,8 +1279,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                       value: formatEnergy(
                                                         totalConsumedEnergy,
                                                       ),
-                                                      label:
-                                                          "Consumed Energy(kw)",
+                                                      label: "Consumed Energy",
                                                       labelColor: tBlue1,
                                                       icon: "icons/battery.svg",
                                                       iconColor: tBlue1,
@@ -1644,7 +1643,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         Row(
           children: [
-            _buildLabelBox("Group Name", tBlue, isDark),
+            _buildLabelBox("Group Name", isDark ? tGreen8 : tBlack, isDark),
             const SizedBox(width: 5),
             _buildDynamicDropdown(isDark),
           ],

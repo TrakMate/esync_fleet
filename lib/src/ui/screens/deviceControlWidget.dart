@@ -65,7 +65,11 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
             _buildTabBar(context, isDark),
             Row(
               children: [
-                _buildLabelBox("Filter By Date", tBlue, isDark),
+                _buildLabelBox(
+                  "Filter By Date",
+                  isDark ? tGreen8 : tBlack,
+                  isDark,
+                ),
                 const SizedBox(width: 5),
                 _buildDynamicDatePicker(isDark),
               ],
@@ -139,8 +143,8 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
       child: TextButton(
         onPressed: onTap,
         style: TextButton.styleFrom(
-          backgroundColor: isSelected ? tBlue : (isDark ? tBlack : tWhite),
-          foregroundColor: isSelected ? tWhite : (isDark ? tWhite : tBlack),
+          backgroundColor: isSelected ? tGreen8 : (isDark ? tBlack : tWhite),
+          foregroundColor: isSelected ? tBlack : (isDark ? tWhite : tBlack),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
         ),
         child: Text(

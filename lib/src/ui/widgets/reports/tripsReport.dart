@@ -397,13 +397,13 @@ class _TripsReportViewState extends State<TripsReportView> {
                 color: isDark ? tWhite : tBlack,
               ),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 10),
             _searchField(isDark),
-            SizedBox(height: 25),
+            SizedBox(height: 10),
             ElevatedButton(
               onPressed: _downloadReport,
               style: ElevatedButton.styleFrom(
-                backgroundColor: tBlue,
+                backgroundColor: tGreen8,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -417,7 +417,7 @@ class _TripsReportViewState extends State<TripsReportView> {
                 style: GoogleFonts.urbanist(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: tWhite,
+                  color: tBlack,
                 ),
               ),
             ),
@@ -501,18 +501,18 @@ class _TripsReportViewState extends State<TripsReportView> {
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tWhite,
+                  checkmarkColor: tBlack,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
 
-                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
-                  selectedColor: tBlue,
+                  selectedColor: tGreen8,
                   backgroundColor:
                       isDark
                           ? tWhite.withOpacity(0.15)
@@ -1060,13 +1060,16 @@ class _TripsReportViewState extends State<TripsReportView> {
                   });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: tBlue,
-                  foregroundColor: tWhite,
+                  backgroundColor: tGreen8,
+                  foregroundColor: tBlack,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text("Apply Filters"),
+                child: const Text(
+                  "Apply Filters",
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],

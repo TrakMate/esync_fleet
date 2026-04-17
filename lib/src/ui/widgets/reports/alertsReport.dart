@@ -345,11 +345,11 @@ class _AlertsReportViewState extends State<AlertsReportView> {
             ),
             SizedBox(height: 10),
             _searchField(isDark),
-            SizedBox(height: 25),
+            SizedBox(height: 10),
             ElevatedButton(
               onPressed: isDownloading ? null : _downloadReport,
               style: ElevatedButton.styleFrom(
-                backgroundColor: tBlue,
+                backgroundColor: tGreen8,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -363,7 +363,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
                 style: GoogleFonts.urbanist(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: tWhite,
+                  color: tBlack,
                 ),
               ),
             ),
@@ -386,7 +386,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
         text,
         style: GoogleFonts.urbanist(
           fontSize: 13,
-          color: tBlue,
+          color: isDark ? tWhite : tBlack,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -447,18 +447,18 @@ class _AlertsReportViewState extends State<AlertsReportView> {
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tWhite,
+                  checkmarkColor: tBlack,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
 
-                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
-                  selectedColor: tBlue,
+                  selectedColor: tGreen8,
                   backgroundColor:
                       isDark
                           ? tWhite.withOpacity(0.15)

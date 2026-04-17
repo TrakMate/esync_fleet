@@ -571,6 +571,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
           Column(
@@ -638,9 +639,11 @@ class _AlertsScreenState extends State<AlertsScreen> {
       criticalAlertColors['SOS Triggered'] = const Color(0xFFFA0E0E);
     }
 
-    final totalPositiveCount = criticalAlertCounts.values
-        .where((count) => count > 0)
-        .fold(0, (a, b) => a + b);
+    // final totalPositiveCount = criticalAlertCounts.values
+    //     .where((count) => count > 0)
+    //     .fold(0, (a, b) => a + b);
+
+    final total = criticalAlertCounts.values.fold(0, (a, b) => a + b);
 
     // Show loading state
     if (isLoading) {
@@ -756,136 +759,122 @@ class _AlertsScreenState extends State<AlertsScreen> {
         ),
         const SizedBox(height: 6),
 
-        if (totalPositiveCount == 0)
-          SizedBox(
-            height: 80,
-            child: Center(
-              child: Text(
-                'No critical alerts detected',
-                style: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.6)
-                          : tBlack.withOpacity(0.6),
-                ),
+        // Labels and counts in a row
+        Row(
+          children:
+              criticalAlertCounts.entries.map((entry) {
+                final label = entry.key;
+                final count = entry.value;
+                final color = criticalAlertColors[label]!;
+
+                final total = criticalAlertCounts.values.fold(
+                  0,
+                  (a, b) => a + b,
+                );
+                final percentage = total > 0 ? (count / total) * 100 : 0.0;
+
+                return Expanded(
+                  // ✅ THIS FIXES EVEN SPACING
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      /// 🔹 Color + Label
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment
+                                .center, // center inside each block
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.zero,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              label,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.urbanist(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : tBlack,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      /// 🔹 Value + %
+                      Text(
+                        '$count [${percentage.toStringAsFixed(0)}%]',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.urbanist(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Bar chart
+        total == 0
+            ? Container(
+              width: double.infinity,
+              height: 20,
+              decoration: BoxDecoration(
+                color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.2),
+                borderRadius: BorderRadius.zero,
               ),
+            )
+            : Row(
+              children:
+                  criticalAlertCounts.entries.map((entry) {
+                    final label = entry.key;
+                    final count = entry.value;
+                    final color = criticalAlertColors[label]!;
+
+                    final total = criticalAlertCounts.values.fold(
+                      0,
+                      (a, b) => a + b,
+                    );
+
+                    final flex =
+                        total > 0
+                            ? ((count / total) * 100).toInt()
+                            : 1; // 👈 keep minimal width
+
+                    return Expanded(
+                      flex: flex == 0 ? 1 : flex, // 👈 prevents invisible bars
+                      child: Container(
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color:
+                              count > 0
+                                  ? color
+                                  : Colors.transparent, // 👈 empty if 0
+                          border: Border.all(
+                            color: color.withOpacity(
+                              0.3,
+                            ), // 👈 outline for 0 values
+                          ),
+                          borderRadius: BorderRadius.zero,
+                        ),
+                      ),
+                    );
+                  }).toList(),
             ),
-          )
-        else ...[
-          // Labels and counts in a row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children:
-                criticalAlertCounts.entries
-                    .where((entry) => entry.value > 0)
-                    .map((entry) {
-                      final label = entry.key;
-                      final count = entry.value;
-                      final color = criticalAlertColors[label]!;
-                      final percentage =
-                          totalPositiveCount > 0
-                              ? (count / totalPositiveCount) * 100
-                              : 0.0;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 16.0),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: color,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  label,
-                                  style: GoogleFonts.urbanist(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark ? tWhite : tBlack,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: 10.0,
-                                left: 14.0,
-                              ),
-                              child: Text(
-                                '${NumberFormat('#,##,###').format(count)} '
-                                '[${percentage.toStringAsFixed(0)}%]',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: isDark ? tWhite : tBlack,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    })
-                    .toList(),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Bar chart
-          Row(
-            children:
-                criticalAlertCounts.entries
-                    .where((entry) => entry.value > 0)
-                    .map((entry) {
-                      final label = entry.key;
-                      final count = entry.value;
-                      final color = criticalAlertColors[label]!;
-                      final percentage =
-                          totalPositiveCount > 0
-                              ? (count / totalPositiveCount) * 100
-                              : 0.0;
-
-                      return Expanded(
-                        flex: percentage.toInt(),
-                        child: Container(
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: color,
-                            boxShadow: [
-                              BoxShadow(
-                                blurRadius: 6,
-                                spreadRadius: 2,
-                                color: color.withOpacity(0.3),
-                              ),
-                            ],
-                          ),
-                          child: Tooltip(
-                            message:
-                                "$label: ${percentage.toStringAsFixed(1)}%",
-                            textStyle: TextStyle(
-                              fontSize: 13,
-                              color: isDark ? tBlack : tWhite,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            child: const SizedBox.expand(),
-                          ),
-                        ),
-                      );
-                    })
-                    .toList(),
-          ),
-        ],
       ],
     );
   }
@@ -969,8 +958,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              /// 🔸 TOP CARDS (SINGLE ROW)
-                              /// 🔸 TOP CARDS (FINAL FIXED HEIGHT)
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: _cardDecoration(isDark),
@@ -1136,12 +1123,21 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
   BoxDecoration _cardDecoration(bool isDark) {
     return BoxDecoration(
-      color: isDark ? tBlack : tWhite,
+      color:
+          isDark
+              ? tBlack.withOpacity(0.8) // 👈 transparent
+              : tWhite.withOpacity(0.9),
+
+      border: Border.all(color: tWhite.withOpacity(0.08)),
+
       boxShadow: [
         BoxShadow(
-          blurRadius: 10,
+          blurRadius: 5,
           spreadRadius: 2,
-          color: isDark ? tWhite.withOpacity(0.2) : tBlack.withOpacity(0.1),
+          color:
+              isDark
+                  ? tTransparent.withOpacity(0.08)
+                  : tTransparent.withOpacity(0.1),
         ),
       ],
     );
@@ -1658,7 +1654,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      color: selectedFilter == label ? tBlue : tTransparent,
+                      color: selectedFilter == label ? tGreen8 : tTransparent,
                     ),
                     alignment: Alignment.center,
                     child: Text(
@@ -1668,7 +1664,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                         fontWeight: FontWeight.w600,
                         color:
                             selectedFilter == label
-                                ? tWhite
+                                ? tBlack
                                 : (isDark ? tWhite : tBlack),
                       ),
                     ),
@@ -1765,8 +1761,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
                           child: DataTable(
                             headingRowColor: WidgetStateProperty.all(
                               isDark
-                                  ? tBlue.withOpacity(0.15)
-                                  : tBlue.withOpacity(0.05),
+                                  ? tGreen8.withOpacity(0.15)
+                                  : tGreen8.withOpacity(0.1),
                             ),
                             headingTextStyle: GoogleFonts.urbanist(
                               fontWeight: FontWeight.w700,
@@ -2302,421 +2298,82 @@ class _AlertsScreenState extends State<AlertsScreen> {
     required Map<String, Color> colors,
     required bool isDark,
   }) {
-    final mode = context.watch<FleetModeProvider>().mode;
-    final isEV = mode == 'EV Fleet';
     final batteryFaultCount = alertCountModel?.batteryFault ?? 0;
-    final totalAlerts = alertsModel?.totalAlerts ?? 0;
 
-    double percentage = 0.0;
+    final hasValue = batteryFaultCount > 0;
 
-    if (isEV) {
-      if (batteryFaultCount > 0) {
-        percentage = 100.0;
-      }
-    } else {
-      percentage = 0.0;
-    }
-
-    final faultColor = tGrey;
-
-    // Show loading state
-    if (isLoading) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.urbanist(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? tWhite : tBlack,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Opacity(
-            opacity: 0.5,
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: faultColor,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  'Battery Fault',
-                                  style: GoogleFonts.urbanist(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark ? tWhite : tBlack,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              top: 10.0,
-                              left: 14.0,
-                            ),
-                            child: Text(
-                              '-- [--%]',
-                              style: GoogleFonts.urbanist(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? tWhite : tBlack,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  width: double.infinity,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color:
-                        isDark
-                            ? tGrey.withOpacity(0.3)
-                            : tGrey.withOpacity(0.1),
-                  ),
-                  child: Container(
-                    width: 0, // Empty during loading
-                    height: 20,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (!isEV) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.urbanist(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? tWhite : tBlack,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: faultColor,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Battery Fault',
-                            style: GoogleFonts.urbanist(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? tWhite : tBlack,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10.0, left: 14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '0 [0%]',
-                            style: GoogleFonts.urbanist(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? tWhite : tBlack,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // Empty bar (0% filled)
-          Container(
-            width: double.infinity,
-            height: 20,
-            decoration: BoxDecoration(
-              color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.1),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // EV Mode
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        /// 🔹 HEADING (STATIC)
+        Text(
+          title,
+          style: GoogleFonts.urbanist(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: isDark ? tWhite : tBlack,
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        /// 🔹 LABEL (STATIC)
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: tGrey,
+                borderRadius: BorderRadius.zero,
+              ),
+            ),
+            const SizedBox(width: 6),
             Text(
-              title,
+              'Fault',
               style: GoogleFonts.urbanist(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark ? tWhite : tBlack,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              '$batteryFaultCount',
+              style: GoogleFonts.urbanist(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
                 color: isDark ? tWhite : tBlack,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
 
-        if (batteryFaultCount == 0)
-          SizedBox(
-            height: 80,
-            child: Center(
-              child: Text(
-                'No Vehicle faults detected',
-                style: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.6)
-                          : tBlack.withOpacity(0.6),
-                ),
-              ),
-            ),
-          )
-        else ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: faultColor,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            ' Fault',
-                            style: GoogleFonts.urbanist(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? tWhite : tBlack,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 5.0, left: 14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            // '${NumberFormat('#,##,###').format(faultCount)} [100%]',
-                            '0',
-                            style: GoogleFonts.urbanist(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? tWhite : tBlack,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+        const SizedBox(height: 12),
 
-          // Full width bar (100% filled)
-          Container(
-            width: double.infinity,
-            height: 20,
-            decoration: BoxDecoration(
-              color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.1),
-            ),
-            child: Container(
-              width: double.infinity,
-              height: 20,
-              decoration: BoxDecoration(
-                color: faultColor,
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 6,
-                    spreadRadius: 2,
-                    color: faultColor.withOpacity(0.3),
-                  ),
-                ],
-              ),
-            ),
+        /// 🔹 BAR (STATIC LOGIC)
+        Container(
+          width: double.infinity,
+          height: 20,
+          decoration: BoxDecoration(
+            color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.2),
+            borderRadius: BorderRadius.zero,
           ),
-        ],
+          child:
+              hasValue
+                  ? Container(
+                    width: double.infinity,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: tGrey, // or use specific fault color if needed
+                      borderRadius: BorderRadius.zero,
+                    ),
+                  )
+                  : null, // 👈 empty → grey bar only
+        ),
       ],
     );
   }
-  // Widget _buildBatteryFaultBar(
-  //   double faultCount,
-  //   Color faultColor,
-  //   bool isDark,
-  // ) {
-  //   double totalAlerts = alertsModel?.totalAlerts?.toDouble() ?? 100.0;
-  //   double percentage =
-  //       totalAlerts > 0 ? (faultCount / totalAlerts).clamp(0.0, 1.0) : 0.0;
-
-  //   return Container(
-  //     width: double.infinity,
-  //     height: 26,
-  //     decoration: BoxDecoration(color: tTransparent),
-  //     child: TweenAnimationBuilder<double>(
-  //       tween: Tween<double>(begin: 0, end: percentage),
-  //       duration: const Duration(milliseconds: 800),
-  //       curve: Curves.easeInOut,
-  //       builder: (context, value, child) {
-  //         return Row(
-  //           children: [
-  //             Expanded(
-  //               flex: (value * 1000).toInt().clamp(1, 1000),
-  //               child: Container(
-  //                 decoration: BoxDecoration(
-  //                   color: faultColor,
-  //                   boxShadow: [
-  //                     BoxShadow(
-  //                       color: faultColor.withOpacity(0.4),
-  //                       blurRadius: 4,
-  //                       spreadRadius: 1,
-  //                     ),
-  //                   ],
-  //                 ),
-  //                 child: Tooltip(
-  //                   message:
-  //                       "Battery Fault: ${(percentage * 100).toStringAsFixed(1)}%",
-  //                   child: const SizedBox.expand(),
-  //                 ),
-  //               ),
-  //             ),
-  //             // Add empty space for the remaining percentage
-  //             Expanded(
-  //               flex: ((1 - value) * 1000).toInt().clamp(0, 1000),
-  //               child: Container(
-  //                 decoration: BoxDecoration(
-  //                   color:
-  //                       isDark
-  //                           ? tGrey.withOpacity(0.3)
-  //                           : tGrey.withOpacity(0.1),
-  //                 ),
-  //                 child: Tooltip(
-  //                   message:
-  //                       "No Fault: ${((1 - value) * 100).toStringAsFixed(1)}%",
-  //                   child: const SizedBox.expand(),
-  //                 ),
-  //               ),
-  //             ),
-  //           ],
-  //         );
-  //       },
-  //     ),
-  //   );
-  // }
-
-  // Widget _buildFaultLegendWithCount(
-  //   String label,
-  //   Color color,
-  //   double count,
-  //   bool isDark,
-  // ) {
-  //   return Container(
-  //     margin: const EdgeInsets.only(right: 12, bottom: 6),
-  //     child: Row(
-  //       mainAxisSize: MainAxisSize.min,
-  //       children: [
-  //         Container(
-  //           width: 12,
-  //           height: 12,
-  //           decoration: BoxDecoration(
-  //             color: color,
-  //             borderRadius: BorderRadius.circular(3),
-  //             boxShadow: [
-  //               BoxShadow(
-  //                 color: color.withOpacity(0.4),
-  //                 blurRadius: 4,
-  //                 spreadRadius: 1,
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //         const SizedBox(width: 6),
-  //         Text(
-  //           '$label [${count.toInt()}]',
-  //           style: GoogleFonts.urbanist(
-  //             fontSize: 11,
-  //             fontWeight: FontWeight.w500,
-  //             color: isDark ? tWhite : tBlack,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _buildAnimatedAlertsBar(
     Map<String, double> data,

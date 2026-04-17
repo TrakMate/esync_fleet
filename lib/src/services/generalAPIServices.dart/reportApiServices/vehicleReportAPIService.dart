@@ -174,7 +174,7 @@ class VehicleReportApiService {
     required BuildContext context,
     required String fromDate,
     required String toDate,
-    String? imei,
+    // String? imei,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -187,7 +187,7 @@ class VehicleReportApiService {
       String url = _buildUrl(
         fromDate: fromDate,
         toDate: toDate,
-        imei: imei,
+        // imei: imei,
         groupId: groupId,
         rangeDays: rangeDays,
         status: status,
@@ -205,9 +205,7 @@ class VehicleReportApiService {
 
       String fileName = 'vehicle_report_${fromDate}_to_${toDate}';
 
-      if (imei != null && imei.isNotEmpty) {
-        fileName += '_$imei';
-      } else if (groupId != null && groupId.isNotEmpty) {
+      if (groupId != null && groupId.isNotEmpty) {
         fileName += '_group_$groupId';
       }
 

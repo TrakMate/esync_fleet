@@ -87,7 +87,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
             ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: tBlue,
+                backgroundColor: tGreen8,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -101,7 +101,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
                 style: GoogleFonts.urbanist(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: tWhite,
+                  color: tBlack,
                 ),
               ),
             ),
@@ -119,7 +119,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
             /// FROM DATE
             Row(
               children: [
-                _dateLabelBox('From Date', isDark),
+                _dateLabelBox('From', isDark),
                 const SizedBox(width: 5),
                 _dateValueBox(
                   _formatDate(fromDate!),
@@ -144,7 +144,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
             /// TO DATE
             Row(
               children: [
-                _dateLabelBox('To Date', isDark),
+                _dateLabelBox('To', isDark),
                 const SizedBox(width: 5),
                 _dateValueBox(
                   _formatDate(toDate!),
@@ -192,7 +192,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
         text,
         style: GoogleFonts.urbanist(
           fontSize: 13,
-          color: tBlue,
+          color: isDark ? tWhite : tBlack,
           fontWeight: FontWeight.w600,
         ),
       ),

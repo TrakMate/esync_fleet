@@ -353,8 +353,8 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
                   child: DataTable(
                     headingRowColor: WidgetStateProperty.all(
                       isDark
-                          ? tBlue.withOpacity(0.15)
-                          : tBlue.withOpacity(0.05),
+                          ? tGreen8.withOpacity(0.15)
+                          : tGreen8.withOpacity(0.1),
                     ),
                     headingTextStyle: GoogleFonts.urbanist(
                       fontWeight: FontWeight.w700,

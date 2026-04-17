@@ -224,7 +224,7 @@ class _DeviceConfigInfoScreenState extends State<DeviceConfigInfoScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          flex: 5,
+          flex: 4,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,7 +358,7 @@ class _DeviceConfigInfoScreenState extends State<DeviceConfigInfoScreen> {
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: tBlue,
+                        backgroundColor: tGreen8,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(0),
                         ),
@@ -370,7 +370,7 @@ class _DeviceConfigInfoScreenState extends State<DeviceConfigInfoScreen> {
                       child: Text(
                         "Send",
                         style: GoogleFonts.urbanist(
-                          color: tWhite,
+                          color: tBlack,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -535,7 +535,7 @@ class _DeviceConfigInfoScreenState extends State<DeviceConfigInfoScreen> {
                       height: 35,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: tBlue,
+                          backgroundColor: tGreen8,
                           shape: RoundedRectangleBorder(),
                           padding: const EdgeInsets.symmetric(horizontal: 18),
                           elevation: 0,
@@ -548,7 +548,7 @@ class _DeviceConfigInfoScreenState extends State<DeviceConfigInfoScreen> {
                         child: Text(
                           "Send",
                           style: GoogleFonts.urbanist(
-                            color: tWhite,
+                            color: tBlack,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -839,7 +839,7 @@ class _DeviceConfigInfoScreenState extends State<DeviceConfigInfoScreen> {
           ),
         ),
         SizedBox(width: 15),
-        Expanded(flex: 5, child: _buildCommandLogTable(isDark)),
+        Expanded(flex: 6, child: _buildCommandLogTable(isDark)),
       ],
     );
   }

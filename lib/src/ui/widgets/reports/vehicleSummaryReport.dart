@@ -498,11 +498,11 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                 ),
                 const SizedBox(height: 10),
                 _searchField(isDark),
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
                 ElevatedButton(
                   onPressed: isLoading ? null : _downloadReport,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: tBlue,
+                    backgroundColor: tGreen8,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -540,7 +540,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                             style: GoogleFonts.urbanist(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: tWhite,
+                              color: tBlack,
                             ),
                           ),
                 ),
@@ -629,22 +629,22 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                 if (showStatusColors && isEVFleet != null && option != 'All') {
                   selectedColor = _statusColor(option, isEVFleet);
                 } else if (!showStatusColors) {
-                  selectedColor = tBlue; // For availability chips
+                  selectedColor = tGreen8; // For availability chips
                 }
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tWhite,
+                  checkmarkColor: tBlack,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
-                  selectedColor: selectedColor ?? tBlue,
+                  selectedColor: selectedColor ?? tGreen8,
                   backgroundColor:
                       isDark
                           ? tWhite.withOpacity(0.15)
@@ -1040,13 +1040,16 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                   });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: tBlue,
-                  foregroundColor: tWhite,
+                  backgroundColor: tGreen8,
+                  foregroundColor: tBlack,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text("Apply Filters"),
+                child: const Text(
+                  "Apply Filters",
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],

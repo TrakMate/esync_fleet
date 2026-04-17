@@ -1468,14 +1468,14 @@ class _TripsScreenState extends State<TripsScreen> {
           fetchTrips(); // refetch from backend
         },
         child: Container(
-          decoration: BoxDecoration(color: isSelected ? tBlue : tTransparent),
+          decoration: BoxDecoration(color: isSelected ? tGreen8 : tTransparent),
           alignment: Alignment.center,
           child: Text(
             label,
             style: GoogleFonts.urbanist(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
+              color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
             ),
           ),
         ),

@@ -338,7 +338,7 @@ class _BatteryreportState extends State<Batteryreport> {
               children: [
                 Row(
                   children: [
-                    _dateLabelBox('from', isDark),
+                    _dateLabelBox('From', isDark),
                     const SizedBox(width: 5),
                     _dateValueBox(
                       _formatDate(fromDate!),
@@ -403,11 +403,11 @@ class _BatteryreportState extends State<Batteryreport> {
             const SizedBox(height: 10),
             _searchField(isDark),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 10),
             ElevatedButton(
               onPressed: _downloadReport,
               style: ElevatedButton.styleFrom(
-                backgroundColor: tBlue,
+                backgroundColor: tGreen8,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -421,7 +421,7 @@ class _BatteryreportState extends State<Batteryreport> {
                 style: GoogleFonts.urbanist(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: tWhite,
+                  color: tBlack,
                 ),
               ),
             ),
@@ -444,7 +444,7 @@ class _BatteryreportState extends State<Batteryreport> {
         text,
         style: GoogleFonts.urbanist(
           fontSize: 13,
-          color: tBlue,
+          color: isDark ? tWhite : tBlack,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -718,21 +718,21 @@ class _BatteryreportState extends State<Batteryreport> {
                   color: isDark ? tWhite : tBlack,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
                     width: 1,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
                     width: 1,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
                     width: 1,
@@ -808,7 +808,7 @@ class _BatteryreportState extends State<Batteryreport> {
                                         isDark
                                             ? Colors.grey[800]
                                             : Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.zero,
                                   ),
                                   child: Text(
                                     "Group",
@@ -868,7 +868,7 @@ class _BatteryreportState extends State<Batteryreport> {
                 side: const BorderSide(color: Colors.grey),
                 avatar: CircleAvatar(
                   backgroundColor: Colors.grey[200],
-                  radius: 12,
+                  radius: 0,
                   child: Icon(Icons.group, size: 12, color: Colors.grey[700]),
                 ),
               );
@@ -998,17 +998,17 @@ class _BatteryreportState extends State<Batteryreport> {
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tWhite,
+                  checkmarkColor: tBlack,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
-                  selectedColor: tBlue,
+                  selectedColor: tGreen8,
                   backgroundColor:
                       isDark
                           ? tWhite.withOpacity(0.15)
@@ -1102,7 +1102,7 @@ class _BatteryreportState extends State<Batteryreport> {
                   });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: tBlue,
+                  backgroundColor: tGreen8,
                   foregroundColor: tWhite,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -1110,7 +1110,11 @@ class _BatteryreportState extends State<Batteryreport> {
                 ),
                 child: const Text(
                   "Apply Filters",
-                  style: TextStyle(color: tWhite),
+                  style: TextStyle(
+                    color: tBlack,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
