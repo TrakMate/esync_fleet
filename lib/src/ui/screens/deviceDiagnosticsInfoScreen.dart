@@ -1016,7 +1016,7 @@ class _DeviceDiagnosticsInfoScreenState
         children: [
           // SvgPicture.asset('icons/struck1.svg', width: 80, height: 80),
           Image.asset(
-            'images/Hero_lectro_Bike.png',
+            'images/Hero_Lectro_Bike.png',
             width: 100,
             height: 100,
             fit: BoxFit.contain,
@@ -1902,27 +1902,26 @@ class _DeviceDiagnosticsInfoScreenState
       );
     }
 
-    if (!showStatsGraphs) {
-      return buildButton("View More", () {
-        setState(() {
-          showStatsGraphs = true;
-        });
-      });
-    }
-
     if (hasNoData) {
-      return Column(
-        children: [
-          /// 🔹 View Less
-          buildButton("View Less", () {
-            setState(() {
-              showStatsGraphs = false;
-            });
-          }),
-        ],
-      );
+      if (!showStatsGraphs) {
+        return buildButton("View More", () {
+          setState(() {
+            showStatsGraphs = true;
+          });
+        });
+      } else {
+        // 👇 When expanded (Grafana links or anything)
+        return Column(
+          children: [
+            buildButton("View Less", () {
+              setState(() {
+                showStatsGraphs = false;
+              });
+            }),
+          ],
+        );
+      }
     }
-
     return Column(
       children: [
         Row(

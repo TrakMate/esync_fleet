@@ -1273,7 +1273,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
         children: [
           // SvgPicture.asset('icons/truck1.svg', width: 80, height: 80),
           Image.asset(
-            'images/Hero_lectro_Bike.png',
+            'images/Hero_Lectro_Bike.png',
             width: 100,
             height: 100,
             fit: BoxFit.contain,
