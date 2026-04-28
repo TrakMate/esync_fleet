@@ -12,9 +12,6 @@ class VehicleReportApiService {
   final String baseUrl = BaseURLConfig.reportsApiUrl + "/vehicle";
 
   Future<VehicleReportModel> fetchVehicleReports({
-    required String fromDate,
-    required String toDate,
-    String? imei,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -29,9 +26,6 @@ class VehicleReportApiService {
       }
 
       String url = _buildUrl(
-        fromDate: fromDate,
-        toDate: toDate,
-        imei: imei,
         groupId: groupId,
         rangeDays: rangeDays,
         status: status,
@@ -77,21 +71,11 @@ class VehicleReportApiService {
   }
 
   Future<VehicleReportModel> fetchRecentVehicleReports({
-    String? imei,
     String? groupId,
     String? status,
     String? availability,
   }) async {
-    final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-
-    String fromDate = _formatDate(sevenDaysAgo);
-    String toDate = _formatDate(now);
-
     return fetchVehicleReports(
-      fromDate: fromDate,
-      toDate: toDate,
-      imei: imei,
       groupId: groupId,
       rangeDays: 7,
       status: status,
@@ -100,9 +84,6 @@ class VehicleReportApiService {
   }
 
   String _buildUrl({
-    required String fromDate,
-    required String toDate,
-    String? imei,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -121,17 +102,6 @@ class VehicleReportApiService {
 
     Map<String, String> queryParams = {};
 
-    if (rangeDays == null || rangeDays <= 0) {
-      if (fromDate.isNotEmpty && toDate.isNotEmpty) {
-        queryParams["fromDate"] = fromDate;
-        queryParams["toDate"] = toDate;
-      }
-    }
-
-    if (imei != null && imei.isNotEmpty) {
-      queryParams["imei"] = imei;
-    }
-
     if (groupId != null && groupId.isNotEmpty) {
       queryParams["groupId"] = groupId;
     }
@@ -149,9 +119,6 @@ class VehicleReportApiService {
   }
 
   Future<String> getDownloadUrl({
-    required String fromDate,
-    required String toDate,
-    String? imei,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -159,9 +126,6 @@ class VehicleReportApiService {
     String? format,
   }) async {
     return _buildUrl(
-      fromDate: fromDate,
-      toDate: toDate,
-      imei: imei,
       groupId: groupId,
       rangeDays: rangeDays,
       status: status,
@@ -172,8 +136,6 @@ class VehicleReportApiService {
 
   Future<void> downloadReport({
     required BuildContext context,
-    required String fromDate,
-    required String toDate,
     // String? imei,
     String? groupId,
     int? rangeDays,
@@ -185,8 +147,6 @@ class VehicleReportApiService {
   }) async {
     try {
       String url = _buildUrl(
-        fromDate: fromDate,
-        toDate: toDate,
         // imei: imei,
         groupId: groupId,
         rangeDays: rangeDays,
@@ -195,7 +155,7 @@ class VehicleReportApiService {
         format: format,
       );
 
-      String fileExtension = format == 'xlsx' ? 'xlsx' : (format ?? 'csv');
+      String fileExtension = format == 'xlsx' ? 'xlsx' : (format ?? 'xlsx');
       String timestamp = DateTime.now()
           .toString()
           .split('.')
@@ -203,7 +163,7 @@ class VehicleReportApiService {
           .replaceAll(':', '-')
           .replaceAll(' ', '_');
 
-      String fileName = 'vehicle_report_${fromDate}_to_${toDate}';
+      String fileName = 'vehicle_report_${groupId}';
 
       if (groupId != null && groupId.isNotEmpty) {
         fileName += '_group_$groupId';
@@ -225,8 +185,8 @@ class VehicleReportApiService {
         context: context,
         url: url,
         fileName: fileName,
-        contentType: _getContentType(format ?? 'csv'),
-        format: format ?? 'csv',
+        contentType: _getContentType(format ?? 'xlsx'),
+        format: format ?? 'xlsx',
         onSuccess: onSuccess,
         onError: onError,
       );

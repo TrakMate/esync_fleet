@@ -43,7 +43,6 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
 
   String format = 'XLSX';
   String range = 'All';
-  String selectedFormat = 'csv';
 
   final List<String> formatOptions = ['Logs', 'XLSX', 'CSV', 'JSON', 'XML'];
 
@@ -210,31 +209,6 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     toDate = now;
   }
 
-  String _formatDate(DateTime date) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
-    return "${date.day.toString().padLeft(2, '0')} "
-        "${months[date.month - 1]} "
-        "${date.year}";
-  }
-
-  String _formatDateForApi(DateTime date) {
-    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-  }
-
   int _calculateRangeDays() {
     return selectedRangeDays ?? 0;
   }
@@ -246,12 +220,10 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     });
 
     try {
-      String fromDateApi = _formatDateForApi(DateTime.now());
-      String toDateApi = _formatDateForApi(DateTime.now());
       int rangeDays = _calculateRangeDays();
 
-      String? imei =
-          _selectedImeis.isNotEmpty ? _selectedImeis.join(',') : null;
+      // String? imei =
+      //     _selectedImeis.isNotEmpty ? _selectedImeis.join(',') : null;
       String? groupId =
           _selectedGroupIds.isNotEmpty ? _selectedGroupIds.join(',') : null;
 
@@ -264,8 +236,6 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
         // Using range days
         await vehicleReportApi.downloadReport(
           context: context,
-          fromDate: '',
-          toDate: '',
           // imei: imei,
           groupId: groupId,
           rangeDays: rangeDays,
@@ -308,8 +278,6 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
         // Using individual dates
         await vehicleReportApi.downloadReport(
           context: context,
-          fromDate: fromDateApi,
-          toDate: toDateApi,
           // imei: imei,
           groupId: groupId,
           rangeDays: rangeDays,
@@ -809,6 +777,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
   //     ],
   //   );
   // }
+
   Widget _searchField(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -916,61 +885,65 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
               alignment: Alignment.topLeft,
               child: Material(
                 elevation: 4,
-                color: isDark ? Colors.grey[900] : Colors.white,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: 200,
-                    maxWidth: MediaQuery.of(context).size.width * 0.8,
+                color: tTransparent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? tBlack : tWhite,
+                    border: Border.all(
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.5)
+                              : tBlack.withOpacity(0.5),
+                      width: 1,
+                    ),
+                    borderRadius: BorderRadius.circular(4), // optional
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      final option = options.elementAt(index);
-                      // Check if option is an IMEI (case-insensitive)
-                      final isImei = _imeis.any(
-                        (imei) => imei.toLowerCase() == option.toLowerCase(),
-                      );
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: 200,
+                      maxWidth: MediaQuery.of(context).size.width * 0.57,
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final option = options.elementAt(index);
 
-                      return InkWell(
-                        onTap: () => onSelected(option),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color:
-                                    isDark
-                                        ? tWhite.withOpacity(0.1)
-                                        : tBlack.withOpacity(0.1),
-                              ),
+                        return InkWell(
+                          onTap: () => onSelected(option),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              // Icon(
-                              //   isImei ? Icons.phone_android : Icons.group,
-                              //   size: 16,
-                              //   color: isDark ? tWhite : tBlack,
-                              // ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  option,
-                                  style: GoogleFonts.urbanist(
-                                    fontSize: 13,
-                                    color: isDark ? tWhite : tBlack,
-                                  ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color:
+                                      isDark
+                                          ? tWhite.withOpacity(0.1)
+                                          : tBlack.withOpacity(0.1),
                                 ),
                               ),
-                            ],
+                            ),
+                            child: Row(
+                              children: [
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    option,
+                                    style: GoogleFonts.urbanist(
+                                      fontSize: 13,
+                                      color: isDark ? tWhite : tBlack,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -1002,7 +975,6 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                 onDeleted: () {
                   setState(() {
                     _selectedGroupIds.remove(groupId);
-                    // Clear the search field when deleting group
                     _searchFieldController?.clear();
                   });
                 },

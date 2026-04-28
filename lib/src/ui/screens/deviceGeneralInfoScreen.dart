@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,7 @@ import '../../models/tripMAPModel.dart';
 import '../../provider/fleetModeProvider.dart';
 import '../../services/generalAPIServices.dart/deviceAPIServices/deviceGeneralInfoAPIService.dart';
 import '../../services/generalAPIServices.dart/deviceDetailsAPIService.dart';
+import '../../services/generalAPIServices.dart/tripsAPIService.dart';
 import '../../services/getAddressService.dart';
 import '../../utils/appColors.dart';
 import '../../utils/appLogger.dart';
@@ -36,6 +38,7 @@ import '../widgets/charts/deviceTripChart.dart';
 import '../widgets/charts/distanceSpeedchart.dart';
 import '../widgets/charts/doughnutChart.dart';
 import '../widgets/charts/speedDistanceChart.dart';
+import '../../models/tripRoutePlayBackModel.dart' as TripPlaybackModel;
 
 class DeviceGeneralInfoScreen extends StatefulWidget {
   final DeviceEntity device;
@@ -63,6 +66,24 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
   DeviceDetailsModel? deviceDetailsModel;
   final DeviceDetailsApiService _deviceDetailsApiService =
       DeviceDetailsApiService();
+
+  final TripsApiService _api = TripsApiService();
+
+  bool _isRouteLoading = false;
+  dynamic selectedTrip;
+
+  List<LatLng> _convertPlaybackDataToLatLng(List<TripPlaybackModel.Data> data) {
+    return data
+        .where(
+          (e) =>
+              e.lat != null &&
+              e.lng != null &&
+              e.lat!.isNotEmpty &&
+              e.lng!.isNotEmpty,
+        )
+        .map((e) => LatLng(double.parse(e.lat!), double.parse(e.lng!)))
+        .toList();
+  }
 
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
@@ -648,8 +669,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                     isDark,
                                     "Odometer (km)",
                                     format.format(
-                                      toDouble(deviceOverviewModel?.odometer) ??
-                                          0,
+                                      toDouble(deviceOverviewModel?.odometer),
                                     ),
                                     tBlueGradient2,
                                   ),
@@ -658,7 +678,11 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                   _buildInfoCard(
                                     isDark,
                                     "Operation Hours (hrs)",
-                                    "${summary?.totalOperationalDuration ?? 0}",
+                                    format.format(
+                                      toDouble(
+                                        summary?.totalOperationalDuration ?? 0,
+                                      ),
+                                    ),
                                     tRedGradient2,
                                   ),
                                 ],
@@ -2044,8 +2068,13 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
 
         String formatDate(String? iso) {
           if (iso == null || iso.isEmpty) return "-";
-          final dt = DateTime.parse(iso);
-          return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+
+          final utc = DateTime.parse(iso).toUtc();
+          final ist = utc.add(
+            const Duration(hours: 5, minutes: 30),
+          ); // convert to IST
+
+          return DateFormat('dd MMM yyyy, hh:mm a').format(ist);
         }
 
         String resolveTripStatus(int? status) {
@@ -2125,7 +2154,58 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                   final status = resolveTripStatus(
                                     trip.tripStatus,
                                   );
+                                  // return DataRow(
+                                  //   cells: [
+                                  //     DataCell(
+                                  //       Text(formatDate(trip.tripStartTime)),
+                                  //     ),
+                                  //     DataCell(
+                                  //       Text(formatDate(trip.tripEndTime)),
+                                  //     ),
+                                  //     DataCell(Text("${trip.totalTime} mins")),
+                                  //     DataCell(
+                                  //       Text(
+                                  //         "${trip.totalDistance?.toStringAsFixed(2)} kms",
+                                  //       ),
+                                  //     ),
+
+                                  //     // Status badge
+                                  //     DataCell(
+                                  //       Container(
+                                  //         padding: const EdgeInsets.symmetric(
+                                  //           vertical: 4,
+                                  //           horizontal: 12,
+                                  //         ),
+                                  //         decoration: BoxDecoration(
+                                  //           color: getStatusColor(
+                                  //             status,
+                                  //           ).withOpacity(0.15),
+                                  //           borderRadius: BorderRadius.circular(
+                                  //             6,
+                                  //           ),
+                                  //         ),
+                                  //         child: Text(
+                                  //           status,
+                                  //           style: GoogleFonts.urbanist(
+                                  //             color: getStatusColor(status),
+                                  //             fontWeight: FontWeight.bold,
+                                  //           ),
+                                  //         ),
+                                  //       ),
+                                  //     ),
+                                  //   ],
+                                  // );
                                   return DataRow(
+                                    color:
+                                        WidgetStateProperty.resolveWith<Color?>(
+                                          (states) {
+                                            if (selectedTrip?.id == trip.id) {
+                                              return tGreen8.withOpacity(0.05);
+                                            }
+                                            return null;
+                                          },
+                                        ),
+
                                     cells: [
                                       DataCell(
                                         Text(formatDate(trip.tripStartTime)),
@@ -2133,14 +2213,18 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                       DataCell(
                                         Text(formatDate(trip.tripEndTime)),
                                       ),
-                                      DataCell(Text("${trip.totalTime} mins")),
+                                      DataCell(
+                                        Text("${trip.totalTime ?? '--'} mins"),
+                                      ),
                                       DataCell(
                                         Text(
-                                          "${trip.totalDistance?.toStringAsFixed(2)} kms",
+                                          trip.totalDistance != null
+                                              ? "${trip.totalDistance!.toStringAsFixed(2)} kms"
+                                              : "--",
                                         ),
                                       ),
 
-                                      // Status badge
+                                      /// STATUS BADGE
                                       DataCell(
                                         Container(
                                           padding: const EdgeInsets.symmetric(
@@ -2163,6 +2247,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                             ),
                                           ),
                                         ),
+                                        onTap: () => _handleTripClick(trip),
                                       ),
                                     ],
                                   );
@@ -2177,6 +2262,75 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
 
               // No pagination required unless you need it later
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  String resolveTripStatus(dynamic status) {
+    switch (status) {
+      case 0:
+        return "Ongoing";
+      case 1:
+        return "Completed";
+      default:
+        return "Unknown";
+    }
+  }
+
+  Future<void> _handleTripClick(dynamic trip) async {
+    final status = resolveTripStatus(trip.tripStatus).toLowerCase();
+
+    if (status != "completed") return;
+
+    setState(() {
+      selectedTrip = trip;
+      _isRouteLoading = true;
+    });
+
+    final result = await _api.fetchTripRoutePlayback(trip.id!);
+
+    if (!mounted || result == null) {
+      setState(() => _isRouteLoading = false);
+      return;
+    }
+
+    final playbackData = result.data ?? [];
+    final points = _convertPlaybackDataToLatLng(playbackData);
+
+    setState(() {
+      _isRouteLoading = false;
+    });
+
+    _showTripPopup(context, trip, points, playbackData);
+  }
+
+  void _showTripPopup(
+    BuildContext context,
+    dynamic trip,
+    List<LatLng> points,
+    List<TripPlaybackModel.Data> _playbackData,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          backgroundColor: Colors.transparent,
+          child: Container(
+            height: 620,
+            width: 940,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TripPlaybackWidget(
+              trip: trip,
+              routePoints: points,
+              playbackData: _playbackData,
+            ),
           ),
         );
       },
@@ -2448,4 +2602,462 @@ class CrosshairPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class TripPlaybackWidget extends StatefulWidget {
+  final dynamic trip;
+  final List<LatLng> routePoints;
+  final List<TripPlaybackModel.Data> playbackData;
+  final bool isDark;
+
+  const TripPlaybackWidget({
+    super.key,
+    required this.trip,
+    required this.routePoints,
+    required this.playbackData,
+    this.isDark = false,
+  });
+
+  @override
+  State<TripPlaybackWidget> createState() => _TripPlaybackWidgetState();
+}
+
+class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
+  final MapController _mapController = MapController();
+
+  List<LatLng> completedPath = [];
+  List<LatLng> remainingPath = [];
+
+  LatLng? _movingMarker;
+  int _playIndex = 0;
+  bool _isPlaying = false;
+  Timer? _playTimer;
+  bool _isMapReady = false;
+  List<LatLng> _routePoints = [];
+  double _currentZoom = 17.0;
+  Entities? selectedTrip;
+
+  TripPlaybackModel.Data? _currentPlaybackData;
+
+  double _zoom = 16;
+  final int _tickMs = 750;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.routePoints.isNotEmpty) {
+      completedPath = [widget.routePoints.first];
+      remainingPath = List.from(widget.routePoints);
+      _movingMarker = widget.routePoints.first;
+    }
+
+    if (widget.playbackData.isNotEmpty) {
+      _currentPlaybackData = widget.playbackData.first;
+    }
+  }
+
+  void _togglePlayback() {
+    if (_isPlaying) {
+      _stopPlayback();
+    } else {
+      _startPlayback();
+    }
+  }
+
+  void _startPlayback() {
+    _playTimer?.cancel();
+
+    setState(() => _isPlaying = true);
+
+    _playTimer = Timer.periodic(Duration(milliseconds: _tickMs), (_) {
+      if (_playIndex < widget.routePoints.length - 1) {
+        setState(() {
+          _playIndex++;
+
+          _movingMarker = widget.routePoints[_playIndex];
+          _currentPlaybackData = widget.playbackData[_playIndex];
+
+          completedPath = widget.routePoints.sublist(0, _playIndex + 1);
+          remainingPath = widget.routePoints.sublist(_playIndex);
+
+          _mapController.move(_movingMarker!, _zoom);
+        });
+      } else {
+        _stopPlayback();
+      }
+    });
+  }
+
+  void _stopPlayback() {
+    _playTimer?.cancel();
+    setState(() => _isPlaying = false);
+  }
+
+  double _calculateBearing(LatLng from, LatLng to) {
+    final lat1 = from.latitude * pi / 180;
+    final lon1 = from.longitude * pi / 180;
+    final lat2 = to.latitude * pi / 180;
+    final lon2 = to.longitude * pi / 180;
+
+    final dLon = lon2 - lon1;
+
+    final y = sin(dLon) * cos(lat2);
+    final x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon);
+
+    double brng = atan2(y, x);
+    return (brng * 180 / pi + 360) % 360;
+  }
+
+  @override
+  void dispose() {
+    _playTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+
+    return Container(
+      height: double.infinity,
+      margin: const EdgeInsets.all(3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isDark ? tWhite.withOpacity(0.05) : tWhite,
+        boxShadow: [
+          BoxShadow(
+            color:
+                isDark
+                    ? Colors.black.withOpacity(0.4)
+                    : Colors.grey.withOpacity(0.2),
+            blurRadius: 10,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row (Title + Close)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "#${widget.trip.id ?? '--'}",
+                //"#${trip['tripNumber']}",
+                style: GoogleFonts.urbanist(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // ✅ closes popup
+                },
+                icon: Icon(
+                  CupertinoIcons.xmark_circle_fill,
+                  color: isDark ? tRed : Colors.redAccent,
+                  size: 22,
+                ),
+                tooltip: "Close",
+              ),
+            ],
+          ),
+
+          Divider(
+            color: isDark ? tWhite.withOpacity(0.2) : tBlack.withOpacity(0.1),
+            thickness: 0.5,
+          ),
+
+          // const SizedBox(height: 8),
+
+          // Buttons Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _buildStyledDetailButton(
+                () {},
+                "Download Trip",
+                CupertinoIcons.cloud_download,
+                isDark,
+              ),
+              const SizedBox(width: 10),
+              _buildStyledDetailButton(
+                () => _togglePlayback(),
+                _isPlaying ? "Stop Playback" : "Route Playback",
+                CupertinoIcons.play_arrow_solid,
+                isDark,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 5),
+
+          // Map placeholder
+          Expanded(
+            flex: 5,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color:
+                    isDark ? tWhite.withOpacity(0.1) : tBlack.withOpacity(0.1),
+              ),
+              padding: const EdgeInsets.all(2),
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter:
+                          widget.routePoints.isNotEmpty
+                              ? widget.routePoints.first
+                              : LatLng(0, 0),
+                      initialZoom: 13,
+
+                      onMapReady: () {
+                        if (widget.routePoints.length < 2) return;
+
+                        Future.delayed(const Duration(milliseconds: 200), () {
+                          _mapController.fitCamera(
+                            CameraFit.bounds(
+                              bounds: LatLngBounds.fromPoints(
+                                widget.routePoints,
+                              ),
+                              padding: const EdgeInsets.all(80),
+                              maxZoom: 16,
+                            ),
+                          );
+                        });
+                      },
+                    ),
+
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            isDark
+                                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        subdomains: const ['a', 'b', 'c'],
+                        userAgentPackageName: 'com.example.app',
+                      ),
+
+                      // Route polyline
+                      PolylineLayer(
+                        polylines: [
+                          if (completedPath.length > 1)
+                            Polyline(
+                              points: completedPath,
+                              strokeWidth: 6,
+                              color: tGreen8.withOpacity(0.6),
+                            ),
+
+                          if (remainingPath.length > 1)
+                            Polyline(
+                              points: remainingPath,
+                              strokeWidth: 6,
+                              color: tBlue,
+                            ),
+                        ],
+                      ),
+
+                      MarkerLayer(
+                        markers: [
+                          if (widget.routePoints.isNotEmpty)
+                            Marker(
+                              point: widget.routePoints.first,
+                              width: 20,
+                              height: 20,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.green.withOpacity(0.9),
+                                      blurRadius: 15,
+                                      spreadRadius: 4,
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: Colors.green,
+                                    width: 3,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.circle,
+                                  size: 10,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
+
+                          /// 🔴 END
+                          if (widget.routePoints.length > 1)
+                            Marker(
+                              point: widget.routePoints.last,
+                              width: 20,
+                              height: 20,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.9),
+                                      blurRadius: 15,
+                                      spreadRadius: 4,
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: Colors.red,
+                                    width: 3,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.circle,
+                                  size: 10,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+
+                          /// 🚗 MOVING
+                          if (_movingMarker != null)
+                            Marker(
+                              point: _movingMarker!,
+                              width: 40,
+                              height: 40,
+                              child: const Icon(
+                                Icons.navigation,
+                                color: Colors.blue,
+                                size: 28,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // SPEED & ODOMETER OVERLAY
+                  if (_currentPlaybackData != null)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              isDark
+                                  ? tBlack.withOpacity(0.7)
+                                  : tWhite.withOpacity(0.9),
+                          // borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: tBlack.withOpacity(0.25),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _mapInfoRow(
+                              "Speed",
+                              _currentPlaybackData!.speed ?? '0',
+                              isDark,
+                            ),
+                            const SizedBox(height: 4),
+                            _mapInfoRow(
+                              "Odo",
+                              _currentPlaybackData!.odo ?? '0',
+                              isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Playback progress / info
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Playback: ${_playIndex + 1}/${widget.playbackData.length}",
+                style: GoogleFonts.urbanist(fontSize: 13),
+              ),
+              Text(
+                widget.trip.startAddress ?? '', // trip['source'] ?? '',
+                style: GoogleFonts.urbanist(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStyledDetailButton(
+    VoidCallback onPressed,
+    String text,
+    IconData icon,
+    bool isDark,
+  ) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16, color: tGreen8),
+      label: Text(
+        text,
+        style: GoogleFonts.urbanist(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: tGreen8,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isDark ? tBlack : tWhite,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: tGreen8, width: 1),
+        ),
+        elevation: 0,
+      ),
+    );
+  }
+
+  Widget _mapInfoRow(String label, String value, bool isDark) {
+    return Row(
+      children: [
+        Text(
+          "$label: ",
+          style: GoogleFonts.urbanist(
+            fontSize: 11,
+            color: isDark ? Colors.white70 : Colors.black54,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.urbanist(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isDark ? tWhite : tBlack,
+          ),
+        ),
+      ],
+    );
+  }
 }

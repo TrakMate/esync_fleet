@@ -7,20 +7,20 @@ import '../../../services/generalAPIServices.dart/reportApiServices/reportsAPISe
 import '../../../utils/appColors.dart';
 import 'custom_Toast.dart';
 
-class Batteryreport extends StatefulWidget {
+class BatterySummaryreport extends StatefulWidget {
   final String title;
   final String description;
-  const Batteryreport({
+  const BatterySummaryreport({
     super.key,
     required this.title,
     required this.description,
   });
 
   @override
-  State<Batteryreport> createState() => _BatteryreportState();
+  State<BatterySummaryreport> createState() => _BatterySummaryreportState();
 }
 
-class _BatteryreportState extends State<Batteryreport> {
+class _BatterySummaryreportState extends State<BatterySummaryreport> {
   DateTime? fromDate;
   DateTime? toDate;
   bool isLoading = false;
@@ -476,6 +476,175 @@ class _BatteryreportState extends State<Batteryreport> {
     );
   }
 
+  // Widget _searchField(bool isDark) {
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.start,
+  //     children: [
+  //       /// SEARCH FIELD
+  //       Autocomplete<String>(
+  //         optionsBuilder: (TextEditingValue textEditingValue) {
+  //           if (textEditingValue.text.isEmpty) {
+  //             return const Iterable<String>.empty();
+  //           }
+
+  //           return [..._imeis, ..._groups.map((g) => g.name ?? '')].where(
+  //             (item) => item.toLowerCase().contains(
+  //               textEditingValue.text.toLowerCase(),
+  //             ),
+  //           );
+  //         },
+  //         onSelected: (selection) {
+  //           /// If IMEI selected
+  //           if (_imeis.contains(selection)) {
+  //             if (!_selectedImeis.contains(selection)) {
+  //               setState(() {
+  //                 _selectedGroupIds.clear();
+  //                 _selectedImeis.add(selection);
+  //               });
+  //             }
+  //           } else {
+  //             /// If Group selected
+  //             final group = _groups.firstWhere(
+  //               (g) => g.name == selection || g.id == selection,
+  //               orElse: () => Groups(),
+  //             );
+
+  //             if (group.id != null &&
+  //                 group.id!.isNotEmpty &&
+  //                 !_selectedGroupIds.contains(group.id)) {
+  //               setState(() {
+  //                 /// clear imeis when group selected
+  //                 _selectedImeis.clear();
+  //                 _selectedGroupIds.add(group.id!);
+  //               });
+  //             }
+  //           }
+
+  //           searchController.clear();
+  //           FocusScope.of(context).unfocus();
+  //         },
+  //         // fieldViewBuilder: (context, controller, focusNode, _) {
+  //         //   return TextField(
+  //         //     controller: controller,
+  //         //     focusNode: focusNode,
+  //         //     decoration: InputDecoration(
+  //         //       hintText: "Enter  IMEI",
+  //         //       hintStyle: GoogleFonts.urbanist(
+  //         //         fontSize: 13,
+  //         //         fontWeight: FontWeight.w500,
+  //         //         color:
+  //         //             isDark
+  //         //                 ? tWhite.withOpacity(0.6)
+  //         //                 : tBlack.withOpacity(0.6),
+  //         //       ),
+  //         //       prefixIcon: Icon(
+  //         //         Icons.search_outlined,
+  //         //         size: 18,
+  //         //         color: isDark ? tWhite : tBlack,
+  //         //       ),
+  //         //       border: OutlineInputBorder(
+  //         //         borderRadius: BorderRadius.circular(0),
+  //         //       ),
+  //         //     ),
+  //         //   );
+  //         // },
+  //         fieldViewBuilder: (context, controller, focusNode, _) {
+  //           return TextField(
+  //             controller: controller,
+  //             focusNode: focusNode,
+  //             cursorColor: isDark ? tWhite : tBlack, // ← Add this
+  //             style: GoogleFonts.urbanist(
+  //               fontSize: 13,
+  //               fontWeight: FontWeight.w500,
+  //               color: isDark ? tWhite : tBlack, // ← Add this
+  //             ),
+  //             decoration: InputDecoration(
+  //               hintText: "Enter IMEI",
+  //               hintStyle: GoogleFonts.urbanist(
+  //                 fontSize: 13,
+  //                 fontWeight: FontWeight.w500,
+  //                 color:
+  //                     isDark
+  //                         ? tWhite.withOpacity(0.6)
+  //                         : tBlack.withOpacity(0.6),
+  //               ),
+  //               prefixIcon: Icon(
+  //                 Icons.search_outlined,
+  //                 size: 18,
+  //                 color: isDark ? tWhite : tBlack,
+  //               ),
+  //               border: OutlineInputBorder(
+  //                 borderRadius: BorderRadius.circular(0),
+  //                 borderSide: BorderSide(
+  //                   // ← Add this
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 1,
+  //                 ),
+  //               ),
+  //               enabledBorder: OutlineInputBorder(
+  //                 // ← Add this
+  //                 borderRadius: BorderRadius.circular(0),
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 1,
+  //                 ),
+  //               ),
+  //               focusedBorder: OutlineInputBorder(
+  //                 // ← Add this
+  //                 borderRadius: BorderRadius.circular(0),
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 1,
+  //                 ),
+  //               ),
+  //             ),
+  //           );
+  //         },
+  //       ),
+
+  //       const SizedBox(height: 10),
+
+  //       /// SELECTED ITEMS DISPLAY
+  //       if (_selectedGroupIds.isNotEmpty || _selectedImeis.isNotEmpty)
+  //         Wrap(
+  //           spacing: 6,
+  //           runSpacing: 6,
+  //           children: [
+  //             /// GROUP CHIPS
+  //             ..._selectedGroupIds.map((groupId) {
+  //               final group = _groups.firstWhere(
+  //                 (g) => g.id == groupId,
+  //                 orElse: () => Groups(),
+  //               );
+
+  //               return Chip(
+  //                 label: Text(group.name ?? groupId),
+  //                 deleteIcon: const Icon(Icons.close, size: 16),
+  //                 onDeleted: () {
+  //                   setState(() {
+  //                     _selectedGroupIds.remove(groupId);
+  //                   });
+  //                 },
+  //               );
+  //             }),
+
+  //             /// IMEI CHIPS
+  //             ..._selectedImeis.map((imei) {
+  //               return Chip(
+  //                 label: Text(imei),
+  //                 deleteIcon: const Icon(Icons.close, size: 16),
+  //                 onDeleted: () {
+  //                   setState(() {
+  //                     _selectedImeis.remove(imei);
+  //                   });
+  //                 },
+  //               );
+  //             }),
+  //           ],
+  //         ),
+  //     ],
+  //   );
+  // }
   Widget _searchField(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,52 +652,46 @@ class _BatteryreportState extends State<Batteryreport> {
         /// SEARCH FIELD
         Autocomplete<String>(
           optionsBuilder: (TextEditingValue textEditingValue) {
-            final allOptions = _groups.map((g) => g.name ?? '').toList();
+            //final allOptions = [..._imeis, ..._groups.map((g) => g.name ?? '')];
+
             if (textEditingValue.text.isEmpty) {
-              return allOptions;
+              return _imeis;
             }
 
-            return allOptions.where(
+            return _imeis.where(
               (item) => item.toLowerCase().contains(
                 textEditingValue.text.toLowerCase(),
               ),
             );
           },
           onSelected: (selection) {
-            final matchedImei = _imeis.firstWhere(
-              (imei) => imei.toLowerCase() == selection.toLowerCase(),
-              orElse: () => '',
-            );
-
-            if (matchedImei.isNotEmpty) {
-              if (!_selectedImeis.contains(matchedImei)) {
+            if (_imeis.contains(selection)) {
+              if (!_selectedImeis.contains(selection)) {
                 setState(() {
                   _selectedGroupIds.clear();
-                  _selectedImeis.add(matchedImei);
+                  _selectedImeis.add(selection);
                 });
               }
             } else {
               final group = _groups.firstWhere(
-                (g) =>
-                    g.name?.toLowerCase() == selection.toLowerCase() ||
-                    g.id == selection,
+                (g) => g.name == selection || g.id == selection,
                 orElse: () => Groups(),
               );
 
               if (group.id != null && !_selectedGroupIds.contains(group.id)) {
                 setState(() {
-                  /// clear imeis when group selected
                   _selectedImeis.clear();
                   _selectedGroupIds.add(group.id!);
                 });
               }
             }
 
-            // Clear the search field
             _searchFieldController?.clear();
+            searchController.clear();
             FocusScope.of(context).unfocus();
           },
           fieldViewBuilder: (context, controller, focusNode, _) {
+            // Store reference to the controller
             _searchFieldController = controller;
             return TextField(
               controller: controller,
@@ -540,7 +703,7 @@ class _BatteryreportState extends State<Batteryreport> {
                 color: isDark ? tWhite : tBlack,
               ),
               decoration: InputDecoration(
-                hintText: "Enter Group Name ",
+                hintText: "Enter IMEI",
                 hintStyle: GoogleFonts.urbanist(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -555,21 +718,21 @@ class _BatteryreportState extends State<Batteryreport> {
                   color: isDark ? tWhite : tBlack,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
                     width: 1,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
                     width: 1,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
+                  borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
                     width: 1,
@@ -583,7 +746,6 @@ class _BatteryreportState extends State<Batteryreport> {
               alignment: Alignment.topLeft,
               child: Material(
                 elevation: 4,
-                // color: isDark ? tBlack : tWhite,
                 color: tTransparent, // important
                 child: Container(
                   decoration: BoxDecoration(
@@ -608,6 +770,8 @@ class _BatteryreportState extends State<Batteryreport> {
                       itemBuilder: (BuildContext context, int index) {
                         final option = options.elementAt(index);
 
+                        final bool isImei = _imeis.contains(option);
+
                         return InkWell(
                           onTap: () => onSelected(option),
                           child: Container(
@@ -627,7 +791,13 @@ class _BatteryreportState extends State<Batteryreport> {
                             ),
                             child: Row(
                               children: [
+                                // Icon(
+                                //   isImei ? Icons.phone_android : Icons.group,
+                                //   size: 16,
+                                //   color: isDark ? tWhite : tBlack,
+                                // ),
                                 const SizedBox(width: 8),
+                                // Option text
                                 Expanded(
                                   child: Text(
                                     option,
@@ -637,6 +807,30 @@ class _BatteryreportState extends State<Batteryreport> {
                                     ),
                                   ),
                                 ),
+                                //
+                                if (!isImei) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          isDark
+                                              ? Colors.grey[800]
+                                              : Colors.grey[200],
+                                      borderRadius: BorderRadius.zero,
+                                    ),
+                                    child: Text(
+                                      "Group",
+                                      style: GoogleFonts.urbanist(
+                                        fontSize: 10,
+                                        color: isDark ? tWhite : tBlack,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -685,6 +879,11 @@ class _BatteryreportState extends State<Batteryreport> {
                   fontSize: 12,
                 ),
                 side: const BorderSide(color: Colors.grey),
+                avatar: CircleAvatar(
+                  backgroundColor: Colors.grey[200],
+                  radius: 0,
+                  child: Icon(Icons.group, size: 12, color: Colors.grey[700]),
+                ),
               );
             }),
 
@@ -692,7 +891,6 @@ class _BatteryreportState extends State<Batteryreport> {
             ..._selectedImeis.map((imei) {
               return Chip(
                 label: Text(imei),
-                // deleteIcon: const Icon(Icons.close, size: 16),
                 deleteIcon: SvgPicture.asset(
                   'icons/cancel.svg',
                   width: 16,
@@ -711,7 +909,7 @@ class _BatteryreportState extends State<Batteryreport> {
                 deleteIconColor: Colors.grey,
                 labelStyle: TextStyle(
                   color: isDark ? tWhite : tBlack,
-                  fontSize: 13,
+                  fontSize: 12,
                 ),
                 side: const BorderSide(color: Colors.grey),
               );
@@ -721,267 +919,6 @@ class _BatteryreportState extends State<Batteryreport> {
       ],
     );
   }
-  // Widget _searchField(bool isDark) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       /// SEARCH FIELD
-  //       Autocomplete<String>(
-  //         optionsBuilder: (TextEditingValue textEditingValue) {
-  //           final allOptions = [..._groups.map((g) => g.name ?? '')];
-
-  //           if (textEditingValue.text.isEmpty) {
-  //             return allOptions;
-  //           }
-
-  //           return allOptions.where(
-  //             (item) => item.toLowerCase().contains(
-  //               textEditingValue.text.toLowerCase(),
-  //             ),
-  //           );
-  //         },
-  //         onSelected: (selection) {
-  //           if (_imeis.contains(selection)) {
-  //             if (!_selectedImeis.contains(selection)) {
-  //               setState(() {
-  //                 _selectedGroupIds.clear();
-  //                 _selectedImeis.add(selection);
-  //               });
-  //             }
-  //           } else {
-  //             final group = _groups.firstWhere(
-  //               (g) => g.name == selection || g.id == selection,
-  //               orElse: () => Groups(),
-  //             );
-
-  //             if (group.id != null && !_selectedGroupIds.contains(group.id)) {
-  //               setState(() {
-  //                 _selectedImeis.clear();
-  //                 _selectedGroupIds.add(group.id!);
-  //               });
-  //             }
-  //           }
-
-  //           _searchFieldController?.clear();
-  //           searchController.clear();
-  //           FocusScope.of(context).unfocus();
-  //         },
-  //         fieldViewBuilder: (context, controller, focusNode, _) {
-  //           // Store reference to the controller
-  //           _searchFieldController = controller;
-  //           return TextField(
-  //             controller: controller,
-  //             focusNode: focusNode,
-  //             cursorColor: isDark ? tWhite : tBlack,
-  //             style: GoogleFonts.urbanist(
-  //               fontSize: 13,
-  //               fontWeight: FontWeight.w500,
-  //               color: isDark ? tWhite : tBlack,
-  //             ),
-  //             decoration: InputDecoration(
-  //               hintText: "Enter Group name",
-  //               hintStyle: GoogleFonts.urbanist(
-  //                 fontSize: 13,
-  //                 fontWeight: FontWeight.w500,
-  //                 color:
-  //                     isDark
-  //                         ? tWhite.withOpacity(0.6)
-  //                         : tBlack.withOpacity(0.6),
-  //               ),
-  //               prefixIcon: Icon(
-  //                 Icons.search_outlined,
-  //                 size: 18,
-  //                 color: isDark ? tWhite : tBlack,
-  //               ),
-  //               border: OutlineInputBorder(
-  //                 borderRadius: BorderRadius.zero,
-  //                 borderSide: BorderSide(
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //               enabledBorder: OutlineInputBorder(
-  //                 borderRadius: BorderRadius.zero,
-  //                 borderSide: BorderSide(
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //               focusedBorder: OutlineInputBorder(
-  //                 borderRadius: BorderRadius.zero,
-  //                 borderSide: BorderSide(
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //             ),
-  //           );
-  //         },
-  //         optionsViewBuilder: (context, onSelected, options) {
-  //           return Align(
-  //             alignment: Alignment.topLeft,
-  //             child: Material(
-  //               elevation: 4,
-  //               color: isDark ? Colors.grey[900] : Colors.white,
-  //               child: ConstrainedBox(
-  //                 constraints: BoxConstraints(
-  //                   maxHeight: 200,
-  //                   maxWidth: MediaQuery.of(context).size.width * 0.8,
-  //                 ),
-  //                 child: ListView.builder(
-  //                   shrinkWrap: true,
-  //                   itemCount: options.length,
-  //                   itemBuilder: (BuildContext context, int index) {
-  //                     final option = options.elementAt(index);
-
-  //                     final bool isImei = _imeis.contains(option);
-
-  //                     return InkWell(
-  //                       onTap: () => onSelected(option),
-  //                       child: Container(
-  //                         padding: const EdgeInsets.symmetric(
-  //                           horizontal: 16,
-  //                           vertical: 12,
-  //                         ),
-  //                         decoration: BoxDecoration(
-  //                           border: Border(
-  //                             bottom: BorderSide(
-  //                               color:
-  //                                   isDark
-  //                                       ? tWhite.withOpacity(0.1)
-  //                                       : tBlack.withOpacity(0.1),
-  //                             ),
-  //                           ),
-  //                         ),
-  //                         child: Row(
-  //                           children: [
-  //                             // Icon(
-  //                             //   isImei ? Icons.phone_android : Icons.group,
-  //                             //   size: 16,
-  //                             //   color: isDark ? tWhite : tBlack,
-  //                             // ),
-  //                             const SizedBox(width: 8),
-  //                             // Option text
-  //                             Expanded(
-  //                               child: Text(
-  //                                 option,
-  //                                 style: GoogleFonts.urbanist(
-  //                                   fontSize: 13,
-  //                                   color: isDark ? tWhite : tBlack,
-  //                                 ),
-  //                               ),
-  //                             ),
-  //                             //
-  //                             if (!isImei) ...[
-  //                               const SizedBox(width: 4),
-  //                               Container(
-  //                                 padding: const EdgeInsets.symmetric(
-  //                                   horizontal: 6,
-  //                                   vertical: 2,
-  //                                 ),
-  //                                 decoration: BoxDecoration(
-  //                                   color:
-  //                                       isDark
-  //                                           ? Colors.grey[800]
-  //                                           : Colors.grey[200],
-  //                                   borderRadius: BorderRadius.zero,
-  //                                 ),
-  //                                 child: Text(
-  //                                   "Group",
-  //                                   style: GoogleFonts.urbanist(
-  //                                     fontSize: 10,
-  //                                     color: isDark ? tWhite : tBlack,
-  //                                   ),
-  //                                 ),
-  //                               ),
-  //                             ],
-  //                           ],
-  //                         ),
-  //                       ),
-  //                     );
-  //                   },
-  //                 ),
-  //               ),
-  //             ),
-  //           );
-  //         },
-  //       ),
-  //       const SizedBox(height: 10),
-
-  //       /// SELECTED IMEIs and GROUPS
-  //       Wrap(
-  //         spacing: 6,
-  //         runSpacing: 6,
-  //         children: [
-  //           /// GROUP CHIPS
-  //           ..._selectedGroupIds.map((groupId) {
-  //             final group = _groups.firstWhere(
-  //               (g) => g.id == groupId,
-  //               orElse: () => Groups(),
-  //             );
-
-  //             return Chip(
-  //               label: Text(group.name ?? groupId),
-  //               deleteIcon: SvgPicture.asset(
-  //                 'icons/cancel.svg',
-  //                 width: 16,
-  //                 height: 16,
-  //                 colorFilter: ColorFilter.mode(Colors.grey, BlendMode.srcIn),
-  //               ),
-  //               onDeleted: () {
-  //                 setState(() {
-  //                   _selectedGroupIds.remove(groupId);
-  //                   _searchFieldController?.clear();
-  //                 });
-  //               },
-  //               backgroundColor:
-  //                   isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.1),
-  //               deleteIconColor: Colors.grey,
-  //               labelStyle: TextStyle(
-  //                 color: isDark ? tWhite : tBlack,
-  //                 fontSize: 12,
-  //               ),
-  //               side: const BorderSide(color: Colors.grey),
-  //               avatar: CircleAvatar(
-  //                 backgroundColor: Colors.grey[200],
-  //                 radius: 0,
-  //                 child: Icon(Icons.group, size: 12, color: Colors.grey[700]),
-  //               ),
-  //             );
-  //           }),
-
-  //           /// IMEI CHIPS
-  //           ..._selectedImeis.map((imei) {
-  //             return Chip(
-  //               label: Text(imei),
-  //               deleteIcon: SvgPicture.asset(
-  //                 'icons/cancel.svg',
-  //                 width: 16,
-  //                 height: 16,
-  //                 colorFilter: ColorFilter.mode(Colors.grey, BlendMode.srcIn),
-  //               ),
-  //               onDeleted: () {
-  //                 setState(() {
-  //                   _selectedImeis.remove(imei);
-  //                   // Clear the search field when deleting IMEI
-  //                   _searchFieldController?.clear();
-  //                 });
-  //               },
-  //               backgroundColor:
-  //                   isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.1),
-  //               deleteIconColor: Colors.grey,
-  //               labelStyle: TextStyle(
-  //                 color: isDark ? tWhite : tBlack,
-  //                 fontSize: 12,
-  //               ),
-  //               side: const BorderSide(color: Colors.grey),
-  //             );
-  //           }),
-  //         ],
-  //       ),
-  //     ],
-  //   );
-  // }
   // Widget _chipSection({
   //   required String title,
   //   required List<String> options,

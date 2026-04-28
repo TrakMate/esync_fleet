@@ -68,4 +68,15 @@ class DevicesCRUDApiService {
       throw Exception(response.body);
     }
   }
+
+  Future<void> deleteDevice(String imei) async {
+    final response = await http.delete(
+      Uri.parse("${BaseURLConfig.devicesDeleteApiUrl}/$imei"),
+      headers: {"Authorization": "Bearer ${await _token()}"},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(response.body);
+    }
+  }
 }

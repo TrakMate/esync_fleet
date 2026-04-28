@@ -123,39 +123,40 @@ class DownloadService {
         throw Exception("Download failed: HTTP ${response.statusCode}");
       }
 
-      final jsonData = json.decode(response.body);
+      // final jsonData = json.decode(response.body);
+      final bytes = response.bodyBytes;
 
-      late dynamic contentToDownload;
-      bool isBinary = false;
+      // late dynamic contentToDownload;
+      // bool isBinary = false;
 
-      switch (format.toLowerCase()) {
-        case 'csv':
-          contentToDownload = _convertJsonToCsv(jsonData);
-          break;
-        case 'json':
-          contentToDownload = _convertJsonToJson(jsonData);
-          break;
-        case 'xml':
-          contentToDownload = _convertJsonToXml(jsonData);
-          break;
-        case 'xlsx':
-          contentToDownload = _convertJsonToXlsx(jsonData);
-          isBinary = true;
-          break;
-        case 'logs':
-          contentToDownload = _convertJsonToLogs(jsonData);
-          break;
-        default:
-          contentToDownload = json.encode(jsonData);
-      }
+      // switch (format.toLowerCase()) {
+      //   case 'csv':
+      //     contentToDownload = _convertJsonToCsv(jsonData);
+      //     break;
+      //   case 'json':
+      //     contentToDownload = _convertJsonToJson(jsonData);
+      //     break;
+      //   case 'xml':
+      //     contentToDownload = _convertJsonToXml(jsonData);
+      //     break;
+      //   case 'xlsx':
+      //     contentToDownload = _convertJsonToXlsx(jsonData);
+      //     isBinary = true;
+      //     break;
+      //   case 'logs':
+      //     contentToDownload = _convertJsonToLogs(jsonData);
+      //     break;
+      //   default:
+      //     contentToDownload = json.encode(jsonData);
+      // }
 
-      Uint8List bytes;
+      // Uint8List bytes;
 
-      if (isBinary) {
-        bytes = Uint8List.fromList(contentToDownload);
-      } else {
-        bytes = Uint8List.fromList(utf8.encode(contentToDownload));
-      }
+      // if (isBinary) {
+      //   bytes = Uint8List.fromList(contentToDownload);
+      // } else {
+      //   bytes = Uint8List.fromList(utf8.encode(contentToDownload));
+      // }
 
       await FileSaver.instance.saveFile(
         name: fileName.split('.').first,

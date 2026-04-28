@@ -32,15 +32,14 @@ class Battery {
   String? time;
   double? voltage;
   double? current;
-  int? soc;
+  double? soc;
   int? soh;
-  int? cycleCount;
+  double? cycleCount;
   String? chargingStatus;
   double? odometer;
-  double? temperature;
+  int? temperature;
   double? energyConsumption;
   double? distanceEmpty;
-  String? ignition;
   double? cell1;
   double? cell2;
   double? cell3;
@@ -78,8 +77,8 @@ class Battery {
   double? tempSensor5;
   double? tempSensor6;
   double? tempSensor7;
-  double? vcc;
-  double? tcc;
+  int? vCC;
+  int? nTC;
 
   Battery({
     this.time,
@@ -93,7 +92,6 @@ class Battery {
     this.temperature,
     this.energyConsumption,
     this.distanceEmpty,
-    this.ignition,
     this.cell1,
     this.cell2,
     this.cell3,
@@ -131,8 +129,8 @@ class Battery {
     this.tempSensor5,
     this.tempSensor6,
     this.tempSensor7,
-    this.vcc,
-    this.tcc,
+    this.vCC,
+    this.nTC,
   });
 
   Battery.fromJson(Map<String, dynamic> json) {
@@ -147,7 +145,6 @@ class Battery {
     temperature = json['temperature'];
     energyConsumption = json['energy_consumption'];
     distanceEmpty = json['distance_empty'];
-    ignition = json['ignition'];
     cell1 = json['Cell_1'];
     cell2 = json['Cell_2'];
     cell3 = json['Cell_3'];
@@ -169,15 +166,15 @@ class Battery {
     cell19 = json['Cell_19'];
     cell20 = json['Cell_20'];
     cell21 = json['Cell_21'];
-    cell22 = (json['Cell_22'] as num?)?.toDouble();
-    cell23 = (json['Cell_23'] as num?)?.toDouble();
-    cell24 = (json['Cell_24'] as num?)?.toDouble();
-    cell25 = (json['Cell_25'] as num?)?.toDouble();
-    cell26 = (json['Cell_26'] as num?)?.toDouble();
-    cell27 = (json['Cell_27'] as num?)?.toDouble();
-    cell28 = (json['Cell_28'] as num?)?.toDouble();
-    cell29 = (json['Cell_29'] as num?)?.toDouble();
-    cell30 = (json['Cell_30'] as num?)?.toDouble();
+    cell22 = json['Cell_22'];
+    cell23 = json['Cell_23'];
+    cell24 = json['Cell_24'];
+    cell25 = json['Cell_25'];
+    cell26 = json['Cell_26'];
+    cell27 = json['Cell_27'];
+    cell28 = json['Cell_28'];
+    cell29 = json['Cell_29'];
+    cell30 = json['Cell_30'];
     tempSensor1 = json['TempSensor_1'];
     tempSensor2 = json['TempSensor_2'];
     tempSensor3 = json['TempSensor_3'];
@@ -185,8 +182,8 @@ class Battery {
     tempSensor5 = json['TempSensor_5'];
     tempSensor6 = json['TempSensor_6'];
     tempSensor7 = json['TempSensor_7'];
-    vcc = json['VCC'];
-    tcc = json['TCC'];
+    vCC = json['VCC'];
+    nTC = json['NTC'];
   }
 
   Map<String, dynamic> toJson() {
@@ -202,7 +199,6 @@ class Battery {
     data['temperature'] = this.temperature;
     data['energy_consumption'] = this.energyConsumption;
     data['distance_empty'] = this.distanceEmpty;
-    data['ignition'] = this.ignition;
     data['Cell_1'] = this.cell1;
     data['Cell_2'] = this.cell2;
     data['Cell_3'] = this.cell3;
@@ -240,8 +236,8 @@ class Battery {
     data['TempSensor_5'] = this.tempSensor5;
     data['TempSensor_6'] = this.tempSensor6;
     data['TempSensor_7'] = this.tempSensor7;
-    data['VCC'] = this.vcc;
-    data['TCC'] = this.tcc;
+    data['VCC'] = this.vCC;
+    data['NTC'] = this.nTC;
     return data;
   }
 }
@@ -258,8 +254,8 @@ class Location {
   int? fuelLevel;
   int? rpm;
   String? pto;
-  double? speed;
-  Null? adblue;
+  int? speed;
+  double? adblue;
 
   Location({
     this.time,

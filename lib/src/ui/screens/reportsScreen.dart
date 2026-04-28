@@ -6,6 +6,7 @@ import '../../utils/appResponsive.dart';
 import '../components/customTitleBar.dart';
 import '../widgets/reports/alertsReport.dart';
 import '../widgets/reports/batteryReport.dart';
+import '../widgets/reports/batterySummaryReport.dart';
 import '../widgets/reports/miscellaneousReport.dart';
 import '../widgets/reports/tripsReport.dart';
 import '../widgets/reports/vehicleSummaryReport.dart';
@@ -52,7 +53,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ReportCardModel(
       title: 'Vehicle Summary\nReport',
       description: 'Daily summary of vehicle status, movement, and activity.',
-      icon: 'icons/summary.svg',
+      icon: 'icons/vehicle_summary.svg',
       bgColor: Colors.purpleAccent.withOpacity(0.1),
       iconColor: Colors.purpleAccent,
     ),
@@ -66,7 +67,30 @@ class _ReportsScreenState extends State<ReportsScreen> {
       iconColor: tGreen,
     ),
 
-    // 4. Alerts Report
+    // 4. Battery Report
+    ReportCardModel(
+      title: 'Battery\nReport',
+      description:
+          'Detailed battery metrics and performance data across all vehicles (IMEIs), including voltage, health status, and usage trends.',
+
+      icon: 'icons/battery.svg',
+      bgColor: tOrange1.withOpacity(0.1),
+      iconColor: tOrange1,
+    ),
+
+    //5 Battery Summary Report
+    ReportCardModel(
+      title: 'Battery Summary\nReport',
+      description:
+          'Overview of battery performance, health, and usage for a selected vehicle (IMEI).',
+      icon: 'icons/battery_summary.svg',
+      // bgColor: Colors.deepPurple.withOpacity(0.1),
+      // iconColor: Colors.deepPurple,
+      bgColor: tGreen5.withOpacity(0.1),
+      iconColor: tGreen5,
+    ),
+
+    // 6. Alerts Report
     ReportCardModel(
       title: 'Alerts\nReport',
       description: 'Summary of different alerts triggered from vehicles.',
@@ -74,26 +98,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
       bgColor: tRed.withOpacity(0.1),
       iconColor: tRed,
     ),
-
-    //5 Battery Report
-    ReportCardModel(
-      title: 'Battery\nReport',
-      description:
-          'Detailed report of battery metrics including voltage, health status, and usage trends.',
-
-      icon: 'icons/battery.svg',
-      bgColor: tOrange1.withOpacity(0.1),
-      iconColor: tOrange1,
-    ),
-
-    // 6. Geofence Alerts Report
-    // ReportCardModel(
-    //   title: 'Geofence Alerts\nReport',
-    //   description: 'Entry/Exit alerts inside configured geofence zones.',
-    //   icon: 'icons/geofence.svg',
-    //   bgColor: tOrange.withOpacity(0.1),
-    //   iconColor: tOrange,
-    // ),
 
     // 7. Miscellaneous Report
     ReportCardModel(
@@ -138,18 +142,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
         );
 
       case 3:
-        return AlertsReportView(
-          title: card.title.replaceAll('\n', ' '),
-          description: card.description,
-        );
-
-      case 4:
         return Batteryreport(
           title: card.title.replaceAll('\n', ' '),
           description: card.description,
         );
 
+      case 4:
+        return BatterySummaryreport(
+          title: card.title.replaceAll('\n', ' '),
+          description: card.description,
+        );
       case 5:
+        return AlertsReportView(
+          title: card.title.replaceAll('\n', ' '),
+          description: card.description,
+        );
+
+      case 6:
         return MiscellaneousReportView(
           title: card.title.replaceAll('\n', ' '),
           description: card.description,
@@ -211,7 +220,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: 15,
         mainAxisSpacing: 15,
-        childAspectRatio: 0.65, // Adjust card height/width
+        childAspectRatio: 0.6, // Adjust card height/width
       ),
       itemCount: reportCards.length,
       itemBuilder: (context, index) {

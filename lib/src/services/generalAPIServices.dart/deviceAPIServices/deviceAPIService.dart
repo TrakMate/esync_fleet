@@ -82,7 +82,6 @@ class DevicesApiService {
         'Content-Type': 'application/json',
       },
     );
-    print("URL: $uri");
 
     if (response.statusCode == 200) {
       return DevicesModel.fromJson(jsonDecode(response.body));

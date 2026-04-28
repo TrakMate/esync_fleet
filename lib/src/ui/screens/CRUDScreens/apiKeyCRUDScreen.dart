@@ -685,6 +685,29 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
                     width: 0.8,
                   ),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? tWhite : tBlack,
+                    width: 0.8,
+                  ),
+                ),
+
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? tWhite : tBlack,
+                    width: 1.2, // slightly thicker when focused
+                  ),
+                ),
+
+                disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color:
+                        isDark
+                            ? tWhite.withOpacity(0.4)
+                            : tBlack.withOpacity(0.4),
+                    width: 0.8,
+                  ),
+                ),
               ),
               onSubmitted: (value) {
                 final int? p = int.tryParse(value);
@@ -694,6 +717,7 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
                 }
                 _pageController.clear();
               },
+              cursorColor: isDark ? tWhite : tBlack,
             ),
           ),
 
@@ -753,112 +777,124 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
             borderRadius: BorderRadius.circular(14),
           ),
           backgroundColor: isDark ? tBlack : tWhite,
-          child: SizedBox(
+          child: Container(
             width: 420,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  /// Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: tBlue.withOpacity(0.15),
-                          // shape: BoxShape.circle,
-                          borderRadius: BorderRadius.circular(10),
+            decoration: BoxDecoration(
+              color: isDark ? tBlack : tWhite,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color:
+                    isDark ? Colors.white.withOpacity(0.7) : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: SizedBox(
+              width: 420,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    /// Header
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: tGreen8.withOpacity(0.15),
+                            // shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.vpn_key_rounded,
+                            color: tGreen8,
+                            size: 22,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.vpn_key_rounded,
-                          color: tBlue,
-                          size: 22,
+                        const SizedBox(width: 12),
+                        Text(
+                          'Create API Key',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? tWhite : tBlack,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Create API Key',
-                        style: GoogleFonts.urbanist(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? tWhite : tBlack,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  /// Description
-                  Text(
-                    'Do you want to create a new API key? '
-                    'This key will be shown only once. '
-                    'Make sure to copy and store it securely.',
-                    style: GoogleFonts.urbanist(
-                      fontSize: 13,
-                      height: 1.5,
-                      fontWeight: FontWeight.w500,
-                      color:
-                          isDark
-                              ? tWhite.withOpacity(0.7)
-                              : tBlack.withOpacity(0.7),
+                      ],
                     ),
-                  ),
 
-                  const SizedBox(height: 26),
+                    const SizedBox(height: 14),
 
-                  /// Actions
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      /// Cancel
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.urbanist(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color:
-                                isDark
-                                    ? tWhite.withOpacity(0.7)
-                                    : tBlack.withOpacity(0.7),
-                          ),
-                        ),
+                    /// Description
+                    Text(
+                      'Do you want to create a new API key? '
+                      'This key will be shown only once. '
+                      'Make sure to copy and store it securely.',
+                      style: GoogleFonts.urbanist(
+                        fontSize: 13,
+                        height: 1.5,
+                        fontWeight: FontWeight.w500,
+                        color:
+                            isDark
+                                ? tWhite.withOpacity(0.7)
+                                : tBlack.withOpacity(0.7),
                       ),
+                    ),
 
-                      const SizedBox(width: 10),
+                    const SizedBox(height: 26),
 
-                      /// Create
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: tBlue,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
+                    /// Actions
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        /// Cancel
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text(
+                            'Cancel',
+                            style: GoogleFonts.urbanist(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color:
+                                  isDark
+                                      ? tWhite.withOpacity(0.7)
+                                      : tBlack.withOpacity(0.7),
+                            ),
                           ),
                         ),
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await _createApiKey();
-                        },
-                        child: Text(
-                          'Create',
-                          style: GoogleFonts.urbanist(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: tWhite,
+
+                        const SizedBox(width: 10),
+
+                        /// Create
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: tGreen8,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          onPressed: () async {
+                            Navigator.of(context).pop();
+                            await _createApiKey();
+                          },
+                          child: Text(
+                            'Create',
+                            style: GoogleFonts.urbanist(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: tWhite,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

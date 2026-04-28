@@ -146,7 +146,7 @@ class _TripsReportViewState extends State<TripsReportView> {
           _selectedGroupIds.isNotEmpty ? _selectedGroupIds.join(',') : null;
 
       String? statusParam = availability;
-      String formatParam = format.isNotEmpty ? format.toLowerCase() : 'csv';
+      String formatParam = format.toLowerCase();
 
       final tripReportApi = TripReportApiService();
 
@@ -856,64 +856,78 @@ class _TripsReportViewState extends State<TripsReportView> {
               alignment: Alignment.topLeft,
               child: Material(
                 elevation: 4,
-                color: isDark ? Colors.grey[900] : Colors.white,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: 200,
-                    maxWidth: MediaQuery.of(context).size.width * 0.8,
+                // color: isDark ? Colors.grey[900] : Colors.white,
+                color: tTransparent, // important
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? tBlack : tWhite,
+                    border: Border.all(
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.5)
+                              : tBlack.withOpacity(0.5),
+                      width: 1,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      final option = options.elementAt(index);
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: 200,
+                      maxWidth: MediaQuery.of(context).size.width * 0.57,
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final option = options.elementAt(index);
 
-                      // Check if this option is an IMEI (case-insensitive)
-                      final bool isImei = _imeis.any(
-                        (imei) =>
-                            imei.trim().toLowerCase() ==
-                            option.trim().toLowerCase(),
-                      );
+                        // Check if this option is an IMEI (case-insensitive)
+                        final bool isImei = _imeis.any(
+                          (imei) =>
+                              imei.trim().toLowerCase() ==
+                              option.trim().toLowerCase(),
+                        );
 
-                      return InkWell(
-                        onTap: () => onSelected(option),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color:
-                                    isDark
-                                        ? tWhite.withOpacity(0.1)
-                                        : tBlack.withOpacity(0.1),
-                              ),
+                        return InkWell(
+                          onTap: () => onSelected(option),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              // Icon(
-                              //   isImei ? Icons.phone_android : Icons.group,
-                              //   size: 16,
-                              //   color: isDark ? tWhite : tBlack,
-                              // ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  option,
-                                  style: GoogleFonts.urbanist(
-                                    fontSize: 13,
-                                    color: isDark ? tWhite : tBlack,
-                                  ),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(
+                                  color:
+                                      isDark
+                                          ? tWhite.withOpacity(0.1)
+                                          : tBlack.withOpacity(0.1),
                                 ),
                               ),
-                            ],
+                            ),
+                            child: Row(
+                              children: [
+                                // Icon(
+                                //   isImei ? Icons.phone_android : Icons.group,
+                                //   size: 16,
+                                //   color: isDark ? tWhite : tBlack,
+                                // ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    option,
+                                    style: GoogleFonts.urbanist(
+                                      fontSize: 13,
+                                      color: isDark ? tWhite : tBlack,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),

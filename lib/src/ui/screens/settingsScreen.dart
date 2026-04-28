@@ -21,55 +21,104 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final List<String> _tabs = [
-    'My Profile',
-    'Users',
-    'Groups',
-    'API Key',
-    'Devices',
-    'Commands',
-  ];
+  // final List<String> _tabs = [
+  //   'My Profile',
+  //   'Users',
+  //   'Groups',
+  //   'API Key',
+  //   'Devices',
+  //   'Commands',
+  // ];
+  List<String> _tabs = [];
 
   int selectedIndex = 0; // <-- Added selected index
 
   String? _fullname;
   String? _role;
   String? _username;
+  String? _phoneNumber;
+  String? _orgName;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
     // convert route string to index
+    // selectedIndex = _tabToIndex(widget.initialTab);
+  }
+
+  // int _tabToIndex(String name) {
+  //   switch (name) {
+  //     case 'profile':
+  //       return 0;
+  //     case 'users':
+  //       return 1;
+  //     case 'groups':
+  //       return 2;
+  //     case 'apikey':
+  //       return 3;
+  //     case 'devices':
+  //       return 4;
+  //     case 'commands':
+  //       return 5;
+  //     default:
+  //       return 0;
+  //   }
+  // }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final role = prefs.getString('role') ?? 'VIEWER';
+
+    _fullname = prefs.getString('fullname') ?? 'User';
+    _role = role;
+    _username = prefs.getString('username') ?? 'guest.user';
+    _phoneNumber =
+        (prefs.getString('Phone') ?? '').isEmpty
+            ? '-- --'
+            : prefs.getString('Phone')!;
+    _orgName = prefs.getString('Organisation') ?? '--';
+
+    if (role == "VIEWER") {
+      _tabs = ['My Profile', 'Devices'];
+    } else if (role == "ADMIN") {
+      _tabs = [
+        'My Profile',
+        'Users',
+        'Groups',
+        'API Key',
+        'Devices',
+        'Commands',
+      ];
+    } else {
+      _tabs = ['My Profile', 'Users', 'Groups', 'API Key', 'Organisation'];
+    }
+
     selectedIndex = _tabToIndex(widget.initialTab);
+
+    setState(() {});
   }
 
   int _tabToIndex(String name) {
     switch (name) {
       case 'profile':
-        return 0;
+        return _tabs.indexOf('My Profile');
       case 'users':
-        return 1;
+        return _tabs.indexOf('Users');
       case 'groups':
-        return 2;
+        return _tabs.indexOf('Groups');
       case 'apikey':
-        return 3;
+        return _tabs.indexOf('API Key');
       case 'devices':
-        return 4;
+        return _tabs.indexOf('Devices');
       case 'commands':
-        return 5;
+        return _tabs.indexOf('Commands');
+      case 'organisation':
+        return _tabs.indexOf('Organisation');
       default:
         return 0;
     }
-  }
-
-  Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _fullname = prefs.getString('fullname') ?? 'User';
-      _role = prefs.getString('role') ?? 'Guest';
-      _username = prefs.getString('username') ?? 'guest.user';
-    });
   }
 
   @override
@@ -254,20 +303,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildDetailRow("Name", _fullname ?? 'Guest User', isDark),
                 SizedBox(height: 12),
 
-                _buildDetailRow(
-                  "Mail ID",
-                  "hero.motors@esync.hero.co.in",
-                  isDark,
-                ),
+                _buildDetailRow("Mail ID", "-- --", isDark),
                 SizedBox(height: 12),
 
-                _buildDetailRow("Phone Number", "+91 727626", isDark),
+                _buildDetailRow("Phone Number", _phoneNumber ?? "-", isDark),
                 SizedBox(height: 12),
 
                 _buildDetailRow("Role", _role ?? 'Guest', isDark),
                 SizedBox(height: 12),
 
-                _buildDetailRow("Organization", "Hero ESYNC Company", isDark),
+                _buildDetailRow("Organization", _orgName ?? '--', isDark),
               ],
             ),
           ],
@@ -275,7 +320,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         SizedBox(height: 20),
 
-        // 🔹 Professional Note Container
         Container(
           decoration: BoxDecoration(
             color: tRedDark.withOpacity(0.1),

@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../utils/appColors.dart';
 
-Future<void> showGroupConfirmDeleteDialog({
+Future<void> showDeviceConfirmDeleteDialog({
   required BuildContext context,
   required String title,
   required String message,

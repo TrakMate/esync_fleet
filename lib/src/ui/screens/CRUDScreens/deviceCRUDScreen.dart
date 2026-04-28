@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:typed_data';
 import 'dart:ui';
+import 'package:excel/excel.dart' as excel;
+import 'package:file_saver/file_saver.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -10,6 +14,8 @@ import '../../../services/CRUDServices/devicesCRUDService.dart';
 import '../../../services/CRUDServices/groupsCRUDService.dart';
 import '../../../utils/appColors.dart';
 import '../../forms/devices/deviceCreateUpdateForm.dart';
+import '../../forms/devices/deviceDeleteDialog.dart';
+import '../../widgets/reports/custom_Toast.dart';
 
 class DevicesCRUDScreen extends StatefulWidget {
   const DevicesCRUDScreen({super.key});
@@ -21,7 +27,7 @@ class DevicesCRUDScreen extends StatefulWidget {
 class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
   final ScrollController _horizontalController = ScrollController();
   final ScrollController _verticalController = ScrollController();
-
+  String? _role;
   int page = 1;
   int sizePerPage = 10;
 
@@ -36,12 +42,16 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
   List<Entities> filteredallDevices = [];
   List<GroupEntity> groups = [];
   final DevicesCRUDApiService _devicesApiService = DevicesCRUDApiService();
+  final TextEditingController _searchController = TextEditingController();
   final _apiService = GroupsApiService();
 
   final List<int> pageSizeOptions = [10, 25, 50, 100];
   String orgType = '';
   int currentIndex = 0;
   String? selectedGroup;
+  List<Entities> allDevices = [];
+  String searchText = '';
+  Timer? _debounce;
 
   bool isGroupsLoading = false;
 
@@ -64,6 +74,21 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     await _reloadDevices();
   }
 
+  void _filterDevices(String query) {
+    final lowerQuery = query.toLowerCase();
+
+    setState(() {
+      filteredallDevices =
+          allDevices.where((device) {
+            final imei = device.imei?.toLowerCase() ?? '';
+            final vehiclemodel = device.vehicleModel?.toLowerCase() ?? '';
+
+            return imei.contains(lowerQuery) ||
+                vehiclemodel.contains(lowerQuery);
+          }).toList();
+    });
+  }
+
   String formatDate(String? rawDate) {
     if (rawDate == null || rawDate.isEmpty) return "--";
     try {
@@ -74,7 +99,33 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     }
   }
 
-  /// ---------- FIXED RELOAD DEVICES LOGIC ----------
+  String cleanExcelText(dynamic value) {
+    if (value == null) return "--";
+
+    String text = value.toString();
+
+    text = text.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]'), '');
+
+    return text;
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return "--";
+
+    try {
+      if (date is DateTime) {
+        return "${date.day}-${date.month}-${date.year}";
+      } else {
+        final parsed = DateTime.tryParse(date.toString());
+        if (parsed != null) {
+          return "${parsed.day}-${parsed.month}-${parsed.year}";
+        }
+      }
+    } catch (_) {}
+
+    return "--";
+  }
+
   Future<void> _reloadDevices() async {
     if (!mounted) return;
 
@@ -275,69 +326,86 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                 ),
                 Row(
                   children: [
-                    _addNewDeviceButton(isDark),
+                    // _addNewDeviceButton(isDark),
+                    if (_role != "VIEWER") _addNewDeviceButton(isDark),
                     const SizedBox(width: 10),
-                    Container(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white10 : Colors.grey.shade100,
-                        border: Border.all(
-                          color: isDark ? Colors.white24 : Colors.black12,
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          value: sizePerPage,
-                          icon: Icon(
-                            Icons.expand_more_rounded,
-                            size: 20,
-                            color:
-                                isDark
-                                    ? tWhite.withOpacity(0.8)
-                                    : Colors.grey.shade700,
-                          ),
-                          dropdownColor:
-                              isDark ? tBlack.withOpacity(0.95) : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          style: GoogleFonts.urbanist(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? tWhite : Colors.black87,
-                          ),
-                          items:
-                              pageSizeOptions
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
-                                      child: Text(
-                                        "$s / page",
-                                        style: GoogleFonts.urbanist(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color:
-                                              isDark ? tWhite : Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (v) async {
-                            if (v == null) return;
-                            if (!mounted) return;
 
-                            setState(() {
-                              sizePerPage = v;
-                              currentPage = 1;
-                              currentIndex = 0;
-                              isLoading = true;
-                            });
+                    // Container(
+                    //   height: 42,
+                    //   padding: const EdgeInsets.symmetric(horizontal: 12),
+                    //   decoration: BoxDecoration(
+                    //     color: isDark ? Colors.white10 : Colors.grey.shade100,
+                    //     border: Border.all(
+                    //       color: isDark ? Colors.white24 : Colors.black12,
+                    //     ),
+                    //   ),
+                    //   child: DropdownButtonHideUnderline(
+                    //     child: DropdownButton<int>(
+                    //       value: sizePerPage,
+                    //       icon: Icon(
+                    //         Icons.expand_more_rounded,
+                    //         size: 20,
+                    //         color:
+                    //             isDark
+                    //                 ? tWhite.withOpacity(0.8)
+                    //                 : Colors.grey.shade700,
+                    //       ),
+                    //       dropdownColor:
+                    //           isDark ? tBlack.withOpacity(0.95) : Colors.white,
+                    //       borderRadius: BorderRadius.circular(10),
+                    //       style: GoogleFonts.urbanist(
+                    //         fontSize: 14,
+                    //         fontWeight: FontWeight.w500,
+                    //         color: isDark ? tWhite : Colors.black87,
+                    //       ),
+                    //       items:
+                    //           pageSizeOptions
+                    //               .map(
+                    //                 (s) => DropdownMenuItem(
+                    //                   value: s,
+                    //                   child: Text(
+                    //                     "$s / page",
+                    //                     style: GoogleFonts.urbanist(
+                    //                       fontSize: 14,
+                    //                       fontWeight: FontWeight.w600,
+                    //                       color:
+                    //                           isDark ? tWhite : Colors.black87,
+                    //                     ),
+                    //                   ),
+                    //                 ),
+                    //               )
+                    //               .toList(),
+                    //       onChanged: (v) async {
+                    //         if (v == null) return;
+                    //         if (!mounted) return;
 
-                            await _reloadDevices();
-                          },
-                        ),
-                      ),
-                    ),
+                    //         setState(() {
+                    //           sizePerPage = v;
+                    //           currentPage = 1;
+                    //           currentIndex = 0;
+                    //           isLoading = true;
+                    //         });
+
+                    //         await _reloadDevices();
+                    //       },
+                    //     ),
+                    //   ),
+                    // ),
+                    _downloadButton(isDark),
+                  ],
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildFilterBySearch(isDark),
+                    // _downloadButton(isDark),
                   ],
                 ),
               ],
@@ -723,86 +791,121 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                               DataCell(Text(d.vehicleModel ?? '--')),
                               DataCell(Text(d.dealerCode ?? '--')),
                               // ACTION BUTTONS
-                              DataCell(
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: SvgPicture.asset(
-                                        'icons/edit.svg',
-                                        height: 20,
-                                        width: 20,
-                                        color: tBlue,
-                                      ),
-                                      onPressed:
-                                          isLoading
-                                              ? null
-                                              : () {
-                                                showDeviceCreateUpdateDialog(
-                                                  context: context,
-                                                  title: "Update Device",
-                                                  confirmText: "Update",
-                                                  initialImei: d.imei ?? "",
-                                                  initialVehicleNo: d.vehicleNo,
-                                                  initialDeviceType:
-                                                      d.deviceType ?? "NON_EV",
-                                                  initialBatteryNo: d.batteryNo,
-                                                  initialGroupId:
-                                                      d.groupDetails?.id,
-                                                  initialVehicleModel:
-                                                      d.vehicleModel,
-                                                  initialDealerCode:
-                                                      d.dealerCode,
-                                                  initialRtoNumber: d.rtoNumber,
-                                                  initialFgCode: d.fgCode,
-                                                  allGroups: groups,
-                                                  onConfirm: ({
-                                                    required String imei,
-                                                    required String vehicleNo,
-                                                    required String deviceType,
-                                                    required String batteryNo,
-                                                    required String group,
-                                                    required String
-                                                    vehicleModel,
-                                                    required String dealerCode,
-                                                    required String rtoNumber,
-                                                    required String fgCode,
-                                                  }) async {
-                                                    await _devicesApiService
-                                                        .updateDevice(imei, {
-                                                          "imei": imei,
-                                                          "vehicleNo":
-                                                              vehicleNo,
-                                                          "deviceType":
-                                                              deviceType,
-                                                          if (deviceType !=
-                                                              "NON_EV")
-                                                            "batteryNo":
-                                                                batteryNo,
-                                                          "group": group,
-                                                          "vehicleModel":
-                                                              vehicleModel,
-                                                          "dealerCode":
-                                                              dealerCode,
-                                                          "rtoNumber":
-                                                              rtoNumber,
-                                                          "fgCode": fgCode,
-                                                          "org": d.org,
-                                                          "product": d.product,
-                                                          "hwver": d.hwver,
-                                                          "fwver": d.fwver,
-                                                          "simno": d.simno,
-                                                          "createdDate":
-                                                              d.createdDate,
-                                                        });
+                              if (_role != "VIEWER")
+                                DataCell(
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        icon: SvgPicture.asset(
+                                          'icons/edit.svg',
+                                          height: 20,
+                                          width: 20,
+                                          color: tBlue,
+                                        ),
+                                        onPressed:
+                                            isLoading
+                                                ? null
+                                                : () {
+                                                  showDeviceCreateUpdateDialog(
+                                                    context: context,
+                                                    title: "Update Device",
+                                                    confirmText: "Update",
+                                                    initialImei: d.imei ?? "",
+                                                    initialVehicleNo:
+                                                        d.vehicleNo,
+                                                    initialDeviceType:
+                                                        d.deviceType ??
+                                                        "NON_EV",
+                                                    initialBatteryNo:
+                                                        d.batteryNo,
+                                                    initialGroupId:
+                                                        d.groupDetails?.id,
+                                                    initialVehicleModel:
+                                                        d.vehicleModel,
+                                                    initialDealerCode:
+                                                        d.dealerCode,
+                                                    initialRtoNumber:
+                                                        d.rtoNumber,
+                                                    initialFgCode: d.fgCode,
+                                                    allGroups: groups,
+                                                    onConfirm: ({
+                                                      required String imei,
+                                                      required String vehicleNo,
+                                                      required String
+                                                      deviceType,
+                                                      required String batteryNo,
+                                                      required String group,
+                                                      required String
+                                                      vehicleModel,
+                                                      required String
+                                                      dealerCode,
+                                                      required String rtoNumber,
+                                                      required String fgCode,
+                                                    }) async {
+                                                      await _devicesApiService
+                                                          .updateDevice(imei, {
+                                                            "imei": imei,
+                                                            "vehicleNo":
+                                                                vehicleNo,
+                                                            "deviceType":
+                                                                deviceType,
+                                                            if (deviceType !=
+                                                                "NON_EV")
+                                                              "batteryNo":
+                                                                  batteryNo,
+                                                            "group": group,
+                                                            "vehicleModel":
+                                                                vehicleModel,
+                                                            "dealerCode":
+                                                                dealerCode,
+                                                            "rtoNumber":
+                                                                rtoNumber,
+                                                            "fgCode": fgCode,
+                                                            "org": d.org,
+                                                            "product":
+                                                                d.product,
+                                                            "hwver": d.hwver,
+                                                            "fwver": d.fwver,
+                                                            "simno": d.simno,
+                                                            "createdDate":
+                                                                d.createdDate,
+                                                          });
 
-                                                    await _reloadDevices();
-                                                  },
-                                                );
-                                              },
-                                    ),
-                                  ],
+                                                      await _reloadDevices();
+                                                    },
+                                                  );
+                                                },
+                                      ),
+                                      IconButton(
+                                        icon: SvgPicture.asset(
+                                          'icons/delete.svg',
+                                          height: 22,
+                                          width: 22,
+                                          color: tRed,
+                                        ),
+                                        onPressed:
+                                            isLoading
+                                                ? null
+                                                : () {
+                                                  showDeviceConfirmDeleteDialog(
+                                                    context: context,
+                                                    title: "Delete Device",
+                                                    message:
+                                                        'Are you sure you want to delete "${d.imei}"?\n'
+                                                        'All related data may be affected.',
+                                                    onConfirm: () async {
+                                                      await _devicesApiService
+                                                          .deleteDevice(
+                                                            d.imei!,
+                                                          );
+                                                      _reloadDevices();
+                                                    },
+                                                  );
+                                                },
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
                             ],
                           );
                         }).toList(),
@@ -993,6 +1096,29 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                     width: 0.8,
                   ),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? tWhite : tBlack,
+                    width: 0.8,
+                  ),
+                ),
+
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? tWhite : tBlack,
+                    width: 1.2, // slightly thicker when focused
+                  ),
+                ),
+
+                disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color:
+                        isDark
+                            ? tWhite.withOpacity(0.4)
+                            : tBlack.withOpacity(0.4),
+                    width: 0.8,
+                  ),
+                ),
               ),
               onSubmitted: (value) async {
                 final p = int.tryParse(value);
@@ -1007,6 +1133,7 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                   await _reloadDevices();
                 }
               },
+              cursorColor: isDark ? tWhite : tBlack,
             ),
           ),
 
@@ -1093,5 +1220,191 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
         ],
       ),
     ),
+  );
+
+  Widget _downloadButton(bool isDark) => Container(
+    height: 40,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    decoration: BoxDecoration(color: isDark ? tWhite : tBlack),
+    child: TextButton(
+      onPressed: () async {
+        try {
+          CustomToast.show(
+            context: context,
+            message: "Downloading devices...",
+            type: ToastType.loading,
+          );
+          final result = await _devicesApiService.fetchDevices(
+            page: 1,
+            sizePerPage: totalCount == 0 ? 1000 : totalCount,
+          );
+
+          final devices = result.entities ?? [];
+
+          var excelFile = excel.Excel.createExcel();
+
+          excelFile.delete('Sheet1');
+          excel.Sheet sheet = excelFile['Devices'];
+          excelFile.setDefaultSheet('Devices');
+          sheet.appendRow([
+            excel.TextCellValue("IMEI"),
+            excel.TextCellValue("Device Type"),
+            excel.TextCellValue("Vehicle No"),
+            excel.TextCellValue("Battery No"),
+            excel.TextCellValue("ORG"),
+            excel.TextCellValue("Created Date"),
+            excel.TextCellValue("GROUP"),
+            excel.TextCellValue("SIM No"),
+            excel.TextCellValue("PRODUCT"),
+            excel.TextCellValue("FWVER"),
+            excel.TextCellValue("HWVER"),
+            excel.TextCellValue("VEHICLE MODEL"),
+            excel.TextCellValue("DEALER CODE"),
+            excel.TextCellValue("RTO Number"),
+            excel.TextCellValue("FG Code"),
+
+            excel.TextCellValue("ORG NAME"),
+            excel.TextCellValue("ID"),
+          ]);
+          for (var d in devices) {
+            sheet.appendRow([
+              excel.TextCellValue(cleanExcelText(d.imei)),
+              excel.TextCellValue(cleanExcelText(d.deviceType)),
+              excel.TextCellValue(cleanExcelText(d.vehicleNo)),
+              excel.TextCellValue(cleanExcelText(d.batteryNo)),
+              excel.TextCellValue(cleanExcelText(d.org)),
+              excel.TextCellValue(cleanExcelText(_formatDate(d.createdDate))),
+              excel.TextCellValue(cleanExcelText(d.group)),
+              excel.TextCellValue(cleanExcelText(d.simno)),
+              excel.TextCellValue(cleanExcelText(d.product)),
+              excel.TextCellValue(cleanExcelText(d.fwver)),
+              excel.TextCellValue(cleanExcelText(d.hwver)),
+              excel.TextCellValue(cleanExcelText(d.vehicleModel)),
+
+              excel.TextCellValue(cleanExcelText(d.dealerCode)),
+              excel.TextCellValue(cleanExcelText(d.rtoNumber)),
+              excel.TextCellValue(cleanExcelText(d.orgName)),
+              excel.TextCellValue(cleanExcelText(d.id)),
+            ]);
+          }
+
+          final fileBytes = excelFile.encode();
+
+          if (fileBytes != null) {
+            final uint8List = Uint8List.fromList(fileBytes);
+
+            await FileSaver.instance.saveFile(
+              name: "Devices_${DateTime.now().millisecondsSinceEpoch}",
+              bytes: uint8List,
+              ext: "xlsx",
+              mimeType: MimeType.microsoftExcel,
+            );
+            CustomToast.show(
+              context: context,
+              message: "Devices downloaded successfully",
+              type: ToastType.success,
+            );
+          }
+        } catch (e) {
+          print("Download Error: $e");
+          CustomToast.show(
+            context: context,
+            message: "Download failed",
+            type: ToastType.error,
+          );
+        }
+      },
+
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Download',
+            style: GoogleFonts.urbanist(
+              fontSize: 13,
+              color: isDark ? tBlack : tWhite,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Icon(
+            Icons.download_rounded,
+            size: 18,
+            color: isDark ? tBlack : tWhite,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildFilterBySearch(bool isDark) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 200,
+        height: 40,
+        decoration: BoxDecoration(
+          color: tTransparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: (value) {
+            _filterDevices(value);
+            if (_debounce?.isActive ?? false) _debounce!.cancel();
+            _debounce = Timer(const Duration(milliseconds: 500), () {
+              searchText = value;
+              currentPage = 1;
+              _reloadDevices();
+            });
+          },
+          style: GoogleFonts.urbanist(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: isDark ? tWhite : tBlack,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Search...',
+            hintStyle: GoogleFonts.urbanist(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: isDark ? tWhite.withOpacity(0.6) : tBlack.withOpacity(0.6),
+            ),
+
+            prefixIcon: Icon(
+              Icons.search,
+              size: 20,
+              color: isDark ? tWhite : tBlack,
+            ),
+
+            filled: true,
+            fillColor: tTransparent,
+
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(0),
+              borderSide: BorderSide(color: isDark ? tWhite : tBlack, width: 1),
+            ),
+
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(0),
+              borderSide: BorderSide(color: isDark ? tWhite : tBlack, width: 2),
+            ),
+
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(0)),
+          ),
+        ),
+      ),
+
+      const SizedBox(height: 5),
+
+      Text(
+        '(Note: Search by IMEI or Model)',
+        style: GoogleFonts.urbanist(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: isDark ? tWhite.withOpacity(0.6) : tBlack.withOpacity(0.6),
+        ),
+      ),
+    ],
   );
 }

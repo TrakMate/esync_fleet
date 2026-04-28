@@ -21,6 +21,8 @@ class BaseURLConfig {
 
   static const String devicesApiUrl = '$baseURL/api/device?';
 
+  static const String devicesDeleteApiUrl = '$baseURL/api/device';
+
   // dashboard all details
   static const String dashboardApiUrl = '$baseURL/api/dashboard/summary';
 

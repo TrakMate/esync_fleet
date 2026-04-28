@@ -28,12 +28,19 @@ Future<void> showSendCommandDialog({
       return StatefulBuilder(
         builder: (context, setState) {
           return Dialog(
-            backgroundColor: isDark ? tBlack : tWhite,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: SizedBox(
+            child: Container(
               width: 520,
+              decoration: BoxDecoration(
+                color: isDark ? tBlack : tWhite,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color:
+                      isDark
+                          ? Colors.white.withOpacity(0.7)
+                          : Colors.transparent,
+                  width: 2,
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -46,10 +53,10 @@ Future<void> showSendCommandDialog({
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: tBlue.withOpacity(0.15),
+                            color: tGreen8.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Icon(Icons.terminal, color: tBlue),
+                          child: Icon(Icons.terminal, color: tGreen8),
                         ),
                         const SizedBox(width: 12),
                         Text(
@@ -99,14 +106,11 @@ Future<void> showSendCommandDialog({
                                 cmd,
                                 style: GoogleFonts.urbanist(
                                   fontWeight: FontWeight.w600,
-                                  color:
-                                      isSelected
-                                          ? (isDark ? tBlack : tWhite)
-                                          : tBlue,
+                                  color: isSelected ? (tWhite) : tGreen8,
                                 ),
                               ),
-                              selectedColor: tBlue.withOpacity(0.9),
-                              backgroundColor: tBlue.withOpacity(0.12),
+                              selectedColor: tGreen8.withOpacity(0.9),
+                              backgroundColor: tGreen8.withOpacity(0.12),
                               onSelected: (_) {
                                 setState(() {
                                   selectedCommand = cmd;
@@ -132,13 +136,42 @@ Future<void> showSendCommandDialog({
                     const SizedBox(height: 6),
 
                     TextField(
+                      cursorColor: isDark ? tWhite : tBlack,
                       controller: customCommandCtrl,
                       enabled: !isLoading,
                       style: GoogleFonts.urbanist(fontSize: 14),
                       decoration: InputDecoration(
                         hintText: "Enter custom command",
+
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color:
+                                isDark ? tWhite : tBlack, // white in dark mode
+                            width: 1,
+                          ),
+                        ),
+
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.red),
+                        ),
+
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.red),
                         ),
                       ),
                       onChanged: (_) {
@@ -173,7 +206,7 @@ Future<void> showSendCommandDialog({
 
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: tBlue,
+                            backgroundColor: tGreen8,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 22,
                               vertical: 12,
@@ -354,13 +387,13 @@ Widget _groupSelectorSingle(
               return ChoiceChip(
                 selected: isSelected,
                 showCheckmark: true,
-                checkmarkColor: isDark ? tBlack : tWhite,
+                checkmarkColor: tWhite,
                 label: Text(
                   g.name ?? '',
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? (isDark ? tBlack : tWhite) : baseColor,
+                    color: isSelected ? tWhite : baseColor,
                   ),
                 ),
                 backgroundColor: baseColor.withOpacity(0.12),

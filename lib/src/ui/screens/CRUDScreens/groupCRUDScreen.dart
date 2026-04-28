@@ -668,6 +668,29 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
                     width: 0.8,
                   ),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? tWhite : tBlack,
+                    width: 0.8,
+                  ),
+                ),
+
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? tWhite : tBlack,
+                    width: 1.2, // slightly thicker when focused
+                  ),
+                ),
+
+                disabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color:
+                        isDark
+                            ? tWhite.withOpacity(0.4)
+                            : tBlack.withOpacity(0.4),
+                    width: 0.8,
+                  ),
+                ),
               ),
               onSubmitted: (value) {
                 final int? p = int.tryParse(value);
@@ -677,6 +700,7 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
                 }
                 _pageController.clear();
               },
+              cursorColor: isDark ? tWhite : tBlack,
             ),
           ),
 

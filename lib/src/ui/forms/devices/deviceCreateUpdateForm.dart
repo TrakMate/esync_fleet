@@ -62,12 +62,19 @@ Future<void> showDeviceCreateUpdateDialog({
         builder: (context, setState) {
           return Dialog(
             backgroundColor: isDark ? tBlack : tWhite,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-
-            child: SizedBox(
+            child: Container(
               width: 600,
+              decoration: BoxDecoration(
+                color: isDark ? tBlack : tWhite,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color:
+                      isDark
+                          ? Colors.white.withOpacity(0.7)
+                          : Colors.transparent,
+                  width: 2,
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: SingleChildScrollView(
@@ -81,14 +88,14 @@ Future<void> showDeviceCreateUpdateDialog({
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: tBlue.withOpacity(0.15),
+                              color: tGreen8.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: SvgPicture.asset(
                               'icons/device.svg',
                               width: 22,
                               height: 22,
-                              color: tBlue,
+                              color: tGreen8,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -224,7 +231,7 @@ Future<void> showDeviceCreateUpdateDialog({
                           ),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: tBlue,
+                              backgroundColor: tGreen8,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 20,
                                 vertical: 10,
@@ -458,13 +465,13 @@ Widget _groupSelectorSingle(
               return ChoiceChip(
                 selected: isSelected,
                 showCheckmark: true,
-                checkmarkColor: isDark ? tBlack : tWhite,
+                checkmarkColor: tWhite,
                 label: Text(
                   g.name ?? '',
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? (isDark ? tBlack : tWhite) : baseColor,
+                    color: isSelected ? (tWhite) : baseColor,
                   ),
                 ),
                 backgroundColor: baseColor.withOpacity(0.12),
@@ -524,13 +531,13 @@ Widget _deviceTypeChips(
               return ChoiceChip(
                 selected: isSelected,
                 showCheckmark: true,
-                checkmarkColor: isDark ? tBlack : tWhite,
+                checkmarkColor: tWhite,
                 label: Text(
                   type["label"] as String,
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? (isDark ? tBlack : tWhite) : color,
+                    color: isSelected ? (tWhite) : color,
                   ),
                 ),
                 backgroundColor: color.withOpacity(0.12),

@@ -1,8 +1,8 @@
 class DeviceOverviewModel {
   double? vehvoltage;
   double? odometer;
-  int? soc;
-  double? speed;
+  double? soc;
+  int? speed;
   double? voltage;
 
   DeviceOverviewModel({

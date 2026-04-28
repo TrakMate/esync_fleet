@@ -160,52 +160,18 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
     switch (selectedFilter) {
       case 'Devices':
-        // Get unique devices from alerts
-        final Map<String, Alerts> uniqueDevices = {};
+        // final Map<String, Alerts> uniqueDevices = {};
 
-        // Add from main alerts
-        for (var alert in (alertsModel?.alerts ?? [])) {
-          final key = alert.imei ?? alert.vehicleNumber ?? '';
-          if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
-            uniqueDevices[key] = alert;
-          }
-        }
-
-        // Add from speed alerts
-        for (var speedAlert in (alertsModel?.speedAlerts ?? [])) {
-          final key = speedAlert.imei ?? speedAlert.vehicleNumber ?? '';
-          if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
-            uniqueDevices[key] = Alerts(
-              imei: speedAlert.imei,
-              vehicleNumber: speedAlert.vehicleNumber,
-              alertType: speedAlert.alertType,
-              data: speedAlert.data,
-              time: speedAlert.time,
-              alertCategory: speedAlert.alertCategory,
-            );
-          }
-        }
-
-        // Add from geo-fence alerts
-        for (var geoAlert in (alertsModel?.geoFenceAlerts ?? [])) {
-          final key = geoAlert.imei ?? geoAlert.vehicleNumber ?? '';
-          if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
-            uniqueDevices[key] = Alerts(
-              imei: geoAlert.imei,
-              vehicleNumber: geoAlert.vehicleNumber,
-              alertType: geoAlert.alertType ?? 'GeoFence',
-              data: geoAlert.data,
-              time: geoAlert.time,
-              alertCategory: geoAlert.alertCategory,
-            );
-          }
-        }
-
-        combinedAlerts = uniqueDevices.values.toList();
+        // for (var alert in (alertsModel?.alerts ?? [])) {
+        //   final key = alert.imei ?? alert.vehicleNumber ?? '';
+        //   if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
+        //     uniqueDevices[key] = alert;
+        //   }
+        // }
+        combinedAlerts = List.from(alertsModel?.alerts ?? []);
         break;
 
       case 'Speed':
-        // Convert SpeedAlerts to Alerts format
         combinedAlerts =
             (alertsModel?.speedAlerts ?? []).map((speedAlert) {
               return Alerts(
@@ -220,7 +186,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
         break;
 
       case 'Geo-Fence':
-        // Convert GeoFenceAlerts to Alerts format
         combinedAlerts =
             (alertsModel?.geoFenceAlerts ?? []).map((geoAlert) {
               return Alerts(
@@ -288,164 +253,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
     setState(() {});
   }
 
-  void _applySearchFilter() {
-    if (alertsModel == null) {
-      _filteredAlerts = [];
-      return;
-    }
-
-    if (_searchQuery.isEmpty) {
-      _updateFilteredAlerts(); // Refresh with current filter
-    } else {
-      final query = _searchQuery.toLowerCase();
-      List<Alerts> sourceAlerts = [];
-
-      switch (selectedFilter) {
-        case 'Devices':
-          // Get unique devices
-          final Map<String, Alerts> uniqueDevices = {};
-          for (var alert in (alertsModel?.alerts ?? [])) {
-            final key = alert.imei ?? alert.vehicleNumber ?? '';
-            if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
-              uniqueDevices[key] = alert;
-            }
-          }
-          for (var speedAlert in (alertsModel?.speedAlerts ?? [])) {
-            final key = speedAlert.imei ?? speedAlert.vehicleNumber ?? '';
-            if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
-              uniqueDevices[key] = Alerts(
-                imei: speedAlert.imei,
-                vehicleNumber: speedAlert.vehicleNumber,
-                alertType: speedAlert.alertType,
-                data: speedAlert.data,
-                time: speedAlert.time,
-                alertCategory: speedAlert.alertCategory,
-              );
-            }
-          }
-          for (var geoAlert in (alertsModel?.geoFenceAlerts ?? [])) {
-            final key = geoAlert.imei ?? geoAlert.vehicleNumber ?? '';
-            if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
-              uniqueDevices[key] = Alerts(
-                imei: geoAlert.imei,
-                vehicleNumber: geoAlert.vehicleNumber,
-                alertType: geoAlert.alertType ?? 'GeoFence',
-                data: geoAlert.data,
-                time: geoAlert.time,
-                alertCategory: geoAlert.alertCategory,
-              );
-            }
-          }
-          sourceAlerts = uniqueDevices.values.toList();
-          break;
-
-        case 'Speed':
-          sourceAlerts =
-              (alertsModel?.speedAlerts ?? []).map((speedAlert) {
-                return Alerts(
-                  imei: speedAlert.imei,
-                  vehicleNumber: speedAlert.vehicleNumber,
-                  alertType: speedAlert.alertType,
-                  data: speedAlert.data,
-                  time: speedAlert.time,
-                  alertCategory: speedAlert.alertCategory,
-                );
-              }).toList();
-          break;
-
-        case 'Geo-Fence':
-          sourceAlerts =
-              (alertsModel?.geoFenceAlerts ?? []).map((geoAlert) {
-                return Alerts(
-                  imei: geoAlert.imei,
-                  vehicleNumber: geoAlert.vehicleNumber,
-                  alertType: geoAlert.alertType ?? 'GeoFence',
-                  data: geoAlert.data,
-                  time: geoAlert.time,
-                  alertCategory: geoAlert.alertCategory,
-                );
-              }).toList();
-          break;
-
-        case 'All':
-        default:
-          final allAlerts = <Alerts>[];
-          allAlerts.addAll(
-            (alertsModel?.alerts ?? []).map(
-              (alert) => Alerts(
-                imei: alert.imei,
-                vehicleNumber: alert.vehicleNumber,
-                alertType: alert.alertType,
-                data: alert.data,
-                time: alert.time,
-                alertCategory: alert.alertCategory,
-              ),
-            ),
-          );
-          allAlerts.addAll(
-            (alertsModel?.speedAlerts ?? []).map(
-              (speedAlert) => Alerts(
-                imei: speedAlert.imei,
-                vehicleNumber: speedAlert.vehicleNumber,
-                alertType: speedAlert.alertType,
-                data: speedAlert.data,
-                time: speedAlert.time,
-                alertCategory: speedAlert.alertCategory,
-              ),
-            ),
-          );
-          allAlerts.addAll(
-            (alertsModel?.geoFenceAlerts ?? []).map(
-              (geoAlert) => Alerts(
-                imei: geoAlert.imei,
-                vehicleNumber: geoAlert.vehicleNumber,
-                alertType: geoAlert.alertType ?? 'GeoFence',
-                data: geoAlert.data,
-                time: geoAlert.time,
-                alertCategory: geoAlert.alertCategory,
-              ),
-            ),
-          );
-          sourceAlerts = allAlerts;
-          break;
-      }
-
-      _filteredAlerts =
-          sourceAlerts.where((alert) {
-            return (alert.imei?.toLowerCase().contains(query) ?? false) ||
-                (alert.vehicleNumber?.toLowerCase().contains(query) ?? false);
-          }).toList();
-      setState(() {});
-    }
-  }
-  // Future<void> fetchAlerts() async {
-  //   if (!mounted) return;
-
-  //   setState(() => isLoading = true);
-
-  //   try {
-  //     final result = await _apiService.fetchAlerts(
-  //       type: widget.type,
-  //       searchText: _searchQuery.isNotEmpty ? _searchQuery : null,
-  //       date: apiDate,
-  //       currentIndex: (currentPage - 1) * rowsPerPage,
-  //       sizePerPage: rowsPerPage,
-  //     );
-
-  //     if (!mounted) return;
-
-  //     setState(() {
-  //       alertsModel = result;
-  //       _filteredAlerts = result.alerts ?? [];
-  //       totalPages = ((result.totalAlerts ?? 0) / rowsPerPage).ceil();
-  //     });
-  //   } catch (e) {
-  //     debugPrint("Alerts API Error: $e");
-  //   } finally {
-  //     if (!mounted) return;
-  //     setState(() => isLoading = false);
-  //   }
-  // }
   Future<void> fetchAlerts() async {
     if (!mounted) return;
 

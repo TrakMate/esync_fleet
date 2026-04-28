@@ -25,12 +25,20 @@ Future<void> showGroupCreateUpdateDialog({
       return StatefulBuilder(
         builder: (context, setState) {
           return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            backgroundColor: isDark ? tBlack : tWhite,
-            child: SizedBox(
+            backgroundColor: Colors.transparent,
+            child: Container(
               width: 420,
+              decoration: BoxDecoration(
+                color: isDark ? tBlack : tWhite,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color:
+                      isDark
+                          ? Colors.white.withOpacity(0.7)
+                          : Colors.transparent,
+                  width: 2,
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
