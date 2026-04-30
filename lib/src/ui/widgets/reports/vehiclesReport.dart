@@ -629,7 +629,13 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                           ? tWhite.withOpacity(0.15)
                           : tBlack.withOpacity(0.1),
                   side: BorderSide(color: Colors.transparent, width: 0),
-                  onSelected: (_) => onSelected(option),
+                  onSelected: (_) {
+                    if (selected == option) {
+                      onSelected('All');
+                    } else {
+                      onSelected(option);
+                    }
+                  },
                 );
               }).toList(),
         ),

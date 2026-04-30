@@ -523,8 +523,8 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
                                   decoration: BoxDecoration(
                                     color:
                                         isReceived
-                                            ? tGreen3.withOpacity(0.15)
-                                            : tBlue.withOpacity(0.15),
+                                            ? tBlueSky.withOpacity(0.15)
+                                            : tGreen8.withOpacity(0.10),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -532,7 +532,10 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
                                     style: GoogleFonts.urbanist(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: isReceived ? tGreen3 : tBlue,
+                                      color:
+                                          isReceived
+                                              ? tBlueSky
+                                              : (isDark ? tGreen8 : tGreen),
                                     ),
                                   ),
                                 ),
@@ -773,12 +776,12 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
@@ -787,7 +790,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
               style: GoogleFonts.urbanist(
                 color:
                     isSelected
-                        ? tWhite
+                        ? tBlack
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),

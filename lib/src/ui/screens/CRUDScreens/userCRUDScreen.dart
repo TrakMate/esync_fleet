@@ -431,13 +431,13 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                   width: 10,
                                   height: 10,
                                   decoration: BoxDecoration(
-                                    color: isActive ? tBlue : tRed,
+                                    color: isActive ? tGreen8 : tRed,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
                                         blurRadius: 12,
                                         spreadRadius: 2,
-                                        color: isActive ? tBlue : tRed,
+                                        color: isActive ? tGreen8 : tRed,
                                       ),
                                     ],
                                   ),
@@ -452,7 +452,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                     borderRadius: BorderRadius.circular(20),
                                     color:
                                         isActive
-                                            ? tBlue.withOpacity(0.15)
+                                            ? tGreen8.withOpacity(0.15)
                                             : tRed.withOpacity(0.15),
                                   ),
                                   child: Text(
@@ -460,7 +460,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                     style: GoogleFonts.urbanist(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
-                                      color: isActive ? tBlue : tRed,
+                                      color: isActive ? tGreen8 : tRed,
                                     ),
                                   ),
                                 ),
@@ -475,7 +475,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                     'icons/edit.svg',
                                     height: 20,
                                     width: 20,
-                                    color: tBlue,
+                                    color: tGreen8,
                                   ),
                                   onPressed: () {
                                     showUserCreateUpdateDialog(
@@ -548,7 +548,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                     'icons/resetpwd.svg',
                                     height: 20,
                                     width: 20,
-                                    color: tBlue,
+                                    color: tGreen8,
                                   ),
                                   onPressed: () {
                                     showResetPasswordDialog(
@@ -601,12 +601,12 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
@@ -615,7 +615,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
               style: GoogleFonts.urbanist(
                 color:
                     isSelected
-                        ? tWhite
+                        ? tBlack
                         : (isDark
                             ? tWhite.withOpacity(0.85)
                             : tBlack.withOpacity(0.85)),

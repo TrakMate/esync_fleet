@@ -800,7 +800,7 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                                           'icons/edit.svg',
                                           height: 20,
                                           width: 20,
-                                          color: tBlue,
+                                          color: tGreen8,
                                         ),
                                         onPressed:
                                             isLoading
@@ -987,12 +987,12 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
@@ -1001,7 +1001,7 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
               style: GoogleFonts.urbanist(
                 color:
                     isSelected
-                        ? tWhite
+                        ? tBlack
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),
@@ -1021,6 +1021,63 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white10 : Colors.grey.shade100,
+              border: Border.all(
+                color: isDark ? Colors.white24 : Colors.black12,
+              ),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: sizePerPage,
+                icon: Icon(
+                  Icons.expand_more_rounded,
+                  size: 18,
+                  color:
+                      isDark ? tWhite.withOpacity(0.8) : Colors.grey.shade700,
+                ),
+                dropdownColor: isDark ? tBlack.withOpacity(0.95) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                style: GoogleFonts.urbanist(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? tWhite : Colors.black87,
+                ),
+                items:
+                    pageSizeOptions.map((s) {
+                      return DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          "$s / page",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? tWhite : Colors.black87,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                onChanged: (v) async {
+                  if (v == null) return;
+                  if (!mounted) return;
+
+                  setState(() {
+                    sizePerPage = v;
+                    currentPage = 1;
+                    currentIndex = 0;
+                    isLoading = true;
+                  });
+
+                  await _reloadDevices();
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           // Previous
           IconButton(
             icon: Icon(
@@ -1146,6 +1203,10 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
               color: isDark ? tWhite : tBlack,
             ),
           ),
+
+          const SizedBox(width: 10),
+
+          // 🔽 Items per page dropdown
         ],
       ),
     );

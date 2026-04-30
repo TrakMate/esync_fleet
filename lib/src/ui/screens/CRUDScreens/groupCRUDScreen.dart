@@ -439,7 +439,7 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
                                         'icons/edit.svg',
                                         height: 22,
                                         width: 22,
-                                        color: tBlue,
+                                        color: tGreen8,
                                       ),
                                       onPressed:
                                           isLoading
@@ -573,12 +573,12 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
@@ -589,7 +589,7 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
                 fontWeight: FontWeight.w600,
                 color:
                     isSelected
-                        ? tWhite
+                        ? tBlack
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),

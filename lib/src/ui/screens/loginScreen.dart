@@ -231,6 +231,11 @@ class _LoginScreenState extends State<LoginScreen> {
             await prefs.setString('username', decodedToken['sub'] ?? '');
             await prefs.setString('role', decodedToken['auth'] ?? '');
             await prefs.setString('fullname', decodedToken['fullname'] ?? '');
+            await prefs.setString('Phone', decodedToken['phone'] ?? '');
+            await prefs.setString(
+              'Organisation',
+              decodedToken['orgName'] ?? '',
+            );
             await prefs.setString('issuedAt', iatIST.toIso8601String());
             await prefs.setString('expiresAt', expIST.toIso8601String());
 

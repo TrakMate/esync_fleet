@@ -590,12 +590,12 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
@@ -606,7 +606,7 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
                 fontWeight: FontWeight.w600,
                 color:
                     isSelected
-                        ? tWhite
+                        ? tBlack
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),

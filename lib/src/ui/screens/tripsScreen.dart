@@ -1764,17 +1764,17 @@ class _TripsScreenState extends State<TripsScreen> {
 
     switch (status.toLowerCase()) {
       case 'ongoing':
-        statusColor = tGreen;
+        statusColor = tGreen8;
         break;
       case 'completed':
-        statusColor = tBlue;
+        statusColor = tBlueSky;
         break;
       default:
         statusColor = tGrey;
     }
 
     return GestureDetector(
-      onTap: onTripCardTap, // This handles the entire card tap
+      onTap: onTripCardTap,
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
@@ -2179,14 +2179,14 @@ class _TripsScreenState extends State<TripsScreen> {
                             Polyline(
                               points: completedPath,
                               strokeWidth: 6,
-                              color: Colors.lightBlueAccent.withOpacity(0.6),
+                              color: tGreen8.withOpacity(0.4),
                             ),
 
                           if (remainingPath.length > 1)
                             Polyline(
                               points: remainingPath,
                               strokeWidth: 6,
-                              color: tBlue,
+                              color: tGreen8,
                             ),
                         ],
                       ),
@@ -2269,7 +2269,7 @@ class _TripsScreenState extends State<TripsScreen> {
                                 child: Container(
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: tBlue.withOpacity(0.8),
+                                    color: tGreen8.withOpacity(0.8),
                                   ),
                                   padding: const EdgeInsets.all(6),
                                   child: Icon(
@@ -2501,13 +2501,13 @@ class _TripsScreenState extends State<TripsScreen> {
   ) {
     return ElevatedButton.icon(
       onPressed: onPressed,
-      icon: Icon(icon, size: 16, color: tBlue),
+      icon: Icon(icon, size: 16, color: tGreen8),
       label: Text(
         text,
         style: GoogleFonts.urbanist(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: tBlue,
+          color: tGreen8,
         ),
       ),
       style: ElevatedButton.styleFrom(
@@ -2515,7 +2515,7 @@ class _TripsScreenState extends State<TripsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: tBlue, width: 1),
+          side: BorderSide(color: tGreen8, width: 1),
         ),
         elevation: 0,
       ),

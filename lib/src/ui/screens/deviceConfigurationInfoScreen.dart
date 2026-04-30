@@ -541,7 +541,87 @@ class _DeviceConfigInfoScreenState extends State<DeviceConfigInfoScreen> {
                           elevation: 0,
                         ),
                         onPressed: () {
-                          final command = _selectedCommand ?? '';
+                          final command = _customCommandController.text.trim();
+
+                          if (command.isEmpty) {
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return Dialog(
+                                  backgroundColor:
+                                      Colors.transparent, // important
+                                  insetPadding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                  ),
+                                  child: Container(
+                                    width: 250,
+                                    padding: const EdgeInsets.all(20),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? tBlack : tWhite,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color:
+                                            isDark
+                                                ? Colors.white.withOpacity(0.7)
+                                                : Colors.transparent,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Title
+                                        Text(
+                                          "Warning",
+                                          style: GoogleFonts.urbanist(
+                                            color: isDark ? tWhite : tBlack,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 12),
+
+                                        // Content
+                                        Text(
+                                          "Please enter a command",
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.urbanist(
+                                            color: isDark ? tWhite : tBlack,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 20),
+
+                                        // Button
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton(
+                                            onPressed:
+                                                () => Navigator.pop(context),
+                                            child: Text(
+                                              "OK",
+                                              style: GoogleFonts.urbanist(
+                                                color: tGreen8,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                            return;
+                          }
+
                           _sendCommand(command);
                         },
 

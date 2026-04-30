@@ -53,7 +53,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ReportCardModel(
       title: 'Vehicle Summary\nReport',
       description: 'Daily summary of vehicle status, movement, and activity.',
-      icon: 'icons/vehicle_summary.svg',
+      icon: 'icons/vehicle_Summary.svg',
       bgColor: Colors.purpleAccent.withOpacity(0.1),
       iconColor: Colors.purpleAccent,
     ),
