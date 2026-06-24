@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 
+import 'package:esync_fleet/src/models/devicesMapModel.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,25 +10,34 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:lottie/lottie.dart' show Lottie;
 import 'package:provider/provider.dart';
 import 'package:svg_flutter/svg_flutter.dart';
 
-import '../../models/devicesMapModel.dart';
 import '../../models/devicesModel.dart';
 import '../../provider/fleetModeProvider.dart';
+import '../../services/generalAPIServices.dart/dashboardAPIService.dart';
 import '../../services/generalAPIServices.dart/deviceAPIServices/deviceAPIService.dart';
 import '../../services/getAddressService.dart';
 import '../../utils/appColors.dart';
 import '../../utils/appResponsive.dart';
 import '../../utils/route/navigation_helpers.dart';
 import '../components/customTitleBar.dart';
+import '../widgets/reports/custom_Toast.dart';
 
 class DevicesScreen extends StatefulWidget {
   final String? filterStatus;
+  final String? vehicleFilter;
   final String? soc;
-  const DevicesScreen({super.key, this.soc, this.filterStatus});
+  const DevicesScreen({
+    super.key,
+    this.soc,
+    this.vehicleFilter,
+    this.filterStatus,
+  });
 
   @override
   State<DevicesScreen> createState() => _DevicesScreenState();
@@ -34,7 +45,40 @@ class DevicesScreen extends StatefulWidget {
 
 class _DevicesScreenState extends State<DevicesScreen> {
   OverlayEntry? _devicePopup;
+  final GlobalKey _mapKey = GlobalKey();
+  final MapController _mapController = MapController();
+  final ScrollController _scrollController = ScrollController();
+
+  bool imeiCopied = false;
+  bool vehicleCopied = false;
+
+  Set<String> hoveredDevices = {}; //hover for devices
+  bool isSatelliteView = false;
+  bool isMapFullscreen = false;
+
   int _totalCountFromAPI = 0;
+
+  final DashboardApiService _dashboardApi = DashboardApiService();
+
+  int totalVehicles = 0;
+  int evtotalvehicles = 0;
+
+  int moving = 0;
+  int idle = 0;
+  int stopped = 0;
+  int nonCoverage = 0;
+  int disconnected = 0;
+  int charging = 0;
+  int discharging = 0;
+  int batteryIdle = 0;
+  int batteryDisconnected = 0;
+
+  String? get dateParam => apiDate;
+  DateTime selectedDate = DateTime.now();
+  String? apiDate;
+
+  String? selectedGroup;
+
   final List<String> _nonEVStatuses = [
     'Moving',
     'Stopped',
@@ -104,12 +148,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
     'Disconnected': tGrey,
   };
 
-  final MapController _mapController = MapController();
-
   final ValueNotifier<LatLng> _centerNotifier = ValueNotifier(
     LatLng(13.0827, 80.2707),
   );
-  final ValueNotifier<double> _zoomNotifier = ValueNotifier<double>(4.5);
+  final ValueNotifier<double> _zoomNotifier = ValueNotifier<double>(4.25);
 
   bool _isZooming = false;
   Timer? _zoomDebounceTimer;
@@ -136,15 +178,99 @@ class _DevicesScreenState extends State<DevicesScreen> {
   late final List<Marker> _cachedMarkers;
 
   final List<String> _truckIconPaths = [
-    'icons/indicationIcons/moving.svg',
-    'icons/indicationIcons/stopped.svg',
-    'icons/indicationIcons/idle.svg',
-    'icons/indicationIcons/disconnected.svg',
-    'icons/indicationIcons/noncoverage.svg',
-    'icons/indicationIcons/charging.svg',
+    'icons/indicationIcons/moving1.svg',
+    'icons/indicationIcons/stopped1.svg',
+    'icons/indicationIcons/idle1.svg',
+    'icons/indicationIcons/disconnected1.svg',
+    'icons/indicationIcons/noncoverage1.svg',
+    'icons/indicationIcons/charging1.svg',
   ];
 
-  final Map<String, String> _addressCache = {};
+  final Map<String, Future<String>> _addressCache = {};
+  bool _hasMoreData = true;
+  bool _isPaginationLoading = false;
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_loading &&
+        !_isPaginationLoading &&
+        _hasMoreData) {
+      _loadMoreDevices();
+    }
+  }
+
+  Future<String> getCachedAddress(double? lat, double? lng) {
+    if (lat == null || lng == null) {
+      return Future.value('--');
+    }
+
+    final key = '$lat,$lng';
+
+    return _addressCache.putIfAbsent(
+      key,
+      () => getAddressFromLatLngWeb(lat, lng),
+    );
+  }
+
+  Future<void> _loadMoreDevices() async {
+    if (_isPaginationLoading || !_hasMoreData) return;
+
+    setState(() {
+      _isPaginationLoading = true;
+    });
+
+    try {
+      currentPage++;
+
+      String? statusForAPI;
+
+      final mode = context.read<FleetModeProvider>().mode;
+
+      final currentMap =
+          mode == 'EV Fleet' ? EvstatusApiMap : NonEvstatusApiMap;
+
+      if (_selectedStatuses.isNotEmpty) {
+        statusForAPI = _selectedStatuses
+            .map((e) => currentMap[e] ?? e.toLowerCase().replaceAll(' ', '_'))
+            .join(',');
+      } else if (widget.filterStatus != null &&
+          widget.filterStatus!.isNotEmpty) {
+        statusForAPI = widget.filterStatus;
+      }
+
+      final res = await _api.fetchDevices(
+        currentIndex: currentPage - 1,
+        sizePerPage: itemsPerPage,
+        status: statusForAPI,
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        selectedStatuses: null,
+        SOC: widget.soc,
+        vehicleFilter: widget.vehicleFilter,
+      );
+
+      final newDevices = res.entities ?? [];
+
+      if (mounted) {
+        setState(() {
+          if (newDevices.isEmpty) {
+            _hasMoreData = false;
+          } else {
+            _allDevices.addAll(newDevices);
+            _applyFilters();
+          }
+        });
+      }
+    } catch (e) {
+      print("Pagination Error: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPaginationLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -152,8 +278,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _initializeSelectedStatuses();
     _tempSelectedStatuses = List.from(_selectedStatuses);
     _tempSelectedFilterValues = List.from(_selectedFilterValues);
+    _scrollController.addListener(_scrollListener);
     _loadDevices(); // Load paginated list
     _loadDevicesForMap(); // Load ALL devices for map
+
+    fetchVehicleDetails();
   }
 
   @override
@@ -170,17 +299,13 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _routeWasActive = isCurrent;
   }
 
-  // void _initializeSelectedStatuses() {
-  //   if (widget.filterStatus != null && widget.filterStatus!.isNotEmpty) {
-  //     final displayStatus = _convertApiStatusToDisplay(widget.filterStatus!);
-
-  //     _selectedStatuses.clear();
-  //     if (displayStatus != null) {
-  //       _selectedStatuses.add(displayStatus);
-  //     }
-  //   }
-  // }
   void _initializeSelectedStatuses() {
+    if (widget.vehicleFilter != null && widget.vehicleFilter!.isNotEmpty) {
+      // Clear status selections when vehicle filter is active
+      _selectedStatuses.clear();
+      _tempSelectedStatuses.clear();
+      return;
+    }
     if (widget.filterStatus != null && widget.filterStatus!.isNotEmpty) {
       final displayStatus = _convertApiStatusToDisplay(widget.filterStatus!);
       _selectedStatuses.clear();
@@ -192,6 +317,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
     }
   }
 
+  // void _initializeSelectedStatuses() {
+  //   if (widget.filterStatus != null && widget.filterStatus!.isNotEmpty) {
+  //     final displayStatus = _convertApiStatusToDisplay(widget.filterStatus!);
+  //     _selectedStatuses.clear();
+  //     _tempSelectedStatuses.clear();
+  //     if (displayStatus != null) {
+  //       _selectedStatuses.add(displayStatus);
+  //       _tempSelectedStatuses.add(displayStatus);
+  //     }
+  //   }
+  // }
+
   String? _convertApiStatusToDisplay(String apiStatus) {
     for (var entry in statusApiMap.entries) {
       if (entry.value.toLowerCase() == apiStatus.toLowerCase()) {
@@ -200,69 +337,52 @@ class _DevicesScreenState extends State<DevicesScreen> {
     }
     return null;
   }
-  // Future<void> _loadDevicesForMap() async {
-  //   // try {
-  //   //   final devicesMapApi = DevicesMapApiService();
-  //   //   final res = await devicesMapApi.fetchDevicesMap(
-  //   //     status: widget.filterStatus,
-  //   //   );
-  //   try {
-  //     final devicesMapApi = DevicesMapApiService();
 
-  //     String? statusToUse;
-
-  //     if (widget.filterStatus != null && widget.filterStatus!.isNotEmpty) {
-  //       // statusToUse = widget.filterStatus;
-  //       statusToUse = normalizeStatus(widget.filterStatus!);
-  //     } else if (_selectedStatuses.isNotEmpty) {
-  //       statusToUse = _selectedStatuses.first.toLowerCase();
-  //     }
-
-  //     final res = await devicesMapApi.fetchDevicesMap(status: statusToUse);
-
-  //     if (mounted) {
-  //       setState(() {
-  //         _allMapDevices = res.entities ?? [];
-  //         _applyMapFilters();
-  //       });
-  //     }
-  //   } catch (e) {
-  //     print('Error loading devices for map: $e');
-  //   }
-  // }
+  bool _statusFilterModified = false;
 
   Future<void> _loadDevicesForMap() async {
     try {
       final devicesMapApi = DevicesMapApiService();
 
       String? statusToUse;
+      String? vehicleFilterToUse;
 
       final mode = context.read<FleetModeProvider>().mode;
-
       final currentMap =
           mode == 'EV Fleet' ? EvstatusApiMap : NonEvstatusApiMap;
+
+      if (_selectedStatuses.isEmpty &&
+          widget.vehicleFilter != null &&
+          widget.vehicleFilter!.isNotEmpty) {
+        vehicleFilterToUse = widget.vehicleFilter;
+      } else {
+        vehicleFilterToUse = null;
+      }
 
       if (_selectedStatuses.isNotEmpty) {
         statusToUse = _selectedStatuses
             .map((s) {
               final mapped = currentMap[s];
-
               if (mapped != null) {
-                // ✅ Convert API format → MAP format
                 return mapped.replaceAll('_', ' ');
               }
-
-              // ✅ fallback
               return s.toLowerCase();
             })
             .join(',');
-      } else if (widget.filterStatus != null &&
+      } else if (!_statusFilterModified &&
+          widget.filterStatus != null &&
           widget.filterStatus!.isNotEmpty) {
         statusToUse = widget.filterStatus!.toLowerCase().replaceAll('_', ' ');
+      } else {
+        statusToUse = null; // All
       }
+      print(
+        ' Map API Call - Status: $statusToUse, VehicleFilter: $vehicleFilterToUse',
+      );
 
       final res = await devicesMapApi.fetchDevicesMap(
-        status: statusToUse, // ✅ NOW sends: "non coverage"
+        status: statusToUse,
+        vehicleFilter: vehicleFilterToUse,
       );
 
       if (mounted) {
@@ -272,7 +392,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
         });
       }
     } catch (e) {
-      print('❌ Error loading devices for map: $e');
+      print(' Error loading devices for map: $e');
     }
   }
 
@@ -288,38 +408,67 @@ class _DevicesScreenState extends State<DevicesScreen> {
       }
     });
 
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+
     try {
       String? statusForAPI;
 
       final mode = context.read<FleetModeProvider>().mode;
-
-      // ✅ Pick correct map based on mode
       final currentMap =
           mode == 'EV Fleet' ? EvstatusApiMap : NonEvstatusApiMap;
 
+      String? vehicleFilterToUse;
+
+      if (_selectedStatuses.isEmpty &&
+          _searchQuery.isEmpty &&
+          widget.vehicleFilter != null &&
+          widget.vehicleFilter!.isNotEmpty) {
+        vehicleFilterToUse = widget.vehicleFilter;
+      } else {
+        vehicleFilterToUse = null;
+      }
+
+      // if (_selectedStatuses.isNotEmpty) {
+      //   statusForAPI = _selectedStatuses
+      //       .map((e) => currentMap[e] ?? e.toLowerCase().replaceAll(' ', '_'))
+      //       .join(',');
+      // } else if (widget.filterStatus != null &&
+      //     widget.filterStatus!.isNotEmpty &&
+      //     _selectedStatuses.isEmpty) {
+      //   statusForAPI = widget.filterStatus;
+      // }
       if (_selectedStatuses.isNotEmpty) {
         statusForAPI = _selectedStatuses
-            .map(
-              (e) => currentMap[e] ?? e.toLowerCase().replaceAll(' ', '_'),
-            ) // ✅ fallback
+            .map((e) => currentMap[e] ?? e.toLowerCase().replaceAll(' ', '_'))
             .join(',');
-      } else if (widget.filterStatus != null &&
+      } else if (!_statusFilterModified &&
+          widget.filterStatus != null &&
           widget.filterStatus!.isNotEmpty) {
         statusForAPI = widget.filterStatus;
+      } else {
+        statusForAPI = null; // All
       }
+
+      print(
+        ' API Call - Status: $statusForAPI, VehicleFilter: $vehicleFilterToUse',
+      );
 
       final res = await _api.fetchDevices(
         currentIndex: currentPage - 1,
         sizePerPage: itemsPerPage,
-        status: statusForAPI, // ✅ correct value passed
+        status: statusForAPI,
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
-        selectedStatuses: null, // ✅ not needed anymore
+        selectedStatuses: null,
         SOC: widget.soc,
+        vehicleFilter: vehicleFilterToUse, // Use conditional value
       );
 
       if (mounted) {
         setState(() {
           _allDevices = res.entities ?? [];
+          _hasMoreData = (res.entities ?? []).length >= itemsPerPage;
           _totalCountFromAPI = res.totalCount ?? 0;
           _applyFilters();
         });
@@ -335,55 +484,127 @@ class _DevicesScreenState extends State<DevicesScreen> {
     }
   }
 
-  // Future<void> _loadDevices({int? page}) async {
-  //   if (_loading) return;
+  Future<void> fetchVehicleDetails({bool showLoading = true}) async {
+    if (showLoading && mounted) setState(() => _loading = true);
 
-  //   setState(() {
-  //     _loading = true;
-  //     if (page != null) {
-  //       currentPage = page;
-  //     }
-  //   });
+    try {
+      final response = await _dashboardApi.fetchVehicleDetails(
+        date: dateParam,
+        groupId: selectedGroup,
+      );
+      if (!mounted) return;
+      setState(() {
+        // VEHICLES
+        totalVehicles = response.totalVehicles ?? 0;
 
-  //   try {
-  //     String? statusForAPI;
+        // STATUS
+        moving = response.vehicleStatusMap!.moving ?? 0;
+        idle = response.vehicleStatusMap!.idle ?? 0;
+        stopped = response.vehicleStatusMap!.stopped ?? 0;
+        disconnected = response.vehicleStatusMap!.disconnected ?? 0;
+        nonCoverage = response.vehicleStatusMap!.noncoverage ?? 0;
+        charging = response.vehicleStatusMap!.charging ?? 0;
+        discharging = response.vehicleStatusMap!.discharging ?? 0;
+        batteryIdle = response.vehicleStatusMap?.idle ?? 0;
+        batteryDisconnected = response.vehicleStatusMap?.disconnected ?? 0;
+      });
+    } catch (e) {
+      debugPrint("Dashboard API error: $e");
+    } finally {
+      if (showLoading && mounted) setState(() => _loading = false);
+    }
+  }
 
-  //     if (_selectedStatuses.isNotEmpty) {
-  //       statusForAPI = _selectedStatuses
-  //           .map((e) => statusApiMap[e] ?? e)
-  //           .join(',');
-  //     } else if (widget.filterStatus != null &&
-  //         widget.filterStatus!.isNotEmpty) {
-  //       statusForAPI = widget.filterStatus;
-  //     }
+  List<Map<String, dynamic>> getBackendStatus() {
+    final total = totalVehicles;
+    if (total == 0) return [];
 
-  //     final res = await _api.fetchDevices(
-  //       currentIndex: currentPage - 1,
-  //       sizePerPage: itemsPerPage,
-  //       status: statusForAPI, // Use the determined status
-  //       search: _searchQuery.isNotEmpty ? _searchQuery : null,
-  //       selectedStatuses:
-  //           null, // Don't use this parameter anymore since we're using status param
-  //       SOC: widget.soc,
-  //     );
+    double pct(int value) => (value / total) * 100;
 
-  //     if (mounted) {
-  //       setState(() {
-  //         _allDevices = res.entities ?? [];
-  //         _totalCountFromAPI = res.totalCount ?? 0;
-  //         _applyFilters();
-  //       });
-  //     }
-  //   } catch (e) {
-  //     print('Error loading devices: $e');
-  //   } finally {
-  //     if (mounted) {
-  //       setState(() {
-  //         _loading = false;
-  //       });
-  //     }
-  //   }
-  // }
+    return [
+      {
+        'label': 'Moving',
+        'api': 'moving',
+        'color': tGreen,
+        'count': moving,
+        'percent': pct(moving),
+      },
+      {
+        'label': 'Stopped',
+        'api': 'stopped',
+        'color': tRed,
+        'count': stopped,
+        'percent': pct(stopped),
+      },
+      {
+        'label': 'Idle',
+        'api': 'idle',
+        'color': tOrange1,
+        'count': idle,
+        'percent': pct(idle),
+      },
+      {
+        'label': 'Non Coverage',
+        'api': 'non_coverage',
+        'color': Colors.purple,
+        'count': nonCoverage,
+        'percent': pct(nonCoverage),
+      },
+      {
+        'label': 'Disconnected',
+        'api': 'disconnected',
+        'color': tGrey,
+        'count': disconnected,
+        'percent': pct(disconnected),
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> getEVBackendStatus() {
+    final total = totalVehicles;
+    if (total == 0) return [];
+
+    double pct(int value) => (value / total) * 100;
+
+    return [
+      {
+        'label': 'Charging',
+        'api': 'charging',
+        // 'color': Colors.teal,
+        'color': tBlue,
+        'count': charging,
+        'percent': pct(charging),
+      },
+      {
+        'label': 'Discharging',
+        'api': 'discharging',
+        'color': tGreen,
+        'count': discharging,
+        'percent': pct(discharging),
+      },
+      {
+        'label': 'Idle',
+        'api': 'idle',
+        'color': tOrange1,
+        'count': batteryIdle,
+        'percent': pct(batteryIdle),
+      },
+      {
+        'label': 'Non Coverage',
+        'api': 'non_coverage',
+        'color': const Color(0xFF9C27B0),
+        'count': nonCoverage,
+        'percent': pct(nonCoverage),
+      },
+      {
+        'label': 'Disconnected',
+        'api': 'disconnected',
+        'color': tGrey,
+        'count': batteryDisconnected,
+        'percent': pct(batteryDisconnected),
+      },
+    ];
+  }
 
   num safeNum(dynamic value) {
     if (value == null) return 0;
@@ -484,6 +705,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _zoomDebounceTimer?.cancel();
     _positionDebounceTimer?.cancel();
     _searchDebounceTimer?.cancel();
@@ -512,15 +734,34 @@ class _DevicesScreenState extends State<DevicesScreen> {
       return Marker(
         key: ValueKey('${device.imei}|${device.status}'),
         point: pos,
-        width: 25,
-        height: 25,
+        width: 35,
+        height: 35,
         child: GestureDetector(
-          onTapDown: (d) {
+          onTap: () {
+            final projected = _mapController.camera.projectAtZoom(
+              pos,
+              _mapController.camera.zoom,
+            );
+
+            final pixelOrigin = _mapController.camera.pixelOrigin;
+
+            // Position inside the FlutterMap widget
+            final localPosition = Offset(
+              projected.dx - pixelOrigin.dx,
+              projected.dy - pixelOrigin.dy,
+            );
+
+            final RenderBox mapBox =
+                _mapKey.currentContext!.findRenderObject() as RenderBox;
+
+            // Convert local map coordinate to global screen coordinate
+            final globalPosition = mapBox.localToGlobal(localPosition);
+
             _showMapDeviceTooltip(
               device,
               pos,
               Theme.of(context).brightness == Brightness.dark,
-              globalPosition: d.globalPosition,
+              globalPosition: globalPosition,
             );
           },
           child: SvgPicture.asset(iconPath),
@@ -629,7 +870,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
     LatLng position,
     bool isDark, {
     required Offset globalPosition,
-    String placement = 'top',
   }) {
     _removeDeviceTooltip();
 
@@ -637,12 +877,62 @@ class _DevicesScreenState extends State<DevicesScreen> {
     const double popupHeight = 160;
     const double gap = 8;
 
-    double left = globalPosition.dx - popupWidth / 2;
-    double top = globalPosition.dy - popupHeight - gap;
+    final RenderBox mapBox =
+        _mapKey.currentContext!.findRenderObject() as RenderBox;
 
-    final Size screen = MediaQuery.of(context).size;
-    left = left.clamp(6.0, screen.width - popupWidth - 6.0);
-    top = top.clamp(6.0, screen.height - popupHeight - 6.0);
+    final Offset mapOffset = mapBox.localToGlobal(Offset.zero);
+    final Size mapSize = mapBox.size;
+
+    final double mapLeft = mapOffset.dx;
+    final double mapTop = mapOffset.dy;
+    final double mapRight = mapLeft + mapSize.width;
+    final double mapBottom = mapTop + mapSize.height;
+
+    // --------------------------------------------------
+    // Vertical positioning
+    // --------------------------------------------------
+
+    final double spaceAbove = globalPosition.dy - mapTop;
+    final double spaceBelow = mapBottom - globalPosition.dy;
+
+    bool showAbove;
+
+    if (spaceAbove > popupHeight + gap) {
+      showAbove = true;
+    } else if (spaceBelow > popupHeight + gap) {
+      showAbove = false;
+    } else {
+      showAbove = spaceAbove > spaceBelow;
+    }
+
+    double top =
+        showAbove
+            ? globalPosition.dy - popupHeight - gap
+            : globalPosition.dy + gap;
+
+    // --------------------------------------------------
+    // Horizontal positioning
+    // --------------------------------------------------
+
+    double left = globalPosition.dx - (popupWidth / 2);
+
+    // Keep inside map horizontally
+    if (left < mapLeft + 4) {
+      left = mapLeft + 4;
+    }
+
+    if (left + popupWidth > mapRight - 4) {
+      left = mapRight - popupWidth - 4;
+    }
+
+    // Keep inside map vertically
+    if (top < mapTop + 4) {
+      top = mapTop + 4;
+    }
+
+    if (top + popupHeight > mapBottom - 4) {
+      top = mapBottom - popupHeight - 4;
+    }
 
     _devicePopup = OverlayEntry(
       builder: (context) {
@@ -659,9 +949,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     behavior: HitTestBehavior.opaque,
                     onTap: () {},
                     child: Material(
-                      color: isDark ? tBlack : tWhite,
-                      borderRadius: BorderRadius.circular(10),
-                      elevation: 8,
+                      color: Colors.transparent,
+                      elevation: 10,
                       child: Container(
                         width: popupWidth,
                         padding: const EdgeInsets.all(12),
@@ -677,7 +966,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                               color:
                                   isDark
                                       ? Colors.black.withOpacity(0.5)
-                                      : Colors.grey.withOpacity(0.5),
+                                      : Colors.grey.withOpacity(0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -687,7 +976,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            /// Header
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -733,141 +1021,90 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
                             const SizedBox(height: 6),
 
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                /// IMEI Row
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 2,
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'IMEI',
+                                    style: GoogleFonts.urbanist(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color:
+                                          isDark
+                                              ? tWhite.withOpacity(0.8)
+                                              : tBlack.withOpacity(0.8),
+                                    ),
                                   ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'IMEI',
-                                        style: GoogleFonts.urbanist(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
+                                  Flexible(
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        _removeDeviceTooltip();
+
+                                        openDeviceOverview(
+                                          context,
+                                          DeviceEntity(
+                                            imei: device.imei,
+                                            status: device.status,
+                                            odometer: device.odometer,
+                                            lat: device.lat,
+                                            lng: device.lng,
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
                                           color:
                                               isDark
-                                                  ? tWhite.withOpacity(0.8)
-                                                  : tBlack.withOpacity(0.8),
-                                        ),
-                                      ),
-
-                                      const SizedBox(width: 8),
-
-                                      Flexible(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 5,
-                                            horizontal: 6,
+                                                  ? Colors.blue.withOpacity(0.2)
+                                                  : Colors.blue.withOpacity(
+                                                    0.1,
+                                                  ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
                                           ),
-                                          child:
-                                              device.imei != null &&
-                                                      device.imei!.isNotEmpty
-                                                  ? GestureDetector(
-                                                    onTap: () {
-                                                      _removeDeviceTooltip();
-                                                      openDeviceOverview(
-                                                        context,
-                                                        DeviceEntity(
-                                                          imei: device.imei,
-                                                          status: device.status,
-                                                          odometer:
-                                                              device.odometer,
-                                                          lat: device.lat,
-                                                          lng: device.lng,
-                                                        ),
-                                                      );
-                                                    },
-                                                    child: Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 6,
-                                                            vertical: 2,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color:
-                                                            isDark
-                                                                ? Colors.blue
-                                                                    .withOpacity(
-                                                                      0.2,
-                                                                    )
-                                                                : Colors.blue
-                                                                    .withOpacity(
-                                                                      0.1,
-                                                                    ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              4,
-                                                            ),
-                                                      ),
-                                                      child: Text(
-                                                        device.imei!,
-                                                        style: GoogleFonts.urbanist(
-                                                          fontSize: 11,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color:
-                                                              isDark
-                                                                  ? Colors
-                                                                      .lightBlue
-                                                                  : Colors.blue,
-                                                          decoration:
-                                                              TextDecoration
-                                                                  .underline,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  )
-                                                  : const Text('--'),
+                                        ),
+                                        child: Text(
+                                          device.imei ?? '--',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.urbanist(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                isDark ? tGreen8 : tGreenDark,
+                                            decoration:
+                                                TextDecoration.underline,
+                                          ),
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
+                                ],
+                              ),
+                            ),
 
-                                /// Status
-                                _deviceInfoRow(
-                                  'Status',
-                                  device.status ?? '--',
-                                  isDark,
-                                ),
+                            _deviceInfoRow(
+                              'Status',
+                              device.status ?? '--',
+                              isDark,
+                            ),
 
-                                /// ODO
-                                _deviceInfoRow(
-                                  'ODO',
-                                  device.odometer ?? '--',
-                                  isDark,
-                                ),
+                            _deviceInfoRow(
+                              'ODO',
+                              device.odometer ?? '--',
+                              isDark,
+                            ),
 
-                                /// Location
-                                FutureBuilder<String>(
-                                  future:
-                                      (device.lat != null && device.lng != null)
-                                          ? getAddressFromLocationStringWeb(
-                                            '${device.lat},${device.lng}',
-                                          )
-                                          : Future.value('--'),
-                                  builder: (context, snapshot) {
-                                    final address =
-                                        snapshot.connectionState ==
-                                                    ConnectionState.done &&
-                                                snapshot.hasData
-                                            ? snapshot.data!
-                                            : 'Fetching location...';
-
-                                    return _deviceInfoRow(
-                                      'Location',
-                                      address,
-                                      isDark,
-                                    );
-                                  },
-                                ),
-                              ],
+                            _deviceInfoRow(
+                              "Location",
+                              device.address ?? '--',
+                              isDark,
                             ),
                           ],
                         ),
@@ -882,7 +1119,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       },
     );
 
-    Overlay.of(context)?.insert(_devicePopup!);
+    Overlay.of(context, rootOverlay: true)?.insert(_devicePopup!);
   }
 
   void _removeDeviceTooltip() {
@@ -1017,68 +1254,160 @@ class _DevicesScreenState extends State<DevicesScreen> {
     // Use filtered map devices instead of filtered list devices
     final markers = _buildMarkersFromDevices(_filteredMapDevices);
 
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _centerNotifier.value,
-        initialZoom: _zoomNotifier.value,
-        maxZoom: 18,
-        minZoom: 3,
-        onPositionChanged:
-            (position, hasGesture) =>
-                _onMapPositionChanged(position, hasGesture),
-      ),
+    return Stack(
       children: [
-        TileLayer(
-          urlTemplate:
-              isDark
-                  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                  : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.example.app',
+        FlutterMap(
+          key: _mapKey,
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _centerNotifier.value,
+            initialZoom: _zoomNotifier.value,
+            maxZoom: 18,
+            minZoom: 3,
+            onPositionChanged:
+                (position, hasGesture) =>
+                    _onMapPositionChanged(position, hasGesture),
+          ),
+          children: [
+            // TileLayer(
+            //   urlTemplate:
+            //       isDark
+            //           ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            //           : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            //   userAgentPackageName: 'com.example.app',
+            //"https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png"
+            // ),
+            TileLayer(
+              urlTemplate:
+                  isSatelliteView
+                      ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                      : (isDark
+                          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+
+              subdomains: const ['a', 'b', 'c'],
+
+              userAgentPackageName: 'com.example.app',
+            ),
+
+            MarkerClusterLayerWidget(
+              options: MarkerClusterLayerOptions(
+                maxClusterRadius: 60,
+                size: const Size(35, 35),
+                markers: markers,
+                disableClusteringAtZoom: 13,
+                builder: (context, clusterMarkers) {
+                  final info = _getClusterInfo(clusterMarkers);
+                  final color = info['color'] as Color;
+                  final textColor = info['textColor'] as Color;
+                  return Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: SweepGradient(
+                        colors: [color, color.withOpacity(0.6)],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.35),
+                          blurRadius: 6,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      clusterMarkers.length.toString(),
+                      style: GoogleFonts.urbanist(
+                        color: textColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Legends
+            _buildLegends(),
+          ],
         ),
 
-        MarkerClusterLayerWidget(
-          options: MarkerClusterLayerOptions(
-            maxClusterRadius: 60,
-            size: const Size(35, 35),
-            markers: markers,
-            disableClusteringAtZoom: 13,
-            builder: (context, clusterMarkers) {
-              final info = _getClusterInfo(clusterMarkers);
-              final color = info['color'] as Color;
-              final textColor = info['textColor'] as Color;
-              return Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  gradient: SweepGradient(
-                    colors: [color, color.withOpacity(0.6)],
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.35),
-                      blurRadius: 6,
-                      spreadRadius: 2,
-                    ),
-                  ],
+        //Map View
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Container(
+            height: 42,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color:
+                  isDark
+                      ? Colors.black.withOpacity(.85)
+                      : Colors.white.withOpacity(.95),
+              borderRadius: BorderRadius.circular(0),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 10),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _mapViewTab(
+                  title: "Map",
+                  selected: !isSatelliteView,
+                  onTap: () {
+                    setState(() {
+                      isSatelliteView = false;
+                    });
+                  },
                 ),
-                child: Text(
-                  clusterMarkers.length.toString(),
-                  style: GoogleFonts.urbanist(
-                    color: textColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+
+                _mapViewTab(
+                  title: "Satellite",
+                  selected: isSatelliteView,
+                  onTap: () {
+                    setState(() {
+                      isSatelliteView = true;
+                    });
+                  },
                 ),
-              );
+              ],
+            ),
+          ),
+        ),
+
+        Positioned(
+          top: 65,
+          right: 12,
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                isMapFullscreen = true;
+              });
             },
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color:
+                    isDark
+                        ? tBlack.withOpacity(.85)
+                        : Colors.white.withOpacity(.95),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: tBlack.withOpacity(.15), blurRadius: 10),
+                ],
+              ),
+              child: const Icon(Icons.fullscreen),
+            ),
           ),
         ),
 
         // Zoom controls
         Positioned(
           right: 12,
-          top: 12,
+          bottom: 20,
           child: Column(
             children: [
               _mapControlButton(iconPath: 'icons/zoomout.svg', onTap: _zoomIn),
@@ -1087,9 +1416,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
             ],
           ),
         ),
-
-        // Legends
-        _buildLegends(),
       ],
     );
   }
@@ -1130,23 +1456,28 @@ class _DevicesScreenState extends State<DevicesScreen> {
           if (!mounted) return;
           setState(() {
             _searchQuery = query.trim();
-            currentPage = 1; // Reset to first page when searching
+            currentPage = 1;
+            _filteredDevices.clear();
+            _allDevices.clear();
           });
-          _loadDevices(); // This will trigger API call with search query
+          _loadDevices();
+          _loadDevicesForMap();
         });
       },
+      cursorColor: isDark ? tWhite : tBlack,
     ),
   );
   Widget _buildFilterPanel(bool isDark) {
     final mode = context.watch<FleetModeProvider>().mode;
-
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
     return Positioned(
-      top: 55,
+      top: isMobile ? 45 : 55,
       right: 0,
       child: Material(
         color: Colors.transparent,
         child: Container(
-          width: 350,
+          width: isMobile ? 300 : 350,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isDark ? tBlack : tWhite,
@@ -1172,6 +1503,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         : NonEvstatusApiMap.keys.toList(),
                 selectedItems: _tempSelectedStatuses,
                 onTap: (item) {
+                  _statusFilterModified = true;
+
                   setState(() {
                     if (_tempSelectedStatuses.contains(item)) {
                       _tempSelectedStatuses.clear();
@@ -1184,9 +1517,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 isDark: isDark,
                 colorResolver: (item) {
                   if (mode == 'EV Fleet') {
-                    return _evStatusColors[item] ?? tBlue;
+                    return _evStatusColors[item] ?? tGreen8;
                   }
-                  return _nonEVStatusColors[item] ?? tBlue;
+                  return _nonEVStatusColors[item] ?? tGreen8;
                 },
               ),
               const SizedBox(height: 14),
@@ -1210,43 +1543,55 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   });
                 },
                 isDark: isDark,
-                colorResolver: (_) => tBlue,
+                colorResolver: (_) => tGreen8,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Align(
                 alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (!mounted) return;
-                    setState(() {
-                      // Apply the temp selections to actual selections
-                      _selectedStatuses.clear();
-                      _selectedStatuses.addAll(_tempSelectedStatuses);
+                child: SizedBox(
+                  width: isMobile ? 80 : 120,
+                  height: isMobile ? 30 : 40,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (!mounted) return;
 
-                      _selectedFilterValues.clear();
-                      _selectedFilterValues.addAll(_tempSelectedFilterValues);
+                      setState(() {
+                        _selectedStatuses.clear();
+                        _selectedStatuses.addAll(_tempSelectedStatuses);
 
-                      _showFilterPanel = false;
-                      currentPage = 1;
-                    });
-                    _loadDevices();
-                    _loadDevicesForMap();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: tBlue,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
+                        _selectedFilterValues.clear();
+                        _selectedFilterValues.addAll(_tempSelectedFilterValues);
+
+                        _showFilterPanel = false;
+                        currentPage = 1;
+                      });
+
+                      _loadDevices();
+                      _loadDevicesForMap();
+                    },
+
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: tGreen8,
+
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 10 : 20,
+                        vertical: isMobile ? 6 : 10,
+                      ),
+
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: Text(
-                    'Apply Filters',
-                    style: GoogleFonts.urbanist(
-                      color: tWhite,
-                      fontWeight: FontWeight.w600,
+
+                    child: Text(
+                      'Apply Filters',
+                      style: GoogleFonts.urbanist(
+                        color: tWhite,
+                        fontSize: isMobile ? 10 : 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -1286,42 +1631,74 @@ class _DevicesScreenState extends State<DevicesScreen> {
     required Function(String) onTap,
     required bool isDark,
     required Color Function(String) colorResolver,
-  }) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        title,
-        style: GoogleFonts.urbanist(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: isDark ? tWhite : tBlack,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.urbanist(
+            fontSize: isMobile ? 11 : 13,
+            fontWeight: FontWeight.w700,
+            color: isDark ? tWhite : tBlack,
+          ),
         ),
-      ),
-      const SizedBox(height: 8),
-      Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        children:
-            items.map((item) {
-              final selected = selectedItems.contains(item);
-              return FilterChip(
-                label: Text(item),
-                selected: selected,
-                onSelected: (_) => onTap(item),
-                // backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-                backgroundColor:
-                    isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.1),
-                selectedColor: colorResolver(item),
-                checkmarkColor: tWhite,
-                labelStyle: GoogleFonts.urbanist(
-                  color: selected ? tWhite : (isDark ? tWhite : tBlack),
-                  fontWeight: FontWeight.w500,
-                ),
-              );
-            }).toList(),
-      ),
-    ],
-  );
+
+        SizedBox(height: isMobile ? 6 : 8),
+
+        Wrap(
+          spacing: isMobile ? 6 : 8,
+          runSpacing: isMobile ? 4 : 6,
+          children:
+              items.map((item) {
+                final selected = selectedItems.contains(item);
+
+                return FilterChip(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+
+                  label: Text(item),
+
+                  selected: selected,
+
+                  onSelected: (_) => onTap(item),
+
+                  backgroundColor:
+                      isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
+
+                  selectedColor: colorResolver(item),
+
+                  side: BorderSide.none,
+
+                  checkmarkColor: tWhite,
+
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 6 : 10,
+                    vertical: isMobile ? 2 : 4,
+                  ),
+
+                  labelStyle: GoogleFonts.urbanist(
+                    fontSize:
+                        isMobile
+                            ? 10
+                            : isTablet
+                            ? 11
+                            : 12,
+                    color: selected ? tWhite : (isDark ? tWhite : tBlack),
+                    fontWeight: FontWeight.w500,
+                  ),
+                );
+              }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _mapControlButton({
     required String iconPath,
     required VoidCallback onTap,
@@ -1349,20 +1726,31 @@ class _DevicesScreenState extends State<DevicesScreen> {
   Widget _buildPaginationControls(bool isDark) {
     const int visiblePageCount = 5;
 
-    // Determine start and end of visible window
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+
+    final isTablet = screenWidth >= 600 && screenWidth < 1100;
+
+    // ---------------- PAGE WINDOW ----------------
     int startPage =
         ((currentPage - 1) ~/ visiblePageCount) * visiblePageCount + 1;
+
     int endPage = (startPage + visiblePageCount - 1).clamp(1, totalPages);
 
     int startItem = ((currentPage - 1) * itemsPerPage) + 1;
+
     int endItem = (currentPage * itemsPerPage).clamp(1, _totalCountFromAPI);
 
     if (currentPage == totalPages) {
       endItem = _totalCountFromAPI;
+
       startItem = endItem - paginatedDevices.length + 1;
+
       if (startItem < 1) startItem = 1;
     }
 
+    // ---------------- PAGE BUTTONS ----------------
     final pageButtons = <Widget>[];
 
     for (int pageNum = startPage; pageNum <= endPage; pageNum++) {
@@ -1371,27 +1759,47 @@ class _DevicesScreenState extends State<DevicesScreen> {
       pageButtons.add(
         GestureDetector(
           onTap: () {
-            if (pageNum == currentPage || _loading) return;
+            if (pageNum == currentPage || _loading) {
+              return;
+            }
+
             if (!mounted) return;
 
-            _removeDeviceTooltip(); // Clear any open tooltips
+            _removeDeviceTooltip();
+
             _loadDevices(page: pageNum);
           },
+
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            margin: EdgeInsets.symmetric(horizontal: isMobile ? 2 : 4),
+
+            padding: EdgeInsets.symmetric(
+              horizontal:
+                  isMobile
+                      ? 8
+                      : isTablet
+                      ? 9
+                      : 10,
+
+              vertical: isMobile ? 5 : 6,
+            ),
+
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              color: isSelected ? tGreen8 : Colors.transparent,
+
+              borderRadius: BorderRadius.zero,
+
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
+
             child: Text(
               '$pageNum',
+
               style: GoogleFonts.urbanist(
                 color:
                     isSelected
@@ -1399,8 +1807,15 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),
+
                 fontWeight: FontWeight.w600,
-                fontSize: 13,
+
+                fontSize:
+                    isMobile
+                        ? 11
+                        : isTablet
+                        ? 12
+                        : 13,
               ),
             ),
           ),
@@ -1410,45 +1825,186 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
     final controller = TextEditingController();
 
+    // ---------------- MOBILE + TABLET ----------------
+    if (isMobile || isTablet) {
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: isMobile ? 4 : 6,
+          horizontal: isMobile ? 4 : 6,
+        ),
+
+        child: Column(
+          children: [
+            Column(
+              children: [
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // PREVIOUS
+                      IconButton(
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          Icons.chevron_left,
+                          color: isDark ? tWhite : tBlack,
+                          size: isMobile ? 20 : 21,
+                        ),
+                        onPressed:
+                            _loading
+                                ? null
+                                : () {
+                                  if (currentPage > 1) {
+                                    _removeDeviceTooltip();
+
+                                    _loadDevices(page: currentPage - 1);
+                                  }
+                                },
+                      ),
+
+                      const SizedBox(width: 2),
+
+                      Row(children: pageButtons),
+
+                      const SizedBox(width: 2),
+
+                      // NEXT
+                      IconButton(
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          Icons.chevron_right,
+                          color: isDark ? tWhite : tBlack,
+                          size: isMobile ? 20 : 21,
+                        ),
+                        onPressed:
+                            _loading
+                                ? null
+                                : () {
+                                  if (currentPage < totalPages) {
+                                    _removeDeviceTooltip();
+
+                                    _loadDevices(page: currentPage + 1);
+                                  }
+                                },
+                      ),
+
+                      SizedBox(
+                        width: isMobile ? 50 : 58,
+                        height: 30,
+                        child: TextField(
+                          controller: controller,
+                          style: GoogleFonts.urbanist(
+                            fontSize: isMobile ? 11 : 12,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: 'Page',
+                            hintStyle: GoogleFonts.urbanist(
+                              fontSize: isMobile ? 10 : 11,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            final page = int.tryParse(value);
+
+                            if (page != null &&
+                                page >= 1 &&
+                                page <= totalPages &&
+                                mounted) {
+                              _removeDeviceTooltip();
+
+                              _loadDevices(page: page);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$startPage–$endPage of $totalPages',
+                      style: GoogleFonts.urbanist(
+                        fontSize: isMobile ? 11 : 12,
+                        color: isDark ? tWhite : tBlack,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ---------------- DESKTOP ----------------
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
+
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+
         children: [
-          /// Previous Button
+          // PREVIOUS
           IconButton(
             icon: Icon(
               Icons.chevron_left,
+
               color: isDark ? tWhite : tBlack,
+
               size: 22,
             ),
+
             onPressed:
                 _loading
                     ? null
                     : () {
                       if (currentPage > 1) {
                         _removeDeviceTooltip();
+
                         _loadDevices(page: currentPage - 1);
                       }
                     },
           ),
 
-          /// Page Buttons (windowed 5)
           Row(children: pageButtons),
 
-          /// Next Button
+          // NEXT
           IconButton(
             icon: Icon(
               Icons.chevron_right,
+
               color: isDark ? tWhite : tBlack,
+
               size: 22,
             ),
+
             onPressed:
                 _loading
                     ? null
                     : () {
                       if (currentPage < totalPages) {
                         _removeDeviceTooltip();
+
                         _loadDevices(page: currentPage + 1);
                       }
                     },
@@ -1456,41 +2012,53 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
           const SizedBox(width: 16),
 
-          /// Page Input Box
+          // PAGE INPUT
           SizedBox(
             width: 70,
             height: 32,
+
             child: TextField(
               controller: controller,
+
               style: GoogleFonts.urbanist(
                 fontSize: 13,
                 color: isDark ? tWhite : tBlack,
               ),
+
               keyboardType: TextInputType.number,
+
               decoration: InputDecoration(
                 hintText: 'Page',
+
                 hintStyle: GoogleFonts.urbanist(
                   fontSize: 12,
+
                   color: isDark ? Colors.white54 : Colors.black54,
                 ),
+
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 4,
                 ),
+
                 border: OutlineInputBorder(
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
+
                     width: 0.8,
                   ),
                 ),
               ),
+
               onSubmitted: (value) {
                 final page = int.tryParse(value);
+
                 if (page != null &&
                     page >= 1 &&
                     page <= totalPages &&
                     mounted) {
                   _removeDeviceTooltip();
+
                   _loadDevices(page: page);
                 }
               },
@@ -1499,11 +2067,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
           const SizedBox(width: 10),
 
-          /// Show visible range (e.g., "1–5 of 20")
           Text(
             '$startPage–$endPage of $totalPages',
+
             style: GoogleFonts.urbanist(
               fontSize: 13,
+
               color: isDark ? tWhite : tBlack,
             ),
           ),
@@ -1512,213 +2081,6 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
-  // Widget buildDeviceCard({
-  //   required bool isDark,
-  //   required String vehicleNumber,
-  //   required String status,
-  //   required String imei,
-  //   required String fuel,
-  //   required String odo,
-  //   required String trips,
-  //   required String alerts,
-  //   required String location,
-  //   required String lastUpdated,
-  // }) {
-  //   final mode = context.watch<FleetModeProvider>().mode;
-
-  //   Color statusColor;
-  //   switch (status.toLowerCase()) {
-  //     case 'moving':
-  //       statusColor = tGreen;
-  //       break;
-  //     case 'idle':
-  //       statusColor = tOrange1;
-  //       break;
-  //     case 'stopped':
-  //       statusColor = tRed;
-  //       break;
-  //     case 'disconnected':
-  //       statusColor = tGrey;
-  //       break;
-  //     case 'discharging':
-  //       statusColor = tGreen;
-  //       break;
-  //     case 'charging':
-  //       statusColor = Colors.teal;
-  //       break;
-  //     case 'non coverage':
-  //     case 'non_coverage':
-  //       statusColor = Colors.purple;
-  //       break;
-  //     default:
-  //       statusColor = tBlack;
-  //   }
-
-  //   return Container(
-  //     width: double.infinity,
-  //     decoration: BoxDecoration(
-  //       color: isDark ? tBlack : tWhite,
-  //       boxShadow: [
-  //         BoxShadow(
-  //           spreadRadius: 2,
-  //           blurRadius: 10,
-  //           color: isDark ? tWhite.withOpacity(0.1) : tBlack.withOpacity(0.1),
-  //         ),
-  //       ],
-  //     ),
-  //     padding: const EdgeInsets.all(10),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: [
-  //         /// IMEI + Vehicle + Status Row
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Container(
-  //               width: 250,
-  //               decoration: BoxDecoration(
-  //                 border: Border.all(color: statusColor, width: 1),
-  //                 borderRadius: BorderRadius.circular(6),
-  //               ),
-  //               child: Column(
-  //                 children: [
-  //                   Container(
-  //                     width: double.infinity,
-  //                     padding: const EdgeInsets.symmetric(vertical: 4),
-  //                     decoration: BoxDecoration(
-  //                       // color: statusColor,
-  //                       gradient: SweepGradient(
-  //                         colors: [statusColor, statusColor.withOpacity(0.6)],
-  //                       ),
-  //                       borderRadius: const BorderRadius.only(
-  //                         topLeft: Radius.circular(5),
-  //                         topRight: Radius.circular(5),
-  //                       ),
-  //                     ),
-  //                     child: Text(
-  //                       imei,
-  //                       style: GoogleFonts.urbanist(
-  //                         fontSize: 13,
-  //                         fontWeight: FontWeight.w700,
-  //                         // color: isDark ? tBlack : tWhite,
-  //                         color: tWhite,
-  //                       ),
-  //                       textAlign: TextAlign.center,
-  //                     ),
-  //                   ),
-  //                   Padding(
-  //                     padding: const EdgeInsets.all(4.0),
-  //                     child: Text(
-  //                       vehicleNumber,
-  //                       style: GoogleFonts.urbanist(
-  //                         fontSize: 12,
-  //                         fontWeight: FontWeight.w600,
-  //                         color: isDark ? tWhite : tBlack,
-  //                       ),
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-
-  //             const SizedBox(width: 15),
-
-  //             Column(
-  //               crossAxisAlignment: CrossAxisAlignment.end,
-  //               children: [
-  //                 Container(
-  //                   padding: const EdgeInsets.symmetric(
-  //                     horizontal: 14,
-  //                     vertical: 6,
-  //                   ),
-  //                   decoration: BoxDecoration(
-  //                     // color: statusColor,
-  //                     gradient: SweepGradient(
-  //                       colors: [statusColor, statusColor.withOpacity(0.6)],
-  //                     ),
-  //                     borderRadius: BorderRadius.circular(6),
-  //                   ),
-  //                   child: Text(
-  //                     status,
-  //                     style: GoogleFonts.urbanist(
-  //                       fontSize: 13,
-  //                       fontWeight: FontWeight.w600,
-  //                       // color: isDark ? tBlack : tWhite,
-  //                       color: tWhite,
-  //                     ),
-  //                   ),
-  //                 ),
-  //                 SizedBox(height: 5),
-  //                 Text(
-  //                   lastUpdated,
-  //                   style: GoogleFonts.urbanist(
-  //                     fontSize: 12,
-  //                     fontWeight: FontWeight.w500,
-  //                     color: isDark ? tWhite : tBlack,
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ],
-  //         ),
-
-  //         const SizedBox(height: 10),
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           children: [
-  //             _buildStatColumn(isDark, title: 'ODO', value: odo),
-  //             _buildStatColumn(
-  //               isDark,
-  //               title: mode == 'EV Fleet' ? 'SOC' : 'Fuel',
-  //               value: fuel,
-  //               alignEnd: true,
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 5),
-  //         Row(
-  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //           children: [
-  //             _buildStatColumn(isDark, title: 'Trips', value: trips),
-  //             _buildStatColumn(
-  //               isDark,
-  //               title: 'ALERTS',
-  //               value: alerts,
-  //               alignEnd: true,
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 6),
-  //         Divider(
-  //           color: isDark ? tWhite.withOpacity(0.4) : tBlack.withOpacity(0.4),
-  //           thickness: 0.3,
-  //         ),
-  //         const SizedBox(height: 6),
-  //         Row(
-  //           children: [
-  //             SvgPicture.asset(
-  //               'icons/geofence.svg',
-  //               width: 16,
-  //               height: 16,
-  //               color: tGreen,
-  //             ),
-  //             const SizedBox(width: 5),
-  //             Expanded(
-  //               child: Text(
-  //                 location,
-  //                 style: GoogleFonts.urbanist(
-  //                   fontSize: 13,
-  //                   color: isDark ? tWhite : tBlack,
-  //                 ),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
   Widget buildDeviceCard({
     required bool isDark,
     required String vehicleNumber,
@@ -1733,7 +2095,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
     required DeviceEntity device,
   }) {
     final mode = context.watch<FleetModeProvider>().mode;
-
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1100;
+    final hasImei = (device.imei ?? '').trim().isNotEmpty;
+    final hasVehicleNumber = vehicleNumber.trim().isNotEmpty;
     Color statusColor;
     switch (status.toLowerCase()) {
       case 'moving':
@@ -1752,9 +2118,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
         statusColor = tGreen;
         break;
       case 'charging':
-        // statusColor = Colors.teal;
         statusColor = tBlue;
-
         break;
       case 'non coverage':
       case 'non_coverage':
@@ -1764,214 +2128,434 @@ class _DevicesScreenState extends State<DevicesScreen> {
         statusColor = tBlack;
     }
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? tBlack : tWhite,
-        boxShadow: [
-          BoxShadow(
-            spreadRadius: 2,
-            blurRadius: 10,
-            color: isDark ? tWhite.withOpacity(0.1) : tBlack.withOpacity(0.1),
+    String getTruckIcon(String status) {
+      switch (status.toLowerCase()) {
+        case 'moving':
+          return 'icons/indicationIcons/moving1.svg';
+
+        case 'stopped':
+          return 'icons/indicationIcons/stopped1.svg';
+
+        case 'idle':
+          return 'icons/indicationIcons/idle1.svg';
+
+        case 'disconnected':
+          return 'icons/indicationIcons/disconnected1.svg';
+
+        case 'non coverage':
+        case 'non_coverage':
+          return 'icons/indicationIcons/noncoverage1.svg';
+
+        case 'charging':
+          return 'icons/indicationIcons/charging1.svg';
+
+        case 'discharging':
+          return 'icons/indicationIcons/moving1.svg';
+
+        default:
+          return 'icons/indicationIcons/stopped1.svg';
+      }
+    }
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          hoveredDevices.add(device.imei ?? '');
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          hoveredDevices.remove(device.imei ?? '');
+        });
+      },
+      child: GestureDetector(
+        onTap: () {
+          _removeDeviceTooltip();
+          openDeviceOverview(context, device);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          transform:
+              hoveredDevices.contains(device.imei ?? '')
+                  ? (Matrix4.identity()
+                    ..translate(0.0, -5.0)
+                    ..scale(1.02))
+                  : Matrix4.identity(),
+
+          decoration: BoxDecoration(
+            color: isDark ? tBlack : tWhite,
+
+            // borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color:
+                  hoveredDevices.contains(device.imei ?? '')
+                      ? statusColor
+                      : Colors.transparent,
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color:
+                    hoveredDevices.contains(device.imei ?? '')
+                        ? statusColor.withOpacity(.25)
+                        : (isDark
+                            ? tWhite.withOpacity(.08)
+                            : tBlack.withOpacity(.08)),
+                blurRadius:
+                    hoveredDevices.contains(device.imei ?? '') ? 18 : 10,
+                spreadRadius:
+                    hoveredDevices.contains(device.imei ?? '') ? 2 : 0,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// IMEI + Vehicle + Status Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          padding: EdgeInsets.all(isMobile ? 8 : 10),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 250,
-                decoration: BoxDecoration(
-                  border: Border.all(color: statusColor, width: 1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+              // ---------------- TOP SECTION WITH ENHANCED COPY ----------------
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SvgPicture.asset(
+                    getTruckIcon(status),
+                    height: isMobile ? 40 : 50,
+                    width: isMobile ? 40 : 50,
+                  ),
+                  SizedBox(width: 10),
+
+                  // Vehicle Info Container
+                  Expanded(
+                    child: Container(
                       decoration: BoxDecoration(
-                        gradient: SweepGradient(
-                          colors: [statusColor, statusColor.withOpacity(0.6)],
-                        ),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(5),
-                          topRight: Radius.circular(5),
-                        ),
+                        border: Border.all(color: statusColor, width: 1),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Column(
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              _removeDeviceTooltip();
+                          // IMEI Header with Copy
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: SweepGradient(
+                                colors: [
+                                  statusColor,
+                                  statusColor.withOpacity(0.6),
+                                ],
+                              ),
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(5),
+                                topRight: Radius.circular(5),
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      device.imei ?? '--',
+                                      textAlign: TextAlign.center,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: GoogleFonts.urbanist(
+                                        fontSize:
+                                            isMobile
+                                                ? 11
+                                                : isTablet
+                                                ? 12
+                                                : 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: tWhite,
+                                      ),
+                                    ),
+                                  ),
+                                  if (hasImei)
+                                    SizedBox(
+                                      width: 22, // fixed width
+                                      child: Center(
+                                        child: MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              Clipboard.setData(
+                                                ClipboardData(
+                                                  text: device.imei ?? '',
+                                                ),
+                                              );
 
-                              openDeviceOverview(context, device);
-                            },
+                                              setState(() {
+                                                imeiCopied = true;
+                                              });
 
-                            onDoubleTap: () {
-                              Clipboard.setData(
-                                ClipboardData(text: device.imei ?? ''),
-                              );
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('IMEI copied')),
-                              );
-                            },
-
-                            child: Text(
-                              device.imei ?? '--',
-                              style: GoogleFonts.urbanist(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: tWhite,
-                                decoration: TextDecoration.none,
+                                              Future.delayed(
+                                                const Duration(seconds: 2),
+                                                () {
+                                                  if (mounted) {
+                                                    setState(() {
+                                                      imeiCopied = false;
+                                                    });
+                                                  }
+                                                },
+                                              );
+                                            },
+                                            child: Tooltip(
+                                              message:
+                                                  imeiCopied
+                                                      ? 'IMEI Copied'
+                                                      : 'Copy IMEI',
+                                              child: Icon(
+                                                Icons.copy,
+                                                size: isMobile ? 10 : 12,
+                                                color: tWhite,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
+                          // Vehicle Number with Copy
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 4,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    vehicleNumber,
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    style: GoogleFonts.urbanist(
+                                      fontSize:
+                                          isMobile
+                                              ? 10
+                                              : isTablet
+                                              ? 11
+                                              : 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? tWhite : tBlack,
+                                    ),
+                                  ),
+                                ),
+                                if (hasVehicleNumber)
+                                  SizedBox(
+                                    width: 22, // fixed width
+                                    child: Center(
+                                      child: MouseRegion(
+                                        cursor: SystemMouseCursors.click,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            Clipboard.setData(
+                                              ClipboardData(
+                                                text: vehicleNumber,
+                                              ),
+                                            );
 
-                          // const SizedBox(width: 8),
-                          // GestureDetector(
-                          //   onTap: () {
-                          //     // Copy IMEI to clipboard
-                          //     Clipboard.setData(ClipboardData(text: imei));
-                          //     // Optional: Show a snackbar or toast notification
-                          //     ScaffoldMessenger.of(context).showSnackBar(
-                          //       SnackBar(
-                          //         content: Text(
-                          //           'IMEI copied to clipboard',
-                          //           style: GoogleFonts.urbanist(),
-                          //         ),
-                          //         duration: const Duration(seconds: 2),
-                          //         behavior: SnackBarBehavior.floating,
-                          //       ),
-                          //     );
-                          //   },
-                          //   child: Container(
-                          //     padding: const EdgeInsets.all(4),
-                          //     decoration: BoxDecoration(
-                          //       color: tWhite.withOpacity(0.2),
-                          //       borderRadius: BorderRadius.circular(4),
-                          //     ),
-                          //     child: Icon(Icons.copy, size: 14, color: tWhite),
-                          //   ),
-                          // ),
+                                            setState(() {
+                                              vehicleCopied = true;
+                                            });
+
+                                            Future.delayed(
+                                              const Duration(seconds: 2),
+                                              () {
+                                                if (mounted) {
+                                                  setState(() {
+                                                    vehicleCopied = false;
+                                                  });
+                                                }
+                                              },
+                                            );
+                                          },
+                                          child: Tooltip(
+                                            message:
+                                                vehicleCopied
+                                                    ? 'Vehicle Number Copied'
+                                                    : 'Copy Vehicle Number',
+                                            child: Icon(
+                                              Icons.copy,
+                                              size: isMobile ? 10 : 12,
+                                              color: tWhite,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: Text(
-                        vehicleNumber,
-                        style: GoogleFonts.urbanist(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? tWhite : tBlack,
+                  ),
+                  SizedBox(
+                    width:
+                        isMobile
+                            ? 8
+                            : isTablet
+                            ? 10
+                            : 15,
+                  ),
+                  // ---------------- STATUS + DATE ----------------
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal:
+                                isMobile
+                                    ? 8
+                                    : isTablet
+                                    ? 9
+                                    : 11,
+                            vertical: isMobile ? 4 : 6,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: SweepGradient(
+                              colors: [
+                                statusColor,
+                                statusColor.withOpacity(0.6),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            status,
+                            style: GoogleFonts.urbanist(
+                              fontSize:
+                                  isMobile
+                                      ? 10
+                                      : isTablet
+                                      ? 11
+                                      : 13,
+                              fontWeight: FontWeight.w600,
+                              color: tWhite,
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 5),
+                        SizedBox(
+                          width:
+                              isMobile
+                                  ? 90
+                                  : isTablet
+                                  ? 95
+                                  : 130,
+                          child: Text(
+                            lastUpdated,
+                            maxLines: 2,
+                            softWrap: true,
+                            overflow: TextOverflow.visible,
+                            textAlign: TextAlign.right,
+                            style: GoogleFonts.urbanist(
+                              fontSize:
+                                  isMobile
+                                      ? 10
+                                      : isTablet
+                                      ? 11
+                                      : 12,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? tWhite : tBlack,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-
-              const SizedBox(width: 15),
-
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              const SizedBox(height: 10),
+              // ---------------- STATS ----------------
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildStatColumn(isDark, title: 'ODO', value: odo),
+                  _buildStatColumn(
+                    isDark,
+                    title: mode == 'EV Fleet' ? 'SOC' : 'Fuel',
+                    value: fuel,
+                    alignEnd: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildStatColumn(isDark, title: 'Trips', value: trips),
+                  _buildStatColumn(
+                    isDark,
+                    title: 'ALERTS',
+                    value: alerts,
+                    alignEnd: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Divider(
+                color:
+                    isDark ? tWhite.withOpacity(0.4) : tBlack.withOpacity(0.4),
+                thickness: 0.3,
+              ),
+              const SizedBox(height: 6),
+              // ---------------- LOCATION ----------------
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
+                    width: isMobile ? 32 : 36,
+                    height: isMobile ? 30 : 36,
                     decoration: BoxDecoration(
-                      gradient: SweepGradient(
-                        colors: [statusColor, statusColor.withOpacity(0.6)],
-                      ),
-                      borderRadius: BorderRadius.circular(6),
+                      color: statusColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(13),
                     ),
-                    child: Text(
-                      status,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: tWhite,
+
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'icons/geofence.svg',
+                        width: isMobile ? 14 : 16,
+                        height: isMobile ? 14 : 16,
+                        color: statusColor,
                       ),
                     ),
                   ),
-                  SizedBox(height: 5),
-                  Text(
-                    lastUpdated,
-                    style: GoogleFonts.urbanist(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? tWhite : tBlack,
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      location,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.urbanist(
+                        fontSize:
+                            isMobile
+                                ? 11
+                                : isTablet
+                                ? 12
+                                : 13,
+                        color: isDark ? tWhite : tBlack,
+                        height: 1.3,
+                      ),
                     ),
                   ),
                 ],
               ),
             ],
           ),
-
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildStatColumn(isDark, title: 'ODO', value: odo),
-              _buildStatColumn(
-                isDark,
-                title: mode == 'EV Fleet' ? 'SOC' : 'Fuel',
-                value: fuel,
-                alignEnd: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildStatColumn(isDark, title: 'Trips', value: trips),
-              _buildStatColumn(
-                isDark,
-                title: 'ALERTS',
-                value: alerts,
-                alignEnd: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Divider(
-            color: isDark ? tWhite.withOpacity(0.4) : tBlack.withOpacity(0.4),
-            thickness: 0.3,
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              SvgPicture.asset(
-                'icons/geofence.svg',
-                width: 16,
-                height: 16,
-                color: tGreen,
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  location,
-                  style: GoogleFonts.urbanist(
-                    fontSize: 13,
-                    color: isDark ? tWhite : tBlack,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2006,12 +2590,488 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
+  Widget _mapViewTab({
+    required String title,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? tGreen8 : Colors.transparent,
+          borderRadius: BorderRadius.circular(0),
+        ),
+        child: Text(
+          title,
+          style: GoogleFonts.urbanist(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color:
+                selected
+                    ? Colors.white
+                    : Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : tBlack,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ResponsiveLayout(
-      mobile: const Center(child: Text("Mobile / Tablet layout coming soon")),
-      tablet: const Center(child: Text("Mobile / Tablet layout coming soon")),
+      // mobile: const Center(child: Text("Mobile / Tablet layout coming soon")),
+      mobile: _buildMobileLayout(),
+      // tablet: const Center(child: Text("Mobile / Tablet layout coming soon")),
+      tablet: _buildTabletLayout(),
       desktop: _buildDesktopLayout(),
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = context.watch<FleetModeProvider>().mode;
+
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FleetTitleBar(
+                      isDark: isDark,
+                      title: "Devices (${_totalCountFromAPI})",
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  SizedBox(
+                    height: 38,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        _openMobileMap(isDark);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: tGreen8,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.zero,
+                        ),
+                        elevation: 2,
+                      ),
+                      icon: const Icon(CupertinoIcons.map_fill, color: tWhite),
+                      label: Text(
+                        "Map",
+                        style: GoogleFonts.urbanist(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: tWhite,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  Expanded(child: _buildFilterBySearch(isDark)),
+
+                  const SizedBox(width: 8),
+
+                  _filterButton(isDark),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // DEVICE LIST
+            Expanded(
+              child: RefreshIndicator(
+                color: tGreen8,
+                onRefresh: () async {
+                  currentPage = 1;
+                  _hasMoreData = true;
+
+                  await _loadDevices();
+                  await _loadDevicesForMap();
+                },
+                child: ListView.builder(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(
+                    left: 10,
+                    right: 10,
+                    bottom: 20,
+                  ),
+
+                  // itemCount: _filteredDevices.length + 1,
+                  itemCount:
+                      _filteredDevices.length + (_isPaginationLoading ? 1 : 0),
+
+                  itemBuilder: (context, index) {
+                    /// PAGINATION LOADER
+                    // if (index == _filteredDevices.length) {
+                    if (index >= _filteredDevices.length) {
+                      return _isPaginationLoading
+                          ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: LoadingAnimationWidget.staggeredDotsWave(
+                                color: isDark ? tWhite : tBlack,
+                                size: 42,
+                              ),
+                            ),
+                          )
+                          : const SizedBox.shrink();
+                    }
+
+                    final device = _filteredDevices[index];
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+
+                      child: FutureBuilder<String>(
+                        // future: getAddressFromLocationStringWeb(
+                        //   device.location ?? '',
+                        // ),
+                        future: getCachedAddress(device.lat, device.lng),
+
+                        builder: (context, snapshot) {
+                          // final address =
+                          //     snapshot.connectionState ==
+                          //                 ConnectionState.done &&
+                          //             snapshot.hasData
+                          //         ? snapshot.data!
+                          //         : 'Fetching location...';
+
+                          return buildDeviceCard(
+                            isDark: isDark,
+                            imei: device.imei ?? '',
+                            vehicleNumber: device.vehicleNumber ?? '',
+                            status: device.status ?? '',
+                            fuel:
+                                mode == 'EV Fleet'
+                                    ? '${double.tryParse((device.soc ?? '').replaceAll('%', ''))?.toInt() ?? ''}%'
+                                    : '${device.tafe?.fuellevel ?? ''}%',
+                            odo: device.odometer ?? '',
+                            trips: (device.totalTrips ?? 0).toString(),
+                            alerts: (device.totalAlerts ?? 0).toString(),
+                            location: (device.address ?? '').toString(),
+                            device: device,
+                            lastUpdated:
+                                mode == 'EV Fleet'
+                                    ? device.batteryLogDate ?? ''
+                                    : device.locationLogDate ?? '',
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+        // if (_loading)
+        //   Center(
+        //     child: LoadingAnimationWidget.staggeredDotsWave(
+        //       color: isDark ? tWhite : tBlack,
+        //       size: 42,
+        //     ),
+        //   ),
+        if (_showFilterPanel) _buildFilterPanel(isDark),
+
+        if (_loading) _buildLoadingOverlay(isDark),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = context.watch<FleetModeProvider>().mode;
+
+    return Stack(
+      children: [
+        Column(
+          children: [
+            // ---------------- HEADER ----------------
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: FleetTitleBar(
+                      isDark: isDark,
+                      title: "Devices (${_totalCountFromAPI})",
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  Row(
+                    children: [
+                      SizedBox(width: 260, child: _buildFilterBySearch(isDark)),
+
+                      const SizedBox(width: 6),
+
+                      _filterButton(isDark),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // ---------------- BODY ----------------
+            Expanded(
+              child: Row(
+                children: [
+                  // ---------------- DEVICE LIST ----------------
+                  Expanded(
+                    flex: 4,
+                    child: Container(
+                      height: double.infinity,
+                      margin: const EdgeInsets.only(left: 10, bottom: 10),
+                      decoration: BoxDecoration(
+                        color: isDark ? tBlack : tWhite,
+                        borderRadius: BorderRadius.zero,
+                        boxShadow: [
+                          BoxShadow(
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                            offset: const Offset(0, 4),
+                            color:
+                                isDark
+                                    ? tWhite.withOpacity(0.08)
+                                    : tBlack.withOpacity(0.08),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // DEVICE LIST
+                          Expanded(
+                            child:
+                                paginatedDevices.isEmpty && !_loading
+                                    ? Center(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          SvgPicture.asset(
+                                            'icons/nodata1.svg',
+                                            height: 90,
+                                            width: 90,
+                                          ),
+
+                                          const SizedBox(height: 12),
+
+                                          Text(
+                                            'No devices found',
+                                            style: GoogleFonts.urbanist(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? tWhite : tBlack,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                    : Scrollbar(
+                                      thumbVisibility: true,
+                                      controller: _scrollController,
+                                      child: ListView.builder(
+                                        controller: _scrollController,
+                                        physics: const BouncingScrollPhysics(),
+                                        padding: const EdgeInsets.fromLTRB(
+                                          10,
+                                          10,
+                                          10,
+                                          6,
+                                        ),
+                                        // itemCount: paginatedDevices.length,
+                                        itemCount:
+                                            paginatedDevices.length +
+                                            (_isPaginationLoading ? 1 : 0),
+                                        itemBuilder: (context, index) {
+                                          if (index >=
+                                              paginatedDevices.length) {
+                                            return Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 15,
+                                                  ),
+                                              child: Center(
+                                                child:
+                                                    LoadingAnimationWidget.staggeredDotsWave(
+                                                      color:
+                                                          isDark
+                                                              ? tWhite
+                                                              : tBlack,
+                                                      size: 32,
+                                                    ),
+                                              ),
+                                            );
+                                          }
+
+                                          final device =
+                                              paginatedDevices[index];
+
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 10,
+                                            ),
+                                            child: FutureBuilder<String>(
+                                              // future:
+                                              //     getAddressFromLocationStringWeb(
+                                              //       device.location ?? '',
+                                              //     ),
+                                              future: getCachedAddress(
+                                                device.lat,
+                                                device.lng,
+                                              ),
+                                              builder: (context, snapshot) {
+                                                // final address =
+                                                //     snapshot.connectionState ==
+                                                //                 ConnectionState
+                                                //                     .done &&
+                                                //             snapshot.hasData
+                                                //         ? snapshot.data!
+                                                //         : 'Fetching location...';
+
+                                                return buildDeviceCard(
+                                                  isDark: isDark,
+                                                  imei: device.imei ?? '',
+                                                  vehicleNumber:
+                                                      device.vehicleNumber ??
+                                                      '',
+                                                  status: device.status ?? '',
+                                                  fuel:
+                                                      mode == 'EV Fleet'
+                                                          ? '${double.tryParse((device.soc ?? '').replaceAll('%', ''))?.toInt() ?? ''}%'
+                                                          : '${device.tafe?.fuellevel ?? ''}%',
+                                                  odo: device.odometer ?? '',
+                                                  trips:
+                                                      (device.totalTrips ?? 0)
+                                                          .toString(),
+                                                  alerts:
+                                                      (device.totalAlerts ?? 0)
+                                                          .toString(),
+                                                  location:
+                                                      (device.address ?? '')
+                                                          .toString(),
+                                                  device: device,
+                                                  lastUpdated:
+                                                      mode == 'EV Fleet'
+                                                          ? device.batteryLogDate ??
+                                                              ''
+                                                          : device.locationLogDate ??
+                                                              '',
+                                                );
+                                              },
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                          ),
+
+                          // PAGINATION FIXED
+                          // if (totalPages > 0 && paginatedDevices.isNotEmpty)
+                          //   Container(
+                          //     width: double.infinity,
+                          //     padding: const EdgeInsets.symmetric(vertical: 6),
+                          //     decoration: BoxDecoration(
+                          //       color: isDark ? tBlack : tWhite,
+                          //       // borderRadius: const BorderRadius.only(
+                          //       //   bottomLeft: Radius.circular(14),
+                          //       //   bottomRight: Radius.circular(14),
+                          //       // ),
+                          //       boxShadow: [
+                          //         BoxShadow(
+                          //           blurRadius: 6,
+                          //           color:
+                          //               isDark
+                          //                   ? tWhite.withOpacity(0.05)
+                          //                   : tBlack.withOpacity(0.05),
+                          //         ),
+                          //       ],
+                          //     ),
+                          //     // child: _buildPaginationControls(isDark),
+                          //   ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // ---------------- MAP ----------------
+                  Expanded(
+                    flex: 5,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        left: 10,
+                        right: 10,
+                        bottom: 10,
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              blurRadius: 12,
+                              spreadRadius: 1,
+                              offset: const Offset(0, 4),
+                              color:
+                                  isDark
+                                      ? tWhite.withOpacity(0.08)
+                                      : tBlack.withOpacity(0.08),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.zero,
+                          child: _buildClusterMap(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        // ---------------- FILTER PANEL ----------------
+        if (_showFilterPanel) _buildFilterPanel(isDark),
+
+        // ---------------- LOADING ----------------
+        if (_loading) _buildLoadingOverlay(isDark),
+        // if (_loading)
+        //   Center(
+        //     child: LoadingAnimationWidget.staggeredDotsWave(
+        //       color: isDark ? tWhite : tBlack,
+        //       size: 42,
+        //     ),
+        //   ),
+      ],
     );
   }
 
@@ -2022,6 +3082,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     return Stack(
       children: [
         Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2036,7 +3097,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
               ],
             ),
+            _buildFleetRibbon(isDark),
             const SizedBox(height: 10),
+
             Expanded(
               child: Row(
                 children: [
@@ -2049,131 +3112,160 @@ class _DevicesScreenState extends State<DevicesScreen> {
                             // ADD EMPTY STATE HANDLING
                             if (paginatedDevices.isEmpty && !_loading) {
                               return Center(
-                                child: Text(
-                                  'No devices found',
-                                  style: GoogleFonts.urbanist(
-                                    fontSize: 16,
-                                    color: isDark ? tWhite : tBlack,
-                                  ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SvgPicture.asset(
+                                      'icons/nodata1.svg',
+                                      height: 120,
+                                      width: 120,
+                                    ),
+
+                                    const SizedBox(height: 16),
+
+                                    Text(
+                                      'No devices found',
+                                      style: GoogleFonts.urbanist(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? tWhite : tBlack,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               );
                             }
 
-                            return SingleChildScrollView(
-                              padding: const EdgeInsets.only(bottom: 50),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minHeight: constraints.maxHeight,
+                            return Scrollbar(
+                              controller: _scrollController,
+                              thumbVisibility: true,
+
+                              child: ListView.builder(
+                                controller: _scrollController,
+
+                                physics: const BouncingScrollPhysics(),
+
+                                padding: const EdgeInsets.only(
+                                  bottom: 50,
+                                  left: 6,
+                                  right: 6,
+                                  top: 5,
                                 ),
-                                child: Column(
-                                  children:
-                                      paginatedDevices
-                                          .map(
-                                            (device) => Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 5,
-                                                    horizontal: 6,
-                                                  ),
-                                              child: GestureDetector(
-                                                // onTap:
-                                                //     () => openDeviceOverview(
-                                                //       context,
-                                                //       device,
-                                                //     ),
-                                                onTap: () {
-                                                  final status = device.status
-                                                      ?.toLowerCase()
-                                                      .replaceAll("_", " ");
 
-                                                  if (status ==
-                                                      "disconnected") {
-                                                    _showDisconnectedMessage(
-                                                      context,
-                                                      isDark,
-                                                      device,
-                                                    );
-                                                  } else {
-                                                    openDeviceOverview(
-                                                      context,
-                                                      device,
-                                                    );
-                                                  }
-                                                },
-                                                child: FutureBuilder<String>(
-                                                  future:
-                                                      getAddressFromLocationStringWeb(
-                                                        device.location ?? '',
-                                                      ),
-                                                  builder: (context, snapshot) {
-                                                    final address =
-                                                        snapshot.connectionState ==
-                                                                    ConnectionState
-                                                                        .done &&
-                                                                snapshot.hasData
-                                                            ? snapshot.data!
-                                                            : 'Fetching location...';
+                                itemCount:
+                                    paginatedDevices.length +
+                                    (_isPaginationLoading ? 1 : 0),
 
-                                                    return buildDeviceCard(
-                                                      isDark: isDark,
-                                                      imei: device.imei ?? '',
-                                                      vehicleNumber:
-                                                          device
-                                                              .vehicleNumber ??
-                                                          '',
-                                                      status:
-                                                          device.status ?? '',
-                                                      fuel:
-                                                          mode == 'EV Fleet'
-                                                              ? device.soc ?? ''
-                                                              : (device
-                                                                      .tafe
-                                                                      ?.fuellevel
-                                                                      ?.toString() ??
-                                                                  ''),
-                                                      odo:
-                                                          device.odometer ?? '',
-                                                      trips:
-                                                          (device.totalTrips ??
-                                                                  0)
-                                                              .toString(),
-                                                      alerts:
-                                                          (device.totalAlerts ??
-                                                                  0)
-                                                              .toString(),
-                                                      location: address,
-                                                      device: device,
-                                                      lastUpdated:
-                                                          device
-                                                              .locationLogDate ??
-                                                          '',
-                                                    );
-                                                  },
-                                                ),
-                                              ),
+                                itemBuilder: (context, index) {
+                                  /// PAGINATION LOADER
+                                  if (index >= paginatedDevices.length) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 20,
+                                      ),
+                                      child: Center(
+                                        child:
+                                            LoadingAnimationWidget.staggeredDotsWave(
+                                              color: isDark ? tWhite : tBlack,
+                                              size: 36,
                                             ),
-                                          )
-                                          .toList(),
-                                ),
+                                      ),
+                                    );
+                                  }
+
+                                  final device = paginatedDevices[index];
+
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 5,
+                                      horizontal: 6,
+                                    ),
+
+                                    child: GestureDetector(
+                                      onTap:
+                                          () => openDeviceOverview(
+                                            context,
+                                            device,
+                                          ),
+
+                                      child: FutureBuilder<String>(
+                                        // future: getAddressFromLocationStringWeb(
+                                        //   device.location ?? '',
+                                        // ),
+                                        future: getCachedAddress(
+                                          device.lat,
+                                          device.lng,
+                                        ),
+
+                                        builder: (context, snapshot) {
+                                          // final address =
+                                          //     snapshot.connectionState ==
+                                          //                 ConnectionState
+                                          //                     .done &&
+                                          //             snapshot.hasData
+                                          //         ? snapshot.data!
+                                          //         : 'Fetching location...';
+
+                                          return buildDeviceCard(
+                                            isDark: isDark,
+                                            imei: device.imei ?? '',
+                                            vehicleNumber:
+                                                device.vehicleNumber ?? '',
+                                            status: device.status ?? '',
+
+                                            fuel:
+                                                mode == 'EV Fleet'
+                                                    ? '${double.tryParse((device.soc ?? '').replaceAll('%', ''))?.toInt() ?? ''}%'
+                                                    : '${device.tafe?.fuellevel ?? ''}%',
+                                            odo: device.odometer ?? '',
+
+                                            trips:
+                                                (device.totalTrips ?? 0)
+                                                    .toString(),
+
+                                            alerts:
+                                                (device.totalAlerts ?? 0)
+                                                    .toString(),
+
+                                            location:
+                                                (device.address ?? '')
+                                                    .toString(),
+
+                                            device: device,
+
+                                            lastUpdated:
+                                                mode == 'EV Fleet'
+                                                    ? device.batteryLogDate ??
+                                                        ''
+                                                    : device.locationLogDate ??
+                                                        '',
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             );
                           },
                         ),
-                        if (totalPages > 0 && paginatedDevices.isNotEmpty)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              alignment: Alignment.center,
-                              color: isDark ? tBlack : tWhite,
-                              child: _buildPaginationControls(isDark),
-                            ),
-                          ),
+
+                        // if (totalPages > 0 && paginatedDevices.isNotEmpty)
+                        //   Positioned(
+                        //     left: 0,
+                        //     right: 0,
+                        //     bottom: 0,
+                        //     child: Container(
+                        //       alignment: Alignment.center,
+                        //       color: isDark ? tBlack : tWhite,
+                        //       child: _buildPaginationControls(isDark),
+                        //     ),
+                        //   ),
                       ],
                     ),
                   ),
-                  Expanded(flex: 9, child: _buildClusterMap()),
+                  if (!isMapFullscreen)
+                    Expanded(flex: 9, child: _buildClusterMap()),
                 ],
               ),
             ),
@@ -2181,7 +3273,134 @@ class _DevicesScreenState extends State<DevicesScreen> {
         ),
         if (_showFilterPanel) _buildFilterPanel(isDark),
         if (_loading) _buildLoadingOverlay(isDark),
+        // if (_loading)
+        //   Center(
+        //     child: LoadingAnimationWidget.staggeredDotsWave(
+        //       color: isDark ? tWhite : tBlack,
+        //       size: 42,
+        //     ),
+        //   ),
+
+        // FULLSCREEN MAP
+        if (isMapFullscreen)
+          Positioned.fill(
+            child: Material(
+              color: isDark ? tBlack : tWhite,
+              child: Stack(
+                children: [
+                  _buildClusterMap(),
+
+                  Positioned(
+                    top: 65,
+                    right: 12,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          isMapFullscreen = false;
+                        });
+                      },
+                      child: Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: isDark ? tWhite : tBlack,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.fullscreen_exit,
+                          color: isDark ? tBlack : tWhite,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  void _openMobileMap(bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? tBlack : tWhite,
+      builder: (context) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.92,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark ? tBlack : tWhite,
+                    border: Border(
+                      bottom: BorderSide(
+                        color:
+                            isDark
+                                ? tWhite.withOpacity(0.5)
+                                : tBlack.withOpacity(0.5),
+                      ),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            isDark
+                                ? tBlack.withOpacity(0.25)
+                                : tWhite.withOpacity(0.25),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Devices Map',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+
+                      IconButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        icon: Icon(
+                          Icons.close,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Expanded(child: _buildClusterMap()),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.76,
+                  width: double.infinity,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.zero,
+                      child: _buildClusterMap(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2194,17 +3413,23 @@ class _DevicesScreenState extends State<DevicesScreen> {
       context: context,
       barrierDismissible: true,
       builder: (context) {
-        final bgColor = isDark ? tWhite : tBlack;
-        final textColor = isDark ? tBlack : tWhite;
+        final bgColor = isDark ? tBlack : tWhite;
+        final textColor = isDark ? tWhite : tBlack;
 
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: isDark ? tWhite.withOpacity(0.7) : tTransparent,
+              width: 2,
+            ),
+          ),
           backgroundColor: bgColor,
           shadowColor: textColor.withOpacity(0.2),
 
           title: Row(
             children: [
-              Icon(Icons.wifi_off, color: Colors.redAccent),
+              Icon(Icons.wifi_off, color: isDark ? tWhite : tBlack),
               const SizedBox(width: 10),
               Text(
                 "Device Disconnected",
@@ -2219,14 +3444,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
           content: Text(
             "This device ${device.imei ?? '--'} is currently disconnected.\n\n"
-            "Overview, Diagnostics, and Control data are not available.",
+            "Overview, Go Live, and Control data are not available.",
             style: GoogleFonts.urbanist(fontSize: 16, color: textColor),
           ),
 
           actions: [
             TextButton(
               style: TextButton.styleFrom(
-                backgroundColor: tBlue1,
+                backgroundColor: tGreen8,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,
@@ -2286,5 +3511,246 @@ class _DevicesScreenState extends State<DevicesScreen> {
         ),
       ),
     );
+  }
+
+  void _onStatusTap(String status) {
+    debugPrint("Selected Status: $status");
+
+    setState(() {
+      _selectedStatuses.clear();
+      _selectedStatuses.add(status);
+
+      _tempSelectedStatuses.clear();
+      _tempSelectedStatuses.add(status);
+
+      currentPage = 1;
+    });
+
+    _loadDevices();
+    _loadDevicesForMap();
+  }
+
+  Widget _buildFleetRibbon(bool isDark) {
+    final mode = context.watch<FleetModeProvider>().mode;
+
+    final statusData =
+        mode == "EV Fleet" ? getEVBackendStatus() : getBackendStatus();
+
+    final totalCount = statusData.fold<int>(
+      0,
+      (sum, item) => sum + (item['count'] as int),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark ? tBlack : tWhite,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? tWhite : tBlack).withOpacity(.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: (isDark ? tWhite : tBlack).withOpacity(.08)),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                setState(() {
+                  _selectedStatuses.clear();
+                  _tempSelectedStatuses.clear();
+
+                  _selectedFilterValues.clear();
+                  _tempSelectedFilterValues.clear();
+
+                  currentPage = 1;
+                });
+                context.go('/home/devices');
+
+                _loadDevices();
+                _loadDevicesForMap();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [tGreen8, tGreen8.withOpacity(.75)],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  "TOTAL : $totalCount",
+                  style: GoogleFonts.urbanist(
+                    color: tWhite,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          if (mode == "EV Fleet") ...[
+            _statusChip(
+              isDark: isDark,
+              label: "Charging",
+              count: getStatusCount(statusData, "Charging"),
+              color: tBlue,
+              onTap: () {
+                _onStatusTap("Charging");
+              },
+            ),
+            _statusChip(
+              isDark: isDark,
+              label: "Discharging",
+              count: getStatusCount(statusData, "Discharging"),
+              color: tGreen,
+              onTap: () {
+                _onStatusTap("Discharging");
+              },
+            ),
+            _statusChip(
+              isDark: isDark,
+              label: "Idle",
+              count: getStatusCount(statusData, "Idle"),
+              color: tOrange1,
+              onTap: () {
+                _onStatusTap("Idle");
+              },
+            ),
+            _statusChip(
+              isDark: isDark,
+              label: "Non Coverage",
+              count: getStatusCount(statusData, "Non Coverage"),
+              color: Colors.purple,
+              onTap: () {
+                _onStatusTap("Non Coverage");
+              },
+            ),
+            _statusChip(
+              isDark: isDark,
+              label: "Disconnected",
+              count: getStatusCount(statusData, "Disconnected"),
+              color: tGrey,
+              onTap: () {
+                _onStatusTap("Disconnected");
+              },
+            ),
+          ] else ...[
+            _statusChip(
+              isDark: isDark,
+              label: "Moving",
+              count: getStatusCount(statusData, "Moving"),
+              color: tGreen,
+              onTap: () {
+                _onStatusTap("Moving");
+              },
+            ),
+
+            _statusChip(
+              isDark: isDark,
+              label: "Stopped",
+              count: getStatusCount(statusData, "Stopped"),
+              color: tRed,
+              onTap: () {
+                _onStatusTap("Stopped");
+              },
+            ),
+            _statusChip(
+              isDark: isDark,
+              label: "Idle",
+              count: getStatusCount(statusData, "Idle"),
+              color: tOrange1,
+              onTap: () {
+                _onStatusTap("Idle");
+              },
+            ),
+            _statusChip(
+              isDark: isDark,
+              label: "Non Coverage",
+              count: getStatusCount(statusData, "Non Coverage"),
+              color: Colors.purple,
+              onTap: () {
+                _onStatusTap("Non Coverage");
+              },
+            ),
+            _statusChip(
+              isDark: isDark,
+              label: "Disconnected",
+              count: getStatusCount(statusData, "Disconnected"),
+              color: tGrey,
+              onTap: () {
+                _onStatusTap("Disconnected");
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statusChip({
+    required bool isDark,
+    required String label,
+    required int count,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withOpacity(.35)),
+          ),
+          child: RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: "$label : ",
+                  style: GoogleFonts.urbanist(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? tWhite : tBlack,
+                  ),
+                ),
+                TextSpan(
+                  text: "$count",
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  int getStatusCount(List<Map<String, dynamic>> statusData, String label) {
+    try {
+      return statusData.firstWhere((e) => e['label'] == label)['count'] as int;
+    } catch (_) {
+      return 0;
+    }
   }
 }

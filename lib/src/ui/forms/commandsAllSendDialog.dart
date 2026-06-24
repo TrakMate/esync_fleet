@@ -14,7 +14,8 @@ Future<void> showSendCommandDialog({
 }) async {
   final isDark = Theme.of(context).brightness == Brightness.dark;
 
-  String selectedGroupId = "";
+  // String selectedGroupId = "";
+  List<String> selectedGroupIds = [];
   String selectedCommand = "";
   final customCommandCtrl = TextEditingController();
   bool isLoading = false;
@@ -28,6 +29,7 @@ Future<void> showSendCommandDialog({
       return StatefulBuilder(
         builder: (context, setState) {
           return Dialog(
+            backgroundColor: Colors.transparent, // 👈 important
             child: Container(
               width: 520,
               decoration: BoxDecoration(
@@ -73,11 +75,17 @@ Future<void> showSendCommandDialog({
                     const SizedBox(height: 16),
 
                     /// ---------------- GROUP ----------------
-                    _groupSelectorSingle(
+                    // _groupSelectorSingle(
+                    //   isDark,
+                    //   allGroups,
+                    //   selectedGroupId,
+                    //   (v) => setState(() => selectedGroupId = v),
+                    // ),
+                    _groupSelectorMulti(
                       isDark,
                       allGroups,
-                      selectedGroupId,
-                      (v) => setState(() => selectedGroupId = v),
+                      selectedGroupIds,
+                      (ids) => setState(() => selectedGroupIds = ids),
                     ),
 
                     const SizedBox(height: 16),
@@ -102,6 +110,7 @@ Future<void> showSendCommandDialog({
                             final isSelected = selectedCommand == cmd;
                             return ChoiceChip(
                               selected: isSelected,
+                              checkmarkColor: tWhite,
                               label: Text(
                                 cmd,
                                 style: GoogleFonts.urbanist(
@@ -271,7 +280,9 @@ Future<void> showSendCommandDialog({
                                             ? customCommandCtrl.text.trim()
                                             : selectedCommand;
 
-                                    if (selectedGroupId.isEmpty ||
+                                    // if (selectedGroupId.isEmpty ||
+                                    //     command.isEmpty) {
+                                    if (selectedGroupIds.isEmpty ||
                                         command.isEmpty) {
                                       ScaffoldMessenger.of(
                                         context,
@@ -288,9 +299,13 @@ Future<void> showSendCommandDialog({
                                     setState(() => isLoading = true);
 
                                     try {
-                                      await onConfirm([
-                                        selectedGroupId,
-                                      ], command);
+                                      // await onConfirm([
+                                      //   selectedGroupId,
+                                      // ], command);
+                                      await onConfirm(
+                                        selectedGroupIds,
+                                        command,
+                                      );
                                       Navigator.pop(dialogContext);
                                     } catch (e) {
                                       setState(() => isLoading = false);
@@ -393,7 +408,7 @@ Widget _groupSelectorSingle(
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? tWhite : baseColor,
+                    color: isSelected ? (tWhite) : baseColor,
                   ),
                 ),
                 backgroundColor: baseColor.withOpacity(0.12),
@@ -406,6 +421,68 @@ Widget _groupSelectorSingle(
                   borderRadius: BorderRadius.circular(20),
                 ),
                 onSelected: (_) => onChanged(id),
+              );
+            }).toList(),
+      ),
+    ],
+  );
+}
+
+Widget _groupSelectorMulti(
+  bool isDark,
+  List<GroupEntity> groups,
+  List<String> selectedIds,
+  ValueChanged<List<String>> onChanged,
+) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      RichText(
+        text: TextSpan(
+          text: 'Groups',
+          style: GoogleFonts.urbanist(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: isDark ? tWhite : tBlack,
+          ),
+          children: const [TextSpan(text: ' *', style: TextStyle(color: tRed))],
+        ),
+      ),
+      const SizedBox(height: 6),
+      Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children:
+            groups.map((g) {
+              final id = g.id ?? '';
+              final baseColor = _groupColor(id);
+              final isSelected = selectedIds.contains(id);
+
+              return FilterChip(
+                selected: isSelected,
+                showCheckmark: true,
+                checkmarkColor: tWhite,
+                label: Text(
+                  g.name ?? '',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? tWhite : baseColor,
+                  ),
+                ),
+                backgroundColor: baseColor.withOpacity(0.12),
+                selectedColor: baseColor.withOpacity(0.85),
+                onSelected: (selected) {
+                  final updated = List<String>.from(selectedIds);
+
+                  if (selected) {
+                    updated.add(id);
+                  } else {
+                    updated.remove(id);
+                  }
+
+                  onChanged(updated);
+                },
               );
             }).toList(),
       ),

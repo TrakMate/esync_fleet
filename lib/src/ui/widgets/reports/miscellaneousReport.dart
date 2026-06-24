@@ -6,10 +6,14 @@ import '../../../utils/appColors.dart';
 class MiscellaneousReportView extends StatefulWidget {
   final String title;
   final String description;
+  final bool isDark;
+  final bool isMobile;
   const MiscellaneousReportView({
     super.key,
     required this.title,
     required this.description,
+    required this.isDark,
+    required this.isMobile,
   });
 
   @override
@@ -101,7 +105,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
                 style: GoogleFonts.urbanist(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: tBlack,
+                  color: tWhite,
                 ),
               ),
             ),
@@ -119,7 +123,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
             /// FROM DATE
             Row(
               children: [
-                _dateLabelBox('From', isDark),
+                _dateLabelBox('From Date', isDark),
                 const SizedBox(width: 5),
                 _dateValueBox(
                   _formatDate(fromDate!),
@@ -144,7 +148,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
             /// TO DATE
             Row(
               children: [
-                _dateLabelBox('To', isDark),
+                _dateLabelBox('To Date', isDark),
                 const SizedBox(width: 5),
                 _dateValueBox(
                   _formatDate(toDate!),
@@ -192,7 +196,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
         text,
         style: GoogleFonts.urbanist(
           fontSize: 13,
-          color: isDark ? tWhite : tBlack,
+          color: tGreen8,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -228,7 +232,7 @@ class _MiscellaneousReportViewState extends State<MiscellaneousReportView> {
     return TextField(
       controller: searchController,
       decoration: InputDecoration(
-        hintText: "Enter Vehicle ID or IMEI",
+        hintText: "Search",
         hintStyle: GoogleFonts.urbanist(
           fontSize: 13,
           fontWeight: FontWeight.w500,

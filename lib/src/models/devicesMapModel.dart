@@ -34,8 +34,17 @@ class Entities {
   int? totalAlerts;
   String? location;
   String? locationLogDate;
+  String? address;
 
-  Entities({this.imei, this.lat, this.lng, this.status, this.soh, this.soc});
+  Entities({
+    this.imei,
+    this.lat,
+    this.lng,
+    this.status,
+    this.soh,
+    this.soc,
+    this.address,
+  });
 
   Entities.fromJson(Map<String, dynamic> json) {
     imei = json['imei'];
@@ -45,6 +54,7 @@ class Entities {
     soh = json['soh'];
     soc = json['soc'];
     odometer = json['odometer']?.toString();
+    address = json['address'];
   }
 
   Map<String, dynamic> toJson() {
@@ -56,6 +66,7 @@ class Entities {
     data['soh'] = this.soh;
     data['soc'] = this.soc;
     data['odometer'] = this.odometer;
+    data['address'] = this.address;
     return data;
   }
 }

@@ -18,8 +18,11 @@ class DynamicSegmentBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
 
-    // Remove 0 count items
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1024;
+
     final filtered = statuses.where((s) => (s['count'] as int) > 0).toList();
 
     if (filtered.isEmpty) {
@@ -36,112 +39,204 @@ class DynamicSegmentBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // =========================
-        //        LEGENDS ABOVE
-        // =========================
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(filtered.length, (i) {
-            final status = filtered[i];
-            final label = status['label'] as String;
-            final count = status['count'] as int;
-            final color = status['color'] as Color;
+        /// =========================
+        /// DESKTOP UI (OLD EXACT UI)
+        /// =========================
+        if (!isMobile && !isTablet)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(filtered.length, (i) {
+              final status = filtered[i];
 
-            double pct = (count / total) * 100;
-            double percentRounded = _roundPercent(pct);
+              final label = status['label'] as String;
+              final count = status['count'] as int;
+              final color = status['color'] as Color;
 
-            return Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top label with color bar (your existing StatusLabel widget)
-                  StatusLabel(
-                    label: label,
-                    color: color,
-                    isDark: isDark,
-                    // onTap: () {
-                    //   context.go('/home/devices?status=${label.toLowerCase()}');
-                    // },
-                    onTap: () {
-                      context.go('/home/devices?status=${status['api']}');
-                    },
-                  ),
+              double pct = (count / total) * 100;
+              double percentRounded = _roundPercent(pct);
 
-                  const SizedBox(height: 10),
+              return Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    StatusLabel(
+                      label: label,
+                      color: color,
+                      isDark: isDark,
+                      onTap: () {
+                        context.go('/home/devices?status=${status['api']}');
+                      },
+                    ),
 
-                  // Count + Percentage
-                  Row(
-                    children: [
-                      Text(
-                        "$count",
-                        style: GoogleFonts.urbanist(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? tWhite : tBlack,
+                    const SizedBox(height: 10),
+
+                    Row(
+                      children: [
+                        Text(
+                          "$count",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? tWhite : tBlack,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        "[${percentRounded.toStringAsFixed(0)}%]",
-                        style: GoogleFonts.urbanist(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? tWhite : tBlack,
+
+                        const SizedBox(width: 5),
+
+                        Text(
+                          "[${percentRounded.toStringAsFixed(0)}%]",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? tWhite : tBlack,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }),
-        ),
-
-        const SizedBox(height: 20),
-
-        // =========================
-        //        SEGMENT BAR
-        // =========================
-        Row(
-          children: List.generate(filtered.length, (i) {
-            final status = filtered[i];
-            final count = status['count'] as int;
-            final color = status['color'] as Color;
-
-            final pct = total > 0 ? count / total : 0.0;
-
-            return Expanded(
-              flex: maxFlex(pct),
-              child: Container(
-                height: height,
-                decoration: BoxDecoration(
-                  color: color,
-                  boxShadow: [
-                    BoxShadow(
-                      blurRadius: 10,
-                      spreadRadius: 3,
-                      color: color.withOpacity(0.25),
+                      ],
                     ),
                   ],
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+          )
+        /// =========================
+        /// MOBILE/TABLET UI
+        /// =========================
+        else
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: List.generate(filtered.length, (i) {
+              final status = filtered[i];
+
+              final label = status['label'] as String;
+              final count = status['count'] as int;
+              final color = status['color'] as Color;
+
+              double pct = (count / total) * 100;
+              double percentRounded = _roundPercent(pct);
+
+              double itemWidth = (screenWidth - 80) / 3;
+
+              if (isTablet) {
+                itemWidth = (screenWidth - 120) / 4;
+              }
+
+              return SizedBox(
+                width: itemWidth,
+
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    StatusLabel(
+                      label: label,
+                      color: color,
+                      isDark: isDark,
+                      onTap: () {
+                        context.go('/home/devices?status=${status['api']}');
+                      },
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Row(
+                      children: [
+                        Text(
+                          "$count",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+
+                        const SizedBox(width: 4),
+
+                        Text(
+                          "[${percentRounded.toStringAsFixed(0)}%]",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+
+        const SizedBox(height: 20),
+
+        /// =========================
+        /// SEGMENT BAR
+        /// =========================
+        // Row(
+        //   children: List.generate(filtered.length, (i) {
+        //     final status = filtered[i];
+
+        //     final count = status['count'] as int;
+        //     final color = status['color'] as Color;
+
+        //     final pct = total > 0 ? count / total : 0.0;
+
+        //     return Expanded(
+        //       flex: maxFlex(pct),
+        //       child: Container(
+        //         height: isMobile ? 24 : height,
+        //         decoration: BoxDecoration(
+        //           color: color,
+        //           boxShadow: [
+        //             BoxShadow(
+        //               blurRadius: 10,
+        //               spreadRadius: 3,
+        //               color: color.withOpacity(0.25),
+        //             ),
+        //           ],
+        //         ),
+        //       ),
+        //     );
+        //   }),
+        // ),
+        Container(
+          height: isMobile ? 24 : height,
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Row(
+            children: List.generate(filtered.length, (i) {
+              final status = filtered[i];
+              final count = status['count'] as int;
+              final color = status['color'] as Color;
+
+              return Expanded(
+                flex: maxFlex(count / total),
+                child: Container(
+                  margin: EdgeInsets.only(left: i == 0 ? 0 : 2),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+              );
+            }),
+          ),
         ),
       ],
     );
   }
 
-  /// Minimum flex logic
   int maxFlex(double pct) {
     final flex = (pct * 1000).round();
     return flex > 0 ? flex : 1;
   }
 
-  /// Rounding rule (.5 → ceil)
   double _roundPercent(double value) {
     double decimal = value - value.floor();
+
     return (decimal >= 0.5) ? value.ceilToDouble() : value.floorToDouble();
   }
 }

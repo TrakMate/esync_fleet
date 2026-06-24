@@ -1,14 +1,22 @@
 import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:svg_flutter/svg_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../models/imeiDistSpeedSocModel.dart';
 import '../../../utils/appColors.dart';
 
 class Distancespeedchart extends StatefulWidget {
-  final List<Data>? SpeedDistanceSocData;
-  const Distancespeedchart({super.key, required this.SpeedDistanceSocData});
+  final List<ChartData>? SpeedDistanceSocData;
+  final IMEIDistSpeedSocModel? SpeedDistanceSocModel;
+
+  const Distancespeedchart({
+    super.key,
+    required this.SpeedDistanceSocData,
+    this.SpeedDistanceSocModel,
+  });
 
   @override
   State<Distancespeedchart> createState() => _DistancespeedchartState();
@@ -33,6 +41,52 @@ class _DistancespeedchartState extends State<Distancespeedchart> {
     final maxVal = max(maxSpeed, maxDistance);
 
     return maxVal == 0 ? 1 : maxVal + 10;
+  }
+
+  List<ChartData>? popupChartData;
+  String _selectedTimeRange = "12H";
+  int? popupTouchedIndex;
+  double? popupTouchedY;
+
+  List<ChartData>? _getDataForRange(String range) {
+    switch (range) {
+      case "1H":
+        return widget.SpeedDistanceSocModel?.oneHour;
+      case "6H":
+        return widget.SpeedDistanceSocModel?.sixHours;
+      case "12H":
+        return widget.SpeedDistanceSocModel?.twelveHours;
+      case "24H":
+        return widget.SpeedDistanceSocModel?.oneDay;
+      default:
+        return widget.SpeedDistanceSocData;
+    }
+  }
+
+  double _getMaxYForData(List<ChartData>? data) {
+    if (data == null || data.isEmpty) return 10;
+
+    double maxSpeed = 0;
+    double maxDistance = 0;
+
+    for (var item in data) {
+      maxSpeed = max(maxSpeed, item.speed ?? 0);
+      maxDistance = max(maxDistance, item.distance ?? 0);
+    }
+
+    final maxVal = max(maxSpeed, maxDistance);
+    return maxVal == 0 ? 10 : _roundUpMax(maxVal);
+  }
+
+  double _roundUpMax(double value) {
+    if (value <= 10) return 10;
+    if (value <= 50) return 50;
+    if (value <= 100) return 100;
+    if (value <= 500) return 500;
+    if (value <= 1000) return 1000;
+
+    final magnitude = pow(10, value.toInt().toString().length - 1);
+    return ((value / magnitude).ceil() * magnitude).toDouble();
   }
 
   @override
@@ -67,21 +121,179 @@ class _DistancespeedchartState extends State<Distancespeedchart> {
   void didUpdateWidget(covariant Distancespeedchart oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.SpeedDistanceSocData != widget.SpeedDistanceSocData) {
+    if (oldWidget.SpeedDistanceSocData != widget.SpeedDistanceSocData ||
+        oldWidget.SpeedDistanceSocModel != widget.SpeedDistanceSocModel) {
       _loadRealData();
+      popupChartData = _getDataForRange(_selectedTimeRange);
     }
   }
-  // void _generateDummyData() {
-  //   final random = Random();
-  //   speedData = List.generate(
-  //     24,
-  //     (i) => FlSpot(i.toDouble(), 40 + random.nextInt(60).toDouble()),
-  //   );
-  //   distanceData = List.generate(
-  //     24,
-  //     (i) => FlSpot(i.toDouble(), (i * 2 + random.nextDouble())),
-  //   );
-  // }
+
+  void _showChartPopup(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            if (popupChartData == null) {
+              popupChartData = _getDataForRange(_selectedTimeRange);
+            }
+
+            return Dialog(
+              backgroundColor: isDark ? tBlack : tWhite,
+              insetPadding: const EdgeInsets.all(20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? tBlack : tWhite,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.2)
+                              : tBlack.withOpacity(0.15),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 10,
+                        spreadRadius: 2,
+                        color:
+                            isDark
+                                ? tWhite.withOpacity(0.15)
+                                : tBlack.withOpacity(0.15),
+                      ),
+                    ],
+                  ),
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            "📊 Speed-Distance Chart",
+                            style: GoogleFonts.urbanist(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? tWhite : tBlack,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              color:
+                                  isDark
+                                      ? Colors.white.withOpacity(0.06)
+                                      : Colors.black.withOpacity(0.04),
+                            ),
+                            child: Row(
+                              children: [
+                                _popupTimeTab(
+                                  "1H",
+                                  _selectedTimeRange == "1H",
+                                  isDark,
+                                  setState,
+                                ),
+                                _popupTimeTab(
+                                  "6H",
+                                  _selectedTimeRange == "6H",
+                                  isDark,
+                                  setState,
+                                ),
+                                _popupTimeTab(
+                                  "12H",
+                                  _selectedTimeRange == "12H",
+                                  isDark,
+                                  setState,
+                                ),
+                                _popupTimeTab(
+                                  "24H",
+                                  _selectedTimeRange == "24H",
+                                  isDark,
+                                  setState,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: Icon(
+                              Icons.close,
+                              size: 20,
+                              color: isDark ? tWhite : tBlack,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Stack(
+                              children: [
+                                LineChart(
+                                  _buildPopupChartData(
+                                    true,
+                                    isDark,
+                                    chartData: popupChartData,
+                                    onTouch: (index, y) {
+                                      setState(() {
+                                        popupTouchedIndex = index;
+                                        popupTouchedY = y;
+                                      });
+                                    },
+                                  ),
+                                  key: ValueKey(popupChartData?.length ?? 0),
+                                ),
+                                if (popupTouchedIndex != null &&
+                                    popupTouchedY != null &&
+                                    popupChartData != null)
+                                  IgnorePointer(
+                                    ignoring: true,
+                                    child: CustomPaint(
+                                      size: Size(
+                                        constraints.maxWidth,
+                                        constraints.maxHeight,
+                                      ),
+                                      painter: CrosshairPainter(
+                                        xIndex: popupTouchedIndex!,
+                                        yValue: popupTouchedY!,
+                                        totalPoints:
+                                            popupChartData?.length ?? 0,
+                                        maxY: _getMaxYForData(popupChartData),
+                                        isDark: isDark,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,17 +302,42 @@ class _DistancespeedchartState extends State<Distancespeedchart> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Speed-Distance',
-          style: GoogleFonts.urbanist(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: isDark ? tWhite : tBlack,
-          ),
+        Row(
+          children: [
+            SvgPicture.asset(
+              'icons/line_chart.svg',
+              height: 16,
+              width: 16,
+              color: isDark ? tWhite : tBlack,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Speed-Distance Chart',
+                style: GoogleFonts.urbanist(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+            ),
+            InkWell(
+              onTap: () => _showChartPopup(context),
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.fullscreen,
+                  size: 18,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 160,
+          height: 150,
           child: Stack(
             children: [
               LineChart(
@@ -125,7 +362,8 @@ class _DistancespeedchartState extends State<Distancespeedchart> {
                             (value, _) => Text(
                               '${value.toInt() + 1}h',
                               style: GoogleFonts.urbanist(
-                                fontSize: 10,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: isDark ? tWhite : tBlack,
                               ),
                             ),
@@ -233,16 +471,38 @@ class _DistancespeedchartState extends State<Distancespeedchart> {
                       isCurved: true,
                       color: tBlue,
                       barWidth: 2,
-                      belowBarData: BarAreaData(show: false),
+                      // belowBarData: BarAreaData(show: false),
                       dotData: FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            tBlue.withOpacity(0.35),
+                            tBlue.withOpacity(0.05),
+                          ],
+                        ),
+                      ),
                     ),
                     LineChartBarData(
                       spots: distanceData,
                       isCurved: true,
                       color: tGreen,
                       barWidth: 2,
-                      belowBarData: BarAreaData(show: false),
+                      // belowBarData: BarAreaData(show: false),
                       dotData: FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            tGreen.withOpacity(0.35),
+                            tGreen.withOpacity(0.05),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -256,7 +516,10 @@ class _DistancespeedchartState extends State<Distancespeedchart> {
                     size: Size.infinite,
                     painter: CrosshairPainter(
                       xIndex: touchedIndex!,
+
                       yValue: touchedY!,
+                      maxY: _getMaxY(), // Add this parameter
+
                       totalPoints: speedData.length,
                       isDark: isDark,
                     ),
@@ -277,6 +540,261 @@ class _DistancespeedchartState extends State<Distancespeedchart> {
       ],
     );
   }
+
+  Widget _popupTimeTab(
+    String label,
+    bool isSelected,
+    bool isDark,
+    StateSetter setState,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedTimeRange = label;
+          popupChartData = _getDataForRange(label);
+          // Reset POPUP variables, not main chart variables
+          popupTouchedIndex = null;
+          popupTouchedY = null;
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? tBlue : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.urbanist(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? tBlue : (isDark ? tWhite : tBlack),
+          ),
+        ),
+      ),
+    );
+  }
+
+  LineChartData _buildPopupChartData(
+    bool isPopup,
+    bool isDark, {
+    List<ChartData>? chartData,
+    required Function(int?, double?) onTouch,
+  }) {
+    final data = chartData ?? widget.SpeedDistanceSocData ?? [];
+
+    final localSpeedData = <FlSpot>[];
+    final localDistanceData = <FlSpot>[];
+    final localTimeLabels = <String>[];
+
+    for (int i = 0; i < data.length; i++) {
+      final e = data[i];
+      localSpeedData.add(FlSpot(i.toDouble(), (e.speed ?? 0).toDouble()));
+      localDistanceData.add(FlSpot(i.toDouble(), (e.distance ?? 0).toDouble()));
+      localTimeLabels.add(e.time ?? "");
+    }
+
+    final maxSpeed =
+        localSpeedData.isEmpty
+            ? 0.0
+            : localSpeedData.map((e) => e.y).reduce(max);
+    final maxDistance =
+        localDistanceData.isEmpty
+            ? 0.0
+            : localDistanceData.map((e) => e.y).reduce(max);
+    final maxVal = max(maxSpeed, maxDistance);
+    final chartMaxY = maxVal == 0 ? 10.0 : _roundUpMax(maxVal);
+    final chartInterval = chartMaxY / 5;
+
+    return LineChartData(
+      clipData: FlClipData.none(),
+      minX: 0,
+      maxX: (localTimeLabels.length - 1).toDouble(),
+      minY: 0,
+      maxY: chartMaxY,
+      gridData: const FlGridData(show: false),
+      titlesData: FlTitlesData(
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 35,
+            interval: chartInterval,
+            getTitlesWidget: (value, meta) {
+              return Text(
+                NumberFormat.compact().format(value),
+                style: GoogleFonts.urbanist(
+                  fontSize: 11,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              );
+            },
+          ),
+        ),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 18,
+            interval: isPopup ? 1 : 2,
+            getTitlesWidget: (value, meta) {
+              final index = value.toInt();
+              if (index < 0 || index >= localTimeLabels.length) {
+                return const SizedBox.shrink();
+              }
+              return Text(
+                localTimeLabels[index],
+                style: GoogleFonts.urbanist(
+                  fontSize: 11,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+      borderData: FlBorderData(show: false),
+      lineTouchData: LineTouchData(
+        touchSpotThreshold: 20,
+        enabled: true,
+        handleBuiltInTouches: true,
+        getTouchedSpotIndicator: (barData, spotIndexes) {
+          return spotIndexes.map((spotIndex) {
+            final spot = barData.spots[spotIndex];
+            return TouchedSpotIndicatorData(
+              FlLine(color: Colors.transparent, strokeWidth: 0),
+              FlDotData(show: false),
+            );
+          }).toList();
+        },
+        touchTooltipData: LineTouchTooltipData(
+          tooltipRoundedRadius: 10,
+          tooltipPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+          fitInsideHorizontally: true,
+          fitInsideVertically: true,
+          getTooltipColor: (spots) => isDark ? tWhite : tBlack,
+          getTooltipItems: (spots) {
+            return spots.map((spot) {
+              String label;
+              String unit;
+              Color color;
+
+              switch (spot.barIndex) {
+                case 0:
+                  label = "Speed";
+                  unit = "km/h";
+                  color = tBlue;
+                  break;
+                case 1:
+                  label = "Distance";
+                  unit = "km";
+                  color = tGreen;
+                  break;
+                default:
+                  label = "";
+                  unit = "";
+                  color = Colors.grey;
+              }
+
+              return LineTooltipItem(
+                "",
+                const TextStyle(),
+                children: [
+                  TextSpan(
+                    text: "● ",
+                    style: TextStyle(color: color, fontSize: 10),
+                  ),
+                  TextSpan(
+                    text: "$label : ",
+                    style: GoogleFonts.urbanist(
+                      color: isDark ? tBlack : tWhite,
+                      fontSize: 10,
+                    ),
+                  ),
+                  TextSpan(
+                    text: "${spot.y.toStringAsFixed(1)} $unit",
+                    style: GoogleFonts.urbanist(
+                      color: isDark ? tBlack : tWhite,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+            }).toList();
+          },
+        ),
+        touchCallback: (event, response) {
+          if (response != null &&
+              response.lineBarSpots != null &&
+              response.lineBarSpots!.isNotEmpty) {
+            final spot = response.lineBarSpots!.first;
+            onTouch(spot.x.toInt(), spot.y);
+          } else {
+            onTouch(null, null);
+          }
+        },
+      ),
+      extraLinesData: ExtraLinesData(
+        horizontalLines: [
+          HorizontalLine(
+            y: speedLimit,
+            color: tRed,
+            strokeWidth: 1,
+            dashArray: [8, 5],
+            label: HorizontalLineLabel(
+              show: true,
+              alignment: Alignment.topRight,
+              style: GoogleFonts.urbanist(fontSize: 10, color: tRed),
+              labelResolver: (_) => "Speed Limit: ${speedLimit.toInt()} km/h",
+            ),
+          ),
+        ],
+      ),
+      lineBarsData: [
+        LineChartBarData(
+          spots: localSpeedData,
+          isCurved: false,
+          color: tBlue,
+          barWidth: 2,
+          dotData: FlDotData(show: false),
+          belowBarData: BarAreaData(
+            show: true,
+            gradient: LinearGradient(
+              colors: [tBlue.withOpacity(0.3), tBlue.withOpacity(0.0)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+        LineChartBarData(
+          spots: localDistanceData,
+          isCurved: false,
+          color: tGreen,
+          barWidth: 2,
+          dotData: FlDotData(show: false),
+          belowBarData: BarAreaData(
+            show: true,
+            gradient: LinearGradient(
+              colors: [tGreen.withOpacity(0.3), tGreen.withOpacity(0.0)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// 🔹 Custom Crosshair Painter — draws X and Y dashed lines
@@ -284,17 +802,20 @@ class CrosshairPainter extends CustomPainter {
   final int xIndex;
   final double yValue;
   final int totalPoints;
+  final double maxY;
   final bool isDark;
 
   CrosshairPainter({
     required this.xIndex,
     required this.yValue,
     required this.totalPoints,
+    required this.maxY,
     required this.isDark,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (totalPoints <= 1 || maxY <= 0) return;
     final paint =
         Paint()
           ..color = isDark ? Colors.white70 : Colors.black54
@@ -303,11 +824,15 @@ class CrosshairPainter extends CustomPainter {
 
     const dashWidth = 5.0;
     const dashSpace = 4.0;
-    final spacing = size.width / (totalPoints - 1);
-    final xPos = spacing * xIndex;
-    final yPos = size.height * (1 - (yValue / 100).clamp(0, 1));
+    final chartWidth = size.width;
+    final chartHeight = size.height;
 
-    // Vertical dashed line
+    final xRatio = totalPoints <= 1 ? 0 : xIndex / (totalPoints - 1);
+    final xPos = chartWidth * xRatio;
+
+    final yRatio = (yValue / maxY).clamp(0.0, 1.0);
+    final yPos = chartHeight * (1 - yRatio);
+
     _drawDashedLine(
       canvas,
       Offset(xPos, 0),
@@ -317,7 +842,6 @@ class CrosshairPainter extends CustomPainter {
       dashSpace,
     );
 
-    // Horizontal dashed line
     _drawDashedLine(
       canvas,
       Offset(0, yPos),

@@ -11,8 +11,9 @@ import '../../../services/CRUDServices/apiKeyCRUDService.dart';
 import '../../../utils/appColors.dart';
 
 class ApiKeyCRUDContent extends StatefulWidget {
-  const ApiKeyCRUDContent({super.key});
+  final bool isMobile;
 
+  const ApiKeyCRUDContent({super.key, this.isMobile = false});
   @override
   State<ApiKeyCRUDContent> createState() => _ApiKeyCRUDContentState();
 }
@@ -159,7 +160,9 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
 
+    final isMobile = widget.isMobile || (screenWidth <= 600);
     return Stack(
       children: [
         Column(
@@ -393,7 +396,25 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
     final startIndex = (currentPage - 1) * sizePerPage;
     final endIndex = (startIndex + sizePerPage).clamp(0, apiKeys.length);
     final currentPageKeys = apiKeys.sublist(startIndex, endIndex);
-
+    if (!isLoading && apiKeys.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SvgPicture.asset('icons/nodata1.svg', width: 150, height: 150),
+            const SizedBox(height: 12),
+            Text(
+              "No API Keys Found",
+              style: GoogleFonts.urbanist(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? tWhite : tBlack,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Scrollbar(
       controller: _horizontalController,
       thumbVisibility: true,
@@ -418,7 +439,7 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
                     headingRowColor: WidgetStateProperty.all(
                       isDark
                           ? tGreen8.withOpacity(0.15)
-                          : tGreen8.withOpacity(0.1),
+                          : tGreen8.withOpacity(0.05),
                     ),
                     headingTextStyle: GoogleFonts.urbanist(
                       fontWeight: FontWeight.w700,
@@ -558,12 +579,10 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
     );
   }
 
-  // ------------------------------
-  // PAGINATION
-  // ------------------------------
   Widget _buildPaginationControls(bool isDark) {
     const int visiblePageCount = 5;
     final int computedTotalPages = totalPages < 1 ? 1 : totalPages;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     final int startPage =
         ((currentPage - 1) ~/ visiblePageCount) * visiblePageCount + 1;
@@ -602,11 +621,11 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
             child: Text(
               '$pageNum',
               style: GoogleFonts.urbanist(
-                fontSize: 13,
+                fontSize: isMobile ? 11 : 13,
                 fontWeight: FontWeight.w600,
                 color:
                     isSelected
-                        ? tBlack
+                        ? tWhite
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),
@@ -618,120 +637,244 @@ class _ApiKeyCRUDContentState extends State<ApiKeyCRUDContent> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          /// Previous
-          IconButton(
-            icon: Icon(
-              Icons.chevron_left,
-              size: 22,
-              color: isDark ? tWhite : tBlack,
-            ),
-            onPressed:
-                currentPage > 1
-                    ? () {
-                      setState(() => currentPage--);
-                      _loadApiKeys();
-                    }
-                    : null,
-          ),
+      padding: const EdgeInsets.only(top: 0, bottom: 4),
+      child:
+          isMobile
+              ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  /// Pagination Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      /// Previous
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_left,
+                          size: 18,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                        onPressed:
+                            currentPage > 1
+                                ? () {
+                                  setState(() => currentPage--);
+                                  _loadApiKeys();
+                                }
+                                : null,
+                      ),
 
-          Row(children: pageButtons),
+                      Row(children: pageButtons),
 
-          /// Next
-          IconButton(
-            icon: Icon(
-              Icons.chevron_right,
-              size: 22,
-              color: isDark ? tWhite : tBlack,
-            ),
-            onPressed:
-                currentPage < computedTotalPages
-                    ? () {
-                      setState(() => currentPage++);
-                      _loadApiKeys();
-                    }
-                    : null,
-          ),
+                      /// Next
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_right,
+                          size: 18,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                        onPressed:
+                            currentPage < computedTotalPages
+                                ? () {
+                                  setState(() => currentPage++);
+                                  _loadApiKeys();
+                                }
+                                : null,
+                      ),
+                    ],
+                  ),
 
-          const SizedBox(width: 16),
+                  const SizedBox(height: 10),
 
-          /// Jump to page
-          SizedBox(
-            width: 70,
-            height: 32,
-            child: TextField(
-              controller: _pageController,
-              keyboardType: TextInputType.number,
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                color: isDark ? tWhite : tBlack,
+                  /// Jump + Page Info
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 28,
+                        child: TextField(
+                          controller: _pageController,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 10,
+                            color: isDark ? tWhite : tBlack,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Page',
+                            hintStyle: GoogleFonts.urbanist(
+                              fontSize: 10,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            final int? p = int.tryParse(value);
+
+                            if (p != null &&
+                                p >= 1 &&
+                                p <= computedTotalPages) {
+                              setState(() => currentPage = p);
+                              _loadApiKeys();
+                            }
+
+                            _pageController.clear();
+                          },
+                          cursorColor: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Text(
+                        'Page $currentPage of $computedTotalPages',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 12,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+              : Center(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      /// Previous
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_left,
+                          size: 22,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                        onPressed:
+                            currentPage > 1
+                                ? () {
+                                  setState(() => currentPage--);
+                                  _loadApiKeys();
+                                }
+                                : null,
+                      ),
+
+                      Row(children: pageButtons),
+
+                      /// Next
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_right,
+                          size: 22,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                        onPressed:
+                            currentPage < computedTotalPages
+                                ? () {
+                                  setState(() => currentPage++);
+                                  _loadApiKeys();
+                                }
+                                : null,
+                      ),
+
+                      const SizedBox(width: 16),
+
+                      /// Jump to page
+                      SizedBox(
+                        width: 70,
+                        height: 32,
+                        child: TextField(
+                          controller: _pageController,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 13,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Page',
+                            hintStyle: GoogleFonts.urbanist(
+                              fontSize: 12,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            final int? p = int.tryParse(value);
+
+                            if (p != null &&
+                                p >= 1 &&
+                                p <= computedTotalPages) {
+                              setState(() => currentPage = p);
+                              _loadApiKeys();
+                            }
+
+                            _pageController.clear();
+                          },
+                          cursorColor: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Text(
+                        'Page $currentPage of $computedTotalPages · $totalCount items',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 13,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              decoration: InputDecoration(
-                hintText: 'Page',
-                hintStyle: GoogleFonts.urbanist(
-                  fontSize: 12,
-                  color: isDark ? Colors.white54 : Colors.black54,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 0.8,
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 0.8,
-                  ),
-                ),
-
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1.2, // slightly thicker when focused
-                  ),
-                ),
-
-                disabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color:
-                        isDark
-                            ? tWhite.withOpacity(0.4)
-                            : tBlack.withOpacity(0.4),
-                    width: 0.8,
-                  ),
-                ),
-              ),
-              onSubmitted: (value) {
-                final int? p = int.tryParse(value);
-                if (p != null && p >= 1 && p <= computedTotalPages) {
-                  setState(() => currentPage = p);
-                  _loadApiKeys();
-                }
-                _pageController.clear();
-              },
-              cursorColor: isDark ? tWhite : tBlack,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          Text(
-            'Page $currentPage of $computedTotalPages · $totalCount items',
-            style: GoogleFonts.urbanist(
-              fontSize: 13,
-              color: isDark ? tWhite : tBlack,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

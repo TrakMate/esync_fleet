@@ -51,7 +51,7 @@ Future<void> showGroupCreateUpdateDialog({
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: tBlue.withOpacity(0.15),
+                            color: tGreen8.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           // child: Icon(
@@ -63,7 +63,7 @@ Future<void> showGroupCreateUpdateDialog({
                             'icons/group.svg',
                             width: 22,
                             height: 22,
-                            color: tBlue,
+                            color: tGreen8,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -189,7 +189,7 @@ Future<void> showGroupCreateUpdateDialog({
 
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: tBlue,
+                            backgroundColor: tGreen8,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 10,

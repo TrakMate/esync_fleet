@@ -1,30 +1,45 @@
 class TripsModel {
-  int? totalCount;
-  List<Entities>? entities;
+  int? totalTripsCount;
+  int? completedCount;
+  int? ongoingCount;
+  List<Trip>? trips;
 
-  TripsModel({this.totalCount, this.entities});
+  TripsModel({
+    this.totalTripsCount,
+    this.completedCount,
+    this.ongoingCount,
+    this.trips,
+  });
 
   TripsModel.fromJson(Map<String, dynamic> json) {
-    totalCount = json['totalCount'];
-    if (json['entities'] != null) {
-      entities = <Entities>[];
-      json['entities'].forEach((v) {
-        entities!.add(new Entities.fromJson(v));
+    totalTripsCount = json['totalTripsCount'];
+    completedCount = json['completedCount'];
+    ongoingCount = json['ongoingCount'];
+
+    if (json['trips'] != null) {
+      trips = <Trip>[];
+      json['trips'].forEach((v) {
+        trips!.add(Trip.fromJson(v));
       });
     }
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['totalCount'] = this.totalCount;
-    if (this.entities != null) {
-      data['entities'] = this.entities!.map((v) => v.toJson()).toList();
+    final Map<String, dynamic> data = {};
+
+    data['totalTripsCount'] = totalTripsCount;
+    data['completedCount'] = completedCount;
+    data['ongoingCount'] = ongoingCount;
+
+    if (trips != null) {
+      data['trips'] = trips!.map((v) => v.toJson()).toList();
     }
+
     return data;
   }
 }
 
-class Entities {
+class Trip {
   String? id;
   String? imei;
   String? orgId;
@@ -56,7 +71,7 @@ class Entities {
   num? totalTime;
   Null? grafanaURL;
 
-  Entities({
+  Trip({
     this.id,
     this.imei,
     this.orgId,
@@ -89,7 +104,7 @@ class Entities {
     this.grafanaURL,
   });
 
-  Entities.fromJson(Map<String, dynamic> json) {
+  Trip.fromJson(Map<String, dynamic> json) {
     id = json['id']?.toString();
     imei = json['imei'];
     orgId = json['orgId'];

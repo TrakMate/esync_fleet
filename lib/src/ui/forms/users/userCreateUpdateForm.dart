@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:svg_flutter/svg.dart';
+import '../../../models/CRUDModels/orgsCRUDModel.dart' as org_model;
 import '../../../models/CRUDModels/groupsCRUDModel.dart';
 import '../../../utils/appColors.dart';
 
@@ -11,9 +12,12 @@ Future<void> showUserCreateUpdateDialog({
   String? initialName,
   String? initialPhone,
   List<String> initialGroups = const [],
+  String? selectedOrgId,
+  required bool isSuperAdmin,
   String initialRole = "VIEWER",
   bool initialActive = true,
   required List<GroupEntity> allGroups, // dropdown data
+  required List<org_model.Entities> allOrganizations,
   String confirmText = "Save",
   String cancelText = "Cancel",
   required Future<void> Function({
@@ -21,6 +25,7 @@ Future<void> showUserCreateUpdateDialog({
     required String name,
     required String phone,
     required List<String> groups,
+    String? orgId,
     required String role,
     required bool active,
   })
@@ -59,7 +64,7 @@ Future<void> showUserCreateUpdateDialog({
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.all(20),
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,7 +85,7 @@ Future<void> showUserCreateUpdateDialog({
                             //   size: 22,
                             // ),
                             child: SvgPicture.asset(
-                              'icons/user.svg', // 👈 SAME icon as button
+                              'icons/user.svg', // SAME icon as button
                               width: 22,
                               height: 22,
                               color: tGreen8,
@@ -126,12 +131,20 @@ Future<void> showUserCreateUpdateDialog({
                         note: "* 10 digit number required",
                       ),
 
-                      _groupSelector(
-                        isDark,
-                        allGroups,
-                        selectedGroups,
-                        (v) => setState(() => selectedGroups = v),
-                      ),
+                      if (isSuperAdmin)
+                        _organizationSelector(
+                          isDark,
+                          allOrganizations,
+                          selectedOrgId,
+                          (v) => setState(() => selectedOrgId = v),
+                        )
+                      else
+                        _groupSelector(
+                          isDark,
+                          allGroups,
+                          selectedGroups,
+                          (v) => setState(() => selectedGroups = v),
+                        ),
 
                       const SizedBox(height: 10),
 
@@ -211,6 +224,7 @@ Future<void> showUserCreateUpdateDialog({
                                           name: nameCtrl.text.trim(),
                                           phone: phoneCtrl.text.trim(),
                                           groups: selectedGroups,
+                                          orgId: selectedOrgId,
                                           role: selectedRole,
                                           active: isActive,
                                         );
@@ -307,8 +321,7 @@ Widget _textField({
           decoration: InputDecoration(
             hintText: hint,
             filled: false,
-            fillColor:
-                isDark ? tWhite.withOpacity(0.05) : tBlack.withOpacity(0.03),
+            fillColor: isDark ? tWhite : tBlack,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -403,13 +416,13 @@ Widget _groupSelector(
               return FilterChip(
                 selected: isSelected,
                 showCheckmark: true,
-                checkmarkColor: tWhite,
+                checkmarkColor: isDark ? tBlack : tWhite, // tick visibility
                 label: Text(
                   g.name ?? '',
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? (tWhite) : baseColor,
+                    color: isSelected ? (isDark ? tBlack : tWhite) : baseColor,
                   ),
                 ),
                 backgroundColor: baseColor.withOpacity(0.12),
@@ -425,6 +438,69 @@ Widget _groupSelector(
                   final copy = List<String>.from(selected);
                   v ? copy.add(id) : copy.remove(id);
                   onChanged(copy);
+                },
+              );
+            }).toList(),
+      ),
+    ],
+  );
+}
+
+Widget _organizationSelector(
+  bool isDark,
+  List<org_model.Entities> organizations,
+  String? selectedOrgId,
+  ValueChanged<String?> onChanged,
+) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      RichText(
+        text: TextSpan(
+          text: 'Organization',
+          style: GoogleFonts.urbanist(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: isDark ? tWhite : tBlack,
+          ),
+          children: const [TextSpan(text: ' *', style: TextStyle(color: tRed))],
+        ),
+      ),
+
+      const SizedBox(height: 5),
+
+      Wrap(
+        spacing: 5,
+        runSpacing: 5,
+        children:
+            organizations.map((org) {
+              final id = org.id ?? '';
+              final isSelected = selectedOrgId == id;
+              final baseColor = _groupColor(id);
+
+              return ChoiceChip(
+                selected: isSelected,
+                showCheckmark: true,
+                checkmarkColor: isDark ? tBlack : tWhite,
+                label: Text(
+                  org.name ?? '',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? (isDark ? tBlack : tWhite) : baseColor,
+                  ),
+                ),
+                backgroundColor: baseColor.withOpacity(0.12),
+                selectedColor: baseColor.withOpacity(0.85),
+                side: BorderSide(
+                  color: isSelected ? baseColor : Colors.transparent,
+                  width: isSelected ? 2 : 1,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                onSelected: (_) {
+                  onChanged(id);
                 },
               );
             }).toList(),
@@ -473,13 +549,13 @@ Widget _roleChips(
               return ChoiceChip(
                 selected: isSelected,
                 showCheckmark: true,
-                checkmarkColor: tWhite,
+                checkmarkColor: isDark ? tBlack : tWhite,
                 label: Text(
                   role["label"] as String,
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? (tWhite) : color,
+                    color: isSelected ? (isDark ? tBlack : tWhite) : color,
                   ),
                 ),
                 backgroundColor: color.withOpacity(0.12),

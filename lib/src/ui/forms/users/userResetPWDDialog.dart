@@ -50,12 +50,12 @@ Future<void> showResetPasswordDialog({
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: tBlue.withOpacity(0.15),
+                            color: tGreen8.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
                             Icons.lock_reset_rounded,
-                            color: tBlue,
+                            color: tGreen8,
                             size: 22,
                           ),
                         ),
@@ -169,7 +169,7 @@ Future<void> showResetPasswordDialog({
 
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: tBlue,
+                            backgroundColor: tGreen8,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 22,
                               vertical: 10,

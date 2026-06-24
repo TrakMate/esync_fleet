@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:svg_flutter/svg.dart';
-
 import '../../../models/userReportModel.dart';
-import '../../../models/vehicleReportModel.dart';
 import '../../../provider/fleetModeProvider.dart';
 import '../../../services/generalAPIServices.dart/reportApiServices/reportsAPIService.dart';
 import '../../../services/generalAPIServices.dart/reportApiServices/vehicleReportAPIService.dart';
@@ -15,10 +12,14 @@ import 'custom_Toast.dart';
 class VehiclesReportView extends StatefulWidget {
   final String title;
   final String description;
+  final bool isDark;
+  final bool isMobile;
   const VehiclesReportView({
     super.key,
     required this.title,
     required this.description,
+    required this.isDark,
+    required this.isMobile,
   });
 
   @override
@@ -43,6 +44,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
 
   String format = 'XLSX';
   String range = 'All';
+  String selectedFormat = 'csv';
 
   final List<String> formatOptions = ['Logs', 'XLSX', 'CSV', 'JSON', 'XML'];
 
@@ -102,7 +104,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
 
   Color _statusColor(String status, bool isEVFleet) {
     final map = isEVFleet ? _evStatusColors : _nonEVStatusColors;
-    return map[status] ?? tBlue;
+    return map[status] ?? tGreen8;
   }
 
   bool _isActiveStatus(String status, bool isEVFleet) {
@@ -131,6 +133,27 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     }
 
     return allStatuses;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      availability = 'All';
+      vehicleStatus = 'All';
+      format = 'XLSX'; // default format
+
+      range = 'All';
+      selectedRangeDays = null;
+      _isRangeSelected = false;
+
+      final now = DateTime.now();
+      fromDate = now;
+      toDate = now;
+
+      _selectedImeis.clear();
+      _selectedGroupIds.clear();
+
+      _searchFieldController?.clear();
+    });
   }
 
   void _applyRange(String range) {
@@ -209,34 +232,64 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     toDate = now;
   }
 
+  String _formatDate(DateTime date) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    return "${date.day.toString().padLeft(2, '0')} "
+        "${months[date.month - 1]} "
+        "${date.year}";
+  }
+
+  String _formatDateForApi(DateTime date) {
+    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  }
+
   int _calculateRangeDays() {
     return selectedRangeDays ?? 0;
   }
 
   Future<void> _downloadReport() async {
+    if (isDownloading) return;
     setState(() {
       isDownloading = true;
       isLoading = true;
     });
 
     try {
+      // String fromDateApi = _formatDateForApi(DateTime.now());
+      // String toDateApi = _formatDateForApi(DateTime.now());
       int rangeDays = _calculateRangeDays();
 
-      // String? imei =
-      //     _selectedImeis.isNotEmpty ? _selectedImeis.join(',') : null;
+      String? imeiList =
+          _selectedImeis.isNotEmpty ? _selectedImeis.join(',') : null;
       String? groupId =
           _selectedGroupIds.isNotEmpty ? _selectedGroupIds.join(',') : null;
 
       String? availabilityParam = availability != 'All' ? availability : null;
       String? statusParam = vehicleStatus != 'All' ? vehicleStatus : null;
-      String formatParam = format.isNotEmpty ? format.toLowerCase() : 'csv';
+      String formatParam = format.toLowerCase();
       final vehicleReportApi = VehicleReportApiService();
 
       if (_isRangeSelected && selectedRangeDays != null) {
         // Using range days
         await vehicleReportApi.downloadReport(
           context: context,
-          // imei: imei,
+          // fromDate: '',
+          // toDate: '',
+          imeiList: imeiList,
           groupId: groupId,
           rangeDays: rangeDays,
           status: statusParam,
@@ -278,7 +331,9 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
         // Using individual dates
         await vehicleReportApi.downloadReport(
           context: context,
-          // imei: imei,
+          // fromDate: fromDateApi,
+          // toDate: toDateApi,
+          imeiList: imeiList,
           groupId: groupId,
           rangeDays: rangeDays,
           status: statusParam,
@@ -291,6 +346,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                 isLoading = false;
               });
             }
+            _resetFilters();
 
             CustomToast.show(
               context: context,
@@ -338,6 +394,8 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mode = context.watch<FleetModeProvider>().mode;
     final bool isEVFleet = mode == 'EV Fleet';
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || (screenWidth <= 600);
 
     final filteredStatuses = _getFilteredStatuses(isEVFleet);
 
@@ -349,28 +407,33 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? tWhite : tBlack,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: GoogleFonts.urbanist(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? tWhite : tBlack,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      widget.description,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 13,
-                        color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                      const SizedBox(height: 5),
+                      Text(
+                        widget.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 11 : 13,
+                          color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                _filterButton(isDark),
+                SizedBox(width: isMobile ? 15 : 0),
+                _filterButton(isDark, isMobile),
               ],
             ),
             const SizedBox(height: 5),
@@ -442,7 +505,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                 //     ),
                 //   ],
                 // ),
-                const SizedBox(height: 10),
+                // const SizedBox(height: 10),
                 _chipSection(
                   title: "Filter by Availability",
                   options: availabilityOptions,
@@ -454,6 +517,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                     });
                   },
                   isDark: isDark,
+                  isMobile: isMobile,
                 ),
                 const SizedBox(height: 10),
                 _chipSection(
@@ -462,13 +526,15 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                   selected: vehicleStatus,
                   onSelected: (val) => setState(() => vehicleStatus = val),
                   isDark: isDark,
+                  isMobile: isMobile,
                   isEVFleet: isEVFleet,
                   showStatusColors: true,
                 ),
 
                 const SizedBox(height: 15),
                 Text(
-                  'Search by Group',
+                  // 'Filter by  IMEI or Group Name',
+                  'Filter by Group Name',
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -476,10 +542,10 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _searchField(isDark),
-                const SizedBox(height: 10),
+                _searchField(isDark, isMobile),
+                const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: isLoading ? null : _downloadReport,
+                  onPressed: _downloadReport,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: tGreen8,
                     shape: RoundedRectangleBorder(
@@ -507,7 +573,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                               Text(
                                 'Downloading...',
                                 style: GoogleFonts.urbanist(
-                                  fontSize: 14,
+                                  fontSize: isMobile ? 12 : 14,
                                   fontWeight: FontWeight.w600,
                                   color: tWhite,
                                 ),
@@ -517,9 +583,9 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                           : Text(
                             'Generate Report',
                             style: GoogleFonts.urbanist(
-                              fontSize: 14,
+                              fontSize: isMobile ? 12 : 14,
                               fontWeight: FontWeight.w600,
-                              color: tBlack,
+                              color: tWhite,
                             ),
                           ),
                 ),
@@ -528,7 +594,15 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
           ],
         ),
         if (_showFilterPanel)
-          Positioned(top: 50, right: 0, child: _buildFilterPanel(isDark)),
+          Positioned(
+            top: 50,
+            right: 0,
+            left:
+                (widget.isMobile || MediaQuery.of(context).size.width < 600)
+                    ? 0
+                    : null,
+            child: _buildFilterPanel(isDark),
+          ),
       ],
     );
   }
@@ -582,6 +656,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     required String selected,
     required Function(String) onSelected,
     required bool isDark,
+    required bool isMobile,
     bool? isEVFleet,
     bool showStatusColors = false,
   }) {
@@ -613,24 +688,24 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tBlack,
+                  checkmarkColor: tWhite,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
-                      fontSize: 13,
+                      fontSize: isMobile ? 12 : 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
-                  selectedColor: selectedColor ?? tBlue,
+                  selectedColor: selectedColor ?? tGreen8,
                   backgroundColor:
-                      isDark
-                          ? tWhite.withOpacity(0.15)
-                          : tBlack.withOpacity(0.1),
+                      isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
                   side: BorderSide(color: Colors.transparent, width: 0),
+                  // onSelected: (_) => onSelected(option),
                   onSelected: (_) {
                     if (selected == option) {
+                      // Unselect → reset to default
                       onSelected('All');
                     } else {
                       onSelected(option);
@@ -643,316 +718,206 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     );
   }
 
-  // Widget _searchField(bool isDark) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       /// SEARCH FIELD
-  //       Autocomplete<String>(
-  //         optionsBuilder: (TextEditingValue textEditingValue) {
-  //           if (textEditingValue.text.isEmpty) {
-  //             return const Iterable<String>.empty();
-  //           }
-
-  //           return [..._imeis, ..._groups.map((g) => g.name ?? '')].where(
-  //             (item) => item.toLowerCase().contains(
-  //               textEditingValue.text.toLowerCase(),
-  //             ),
-  //           );
-  //         },
-  //         onSelected: (selection) {
-  //           /// If IMEI selected
-  //           if (_imeis.contains(selection)) {
-  //             if (!_selectedImeis.contains(selection)) {
-  //               setState(() {
-  //                 _selectedGroupIds.clear();
-  //                 _selectedImeis.add(selection);
-  //               });
-  //             }
-  //           } else {
-  //             final group = _groups.firstWhere(
-  //               (g) => g.name == selection || g.id == selection,
-  //               orElse: () => Groups(),
-  //             );
-
-  //             if (group.id != null && !_selectedGroupIds.contains(group.id)) {
-  //               setState(() {
-  //                 /// clear imeis when group selected
-  //                 _selectedImeis.clear();
-  //                 _selectedGroupIds.add(group.id!);
-  //               });
-  //             }
-  //           }
-
-  //           searchController.clear();
-  //           FocusScope.of(context).unfocus();
-  //         },
-  //         fieldViewBuilder: (context, controller, focusNode, _) {
-  //           return TextField(
-  //             controller: controller,
-  //             focusNode: focusNode,
-  //             cursorColor:
-  //                 isDark ? tWhite : tBlack, // ← Add this for cursor color
-  //             style: GoogleFonts.urbanist(
-  //               fontSize: 13,
-  //               fontWeight: FontWeight.w500,
-  //               color: isDark ? tWhite : tBlack, // ← Add this for text color
-  //             ),
-  //             decoration: InputDecoration(
-  //               hintText: "Enter Group Name or IMEI",
-  //               hintStyle: GoogleFonts.urbanist(
-  //                 fontSize: 13,
-  //                 fontWeight: FontWeight.w500,
-  //                 color:
-  //                     isDark
-  //                         ? tWhite.withOpacity(0.6)
-  //                         : tBlack.withOpacity(0.6),
-  //               ),
-  //               prefixIcon: Icon(
-  //                 Icons.search_outlined,
-  //                 size: 18,
-  //                 color: isDark ? tWhite : tBlack,
-  //               ),
-  //               border: OutlineInputBorder(
-  //                 borderRadius: BorderRadius.circular(0),
-  //                 borderSide: BorderSide(
-  //                   // ← Add this for border color
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //               enabledBorder: OutlineInputBorder(
-  //                 // ← Add this for normal state
-  //                 borderRadius: BorderRadius.circular(0),
-  //                 borderSide: BorderSide(
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //               focusedBorder: OutlineInputBorder(
-  //                 // ← Add this for focused state
-  //                 borderRadius: BorderRadius.circular(0),
-  //                 borderSide: BorderSide(
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //             ),
-  //           );
-  //         },
-  //       ),
-  //       const SizedBox(height: 10),
-
-  //       /// SELECTED IMEIs and GROUPS
-  //       Wrap(
-  //         spacing: 6,
-  //         runSpacing: 6,
-  //         children: [
-  //           /// GROUP CHIPS
-  //           ..._selectedGroupIds.map((groupId) {
-  //             final group = _groups.firstWhere(
-  //               (g) => g.id == groupId,
-  //               orElse: () => Groups(),
-  //             );
-
-  //             return Chip(
-  //               label: Text(group.name ?? groupId),
-  //               deleteIcon: const Icon(Icons.close, size: 16),
-  //               onDeleted: () {
-  //                 setState(() {
-  //                   _selectedGroupIds.remove(groupId);
-  //                 });
-  //               },
-  //             );
-  //           }),
-
-  //           /// IMEI CHIPS
-  //           ..._selectedImeis.map((imei) {
-  //             return Chip(
-  //               label: Text(imei),
-  //               deleteIcon: const Icon(Icons.close, size: 16),
-  //               onDeleted: () {
-  //                 setState(() {
-  //                   _selectedImeis.remove(imei);
-  //                 });
-  //               },
-  //             );
-  //           }),
-  //         ],
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  Widget _searchField(bool isDark) {
+  Widget _searchField(bool isDark, bool isMobile) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         /// SEARCH FIELD
-        Autocomplete<String>(
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            final allOptions = _groups.map((g) => g.name ?? '').toList();
-            if (textEditingValue.text.isEmpty) {
-              return allOptions;
-            }
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Autocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                // final allOptions = [..._imeis, ..._groups.map((g) => g.name ?? '')];
+                final allOptions = _groups.map((g) => g.name ?? '');
 
-            return allOptions.where(
-              (item) => item.toLowerCase().contains(
-                textEditingValue.text.toLowerCase(),
-              ),
-            );
-          },
-          onSelected: (selection) {
-            final matchedImei = _imeis.firstWhere(
-              (imei) => imei.toLowerCase() == selection.toLowerCase(),
-              orElse: () => '',
-            );
+                if (textEditingValue.text.isEmpty) {
+                  return allOptions;
+                }
 
-            if (matchedImei.isNotEmpty) {
-              if (!_selectedImeis.contains(matchedImei)) {
-                setState(() {
-                  _selectedGroupIds.clear();
-                  _selectedImeis.add(matchedImei);
-                });
-              }
-            } else {
-              final group = _groups.firstWhere(
-                (g) =>
-                    g.name?.toLowerCase() == selection.toLowerCase() ||
-                    g.id == selection,
-                orElse: () => Groups(),
-              );
-
-              if (group.id != null && !_selectedGroupIds.contains(group.id)) {
-                setState(() {
-                  /// clear imeis when group selected
-                  _selectedImeis.clear();
-                  _selectedGroupIds.add(group.id!);
-                });
-              }
-            }
-
-            // Clear the search field
-            _searchFieldController?.clear();
-            FocusScope.of(context).unfocus();
-          },
-          fieldViewBuilder: (context, controller, focusNode, _) {
-            _searchFieldController = controller;
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              cursorColor: isDark ? tWhite : tBlack,
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isDark ? tWhite : tBlack,
-              ),
-              decoration: InputDecoration(
-                hintText: "Enter Group Name ",
-                hintStyle: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.6)
-                          : tBlack.withOpacity(0.6),
-                ),
-                prefixIcon: Icon(
-                  Icons.search_outlined,
-                  size: 18,
-                  color: isDark ? tWhite : tBlack,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
+                return allOptions.where(
+                  (item) => item.toLowerCase().contains(
+                    textEditingValue.text.toLowerCase(),
                   ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
+                );
+              },
+              // onSelected: (selection) {
+              //   final matchedImei = _imeis.firstWhere(
+              //     (imei) => imei.toLowerCase() == selection.toLowerCase(),
+              //     orElse: () => '',
+              //   );
+
+              //   if (matchedImei.isNotEmpty) {
+              //     if (!_selectedImeis.contains(matchedImei)) {
+              //       setState(() {
+              //         _selectedGroupIds.clear();
+              //         _selectedImeis.add(matchedImei);
+              //       });
+              //     }
+              //   } else {
+              //     final group = _groups.firstWhere(
+              //       (g) =>
+              //           g.name?.toLowerCase() == selection.toLowerCase() ||
+              //           g.id == selection,
+              //       orElse: () => Groups(),
+              //     );
+
+              //     if (group.id != null && !_selectedGroupIds.contains(group.id)) {
+              //       setState(() {
+              //         /// clear imeis when group selected
+              //         _selectedImeis.clear();
+              //         _selectedGroupIds.add(group.id!);
+              //       });
+              //     }
+              //   }
+
+              //   // Clear the search field
+              //   _searchFieldController?.clear();
+              //   FocusScope.of(context).unfocus();
+              // },
+              onSelected: (selection) {
+                final group = _groups.firstWhere(
+                  (g) => g.name?.toLowerCase() == selection.toLowerCase(),
+                  orElse: () => Groups(),
+                );
+
+                // if (group.id != null && !_selectedGroupIds.contains(group.id)) {
+                //   setState(() {
+                //     _selectedGroupIds.add(group.id!);
+                //   });
+                // }
+                if (group.id != null) {
+                  setState(() {
+                    _selectedGroupIds.clear();
+
+                    _selectedGroupIds.add(group.id!);
+                  });
+                }
+
+                _searchFieldController?.clear();
+                searchController.clear();
+
+                FocusScope.of(context).unfocus();
+              },
+
+              fieldViewBuilder: (context, controller, focusNode, _) {
+                _searchFieldController = controller;
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  cursorColor: isDark ? tWhite : tBlack,
+                  style: GoogleFonts.urbanist(
+                    fontSize: isMobile ? 11 : 13,
+                    fontWeight: FontWeight.w500,
                     color: isDark ? tWhite : tBlack,
-                    width: 1,
                   ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
-                  ),
-                ),
-              ),
-            );
-          },
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                color: tTransparent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? tBlack : tWhite,
-                    border: Border.all(
+                  decoration: InputDecoration(
+                    hintText: "Search...",
+                    hintStyle: GoogleFonts.urbanist(
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w500,
                       color:
                           isDark
-                              ? tWhite.withOpacity(0.5)
-                              : tBlack.withOpacity(0.5),
-                      width: 1,
+                              ? tWhite.withOpacity(0.6)
+                              : tBlack.withOpacity(0.6),
                     ),
-                    borderRadius: BorderRadius.circular(4), // optional
+                    prefixIcon: Icon(
+                      Icons.search_outlined,
+                      size: 18,
+                      color: isDark ? tWhite : tBlack,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
                   ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: 200,
-                      maxWidth: MediaQuery.of(context).size.width * 0.57,
-                    ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final option = options.elementAt(index);
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    color: Colors.transparent, // IMPORTANT
+                    child: Container(
+                      margin: EdgeInsets.only(top: 6),
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: isDark ? tBlack : tWhite,
+                        boxShadow: [
+                          BoxShadow(
+                            spreadRadius: 2,
+                            blurRadius: 10,
+                            color:
+                                isDark
+                                    ? tWhite.withOpacity(0.25)
+                                    : tBlack.withOpacity(0.15),
+                          ),
+                        ],
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: 200,
+                          maxWidth:
+                              isMobile
+                                  ? MediaQuery.of(context).size.width - 32
+                                  : MediaQuery.of(context).size.width * 0.57,
+                        ),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final option = options.elementAt(index);
 
-                        return InkWell(
-                          onTap: () => onSelected(option),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color:
-                                      isDark
-                                          ? tWhite.withOpacity(0.1)
-                                          : tBlack.withOpacity(0.1),
+                            return InkWell(
+                              onTap: () => onSelected(option),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    option,
-                                    style: GoogleFonts.urbanist(
-                                      fontSize: 13,
-                                      color: isDark ? tWhite : tBlack,
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color:
+                                          isDark
+                                              ? tWhite.withOpacity(0.1)
+                                              : tBlack.withOpacity(0.1),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                                child: Text(
+                                  option,
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: isMobile ? 11 : 13,
+                                    color: isDark ? tWhite : tBlack,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         ),
@@ -981,17 +946,18 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                 onDeleted: () {
                   setState(() {
                     _selectedGroupIds.remove(groupId);
+                    // Clear the search field when deleting group
                     _searchFieldController?.clear();
                   });
                 },
                 backgroundColor:
-                    isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.1),
+                    isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
                 deleteIconColor: Colors.grey,
                 labelStyle: TextStyle(
                   color: isDark ? tWhite : tBlack,
                   fontSize: 12,
                 ),
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide.none,
               );
             }),
 
@@ -1020,7 +986,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
                   color: isDark ? tWhite : tBlack,
                   fontSize: 13,
                 ),
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide.none,
               );
             }),
           ],
@@ -1029,7 +995,7 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     );
   }
 
-  Widget _filterButton(bool isDark) => Container(
+  Widget _filterButton(bool isDark, bool isMobile) => Container(
     width: 40,
     height: 40,
     decoration: BoxDecoration(
@@ -1038,8 +1004,16 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
     ),
     child: IconButton(
       onPressed: () {
-        if (!mounted) return;
-        setState(() => _showFilterPanel = !_showFilterPanel);
+        if (isMobile) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => _buildFilterPanel(isDark),
+          );
+        } else {
+          setState(() => _showFilterPanel = !_showFilterPanel);
+        }
       },
       icon: SvgPicture.asset(
         'icons/filter.svg',
@@ -1051,67 +1025,132 @@ class _VehiclesReportViewState extends State<VehiclesReportView> {
   );
 
   Widget _buildFilterPanel(bool isDark) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: 350,
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || screenWidth < 600;
+
+    if (isMobile) {
+      return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isDark ? tBlack : tWhite,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isDark ? tWhite : tBlack),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10),
-          ],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: Column(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: _buildFilterContent(isDark, true),
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Container(
+          width: 350,
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isDark ? tWhite : tBlack),
+          ),
+          child: _buildFilterContent(isDark, false),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterContent(bool isDark, bool isMobile) {
+    return StatefulBuilder(
+      builder: (context, modalSetState) {
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // _chipSection(
-            //   title: "Range",
-            //   options: rangeOptions,
-            //   selected: range,
-            //   onSelected: (val) {
-            //     setState(() {
-            //       _applyRange(val);
-            //     });
-            //   },
-            //   isDark: isDark,
-            // ),
-            const SizedBox(height: 15),
-            _chipSection(
-              title: "Filter by Format",
-              options: formatOptions,
-              selected: format,
-              onSelected: (val) => setState(() => format = val),
-              isDark: isDark,
+            Text(
+              "Filter by Format",
+              style: GoogleFonts.urbanist(
+                fontSize: isMobile ? 12 : 13,
+                fontWeight: FontWeight.w700,
+                color: isDark ? tWhite : tBlack,
+              ),
             ),
-            const SizedBox(height: 15),
-            Align(
-              alignment: Alignment.centerRight,
+
+            SizedBox(height: isMobile ? 8 : 10),
+
+            Wrap(
+              spacing: isMobile ? 6 : 8,
+              runSpacing: isMobile ? 6 : 8,
+              children:
+                  formatOptions.map((option) {
+                    final isSelected = format == option;
+
+                    return FilterChip(
+                      label: Text(
+                        option,
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: FontWeight.w500,
+                          color:
+                              isSelected
+                                  ? Colors.white
+                                  : (isDark ? tWhite : tBlack),
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: tGreen8,
+                      checkmarkColor: tWhite,
+                      onSelected: (_) {
+                        modalSetState(() {
+                          format = option;
+                        });
+
+                        setState(() {
+                          format = option;
+                        });
+                      },
+                    );
+                  }).toList(),
+            ),
+
+            SizedBox(height: isMobile ? 20 : 15),
+
+            SizedBox(
+              width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  setState(() {
-                    _showFilterPanel = false;
-                  });
+                  if (isMobile) {
+                    Navigator.pop(context);
+                  } else {
+                    setState(() {
+                      _showFilterPanel = false;
+                    });
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: tGreen8,
-                  foregroundColor: tBlack,
+                  foregroundColor: tWhite,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
+                  elevation: 0,
                 ),
-
-                child: const Text(
+                child: Text(
                   "Apply Filters",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.urbanist(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: tWhite,
+                  ),
                 ),
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

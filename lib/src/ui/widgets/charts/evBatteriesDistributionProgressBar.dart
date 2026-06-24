@@ -31,6 +31,7 @@ class BatteryProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     final statuses =
         List.generate(4, (i) {
@@ -56,118 +57,169 @@ class BatteryProgressBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // =========================
-        //        LEGENDS ABOVE (Like DynamicSegmentBar)
-        // =========================
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(statuses.length, (i) {
-            final status = statuses[i];
-            final label = status['label'] as String;
-            final count = status['count'] as int;
-            final color = status['color'] as Color;
-            final range = ranges[performanceLabels.indexOf(label)];
+        if (!isMobile)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(statuses.length, (i) {
+              final status = statuses[i];
+              final label = status['label'] as String;
+              final count = status['count'] as int;
+              final color = status['color'] as Color;
+              final range = ranges[performanceLabels.indexOf(label)];
 
-            double pct = (count / total) * 100;
-            double percentRounded = _roundPercent(pct);
+              double pct = (count / total) * 100;
+              double percentRounded = _roundPercent(pct);
 
-            return Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  StatusLabel(
-                    label: "$label ($range)",
-                    color: color,
-                    isDark: isDark,
-                    onTap: () {
-                      context.go('/home/devices?SOC=${label.toLowerCase()}');
-                    },
-                  ),
+              return Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    StatusLabel(
+                      label: "$label ($range)",
+                      color: color,
+                      isDark: isDark,
+                      onTap: () {
+                        context.go('/home/devices?SOC=${label.toLowerCase()}');
+                      },
+                    ),
 
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 10),
 
-                  // Count + Percentage
-                  Row(
-                    children: [
-                      Text(
-                        "$count",
-                        style: GoogleFonts.urbanist(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? tWhite : tBlack,
+                    // Count + Percentage
+                    Row(
+                      children: [
+                        Text(
+                          "$count",
+                          style: GoogleFonts.urbanist(
+                            fontSize: isMobile ? 11 : 14,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? tWhite : tBlack,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        "[${percentRounded.toStringAsFixed(0)}%]",
-                        style: GoogleFonts.urbanist(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? tWhite : tBlack,
+                        const SizedBox(width: 5),
+                        Text(
+                          "[${percentRounded.toStringAsFixed(0)}%]",
+                          style: GoogleFonts.urbanist(
+                            fontSize: isMobile ? 11 : 14,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? tWhite : tBlack,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }),
-        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+          )
+        else
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: List.generate(statuses.length, (i) {
+              final status = statuses[i];
+
+              final label = status['label'] as String;
+              final count = status['count'] as int;
+              final color = status['color'] as Color;
+              final range = ranges[performanceLabels.indexOf(label)];
+
+              double pct = (count / total) * 100;
+              double percentRounded = _roundPercent(pct);
+
+              double itemWidth = (MediaQuery.of(context).size.width - 80) / 2;
+
+              return SizedBox(
+                width: itemWidth,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    StatusLabel(
+                      label: "$label ($range)",
+                      color: color,
+                      isDark: isDark,
+                      onTap: () {
+                        context.go('/home/devices?SOC=${label.toLowerCase()}');
+                      },
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Row(
+                      children: [
+                        Text(
+                          "$count",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+
+                        const SizedBox(width: 4),
+
+                        Text(
+                          "[${percentRounded.toStringAsFixed(0)}%]",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
 
         const SizedBox(height: 20),
 
         // =========================
         //        SEGMENT BAR
         // =========================
-        Row(
-          children: List.generate(statuses.length, (i) {
-            final status = statuses[i];
-            final count = status['count'] as int;
-            final color = status['color'] as Color;
-            final label = status['label'] as String;
+        Container(
+          height: isMobile ? height * 0.8 : height,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(5)),
+          child: Row(
+            children: List.generate(statuses.length, (i) {
+              final status = statuses[i];
+              final count = status['count'] as int;
+              final color = status['color'] as Color;
+              final label = status['label'] as String;
 
-            final pct = total > 0 ? count / total : 0.0;
+              final pct = total > 0 ? count / total : 0.0;
 
-            return Expanded(
-              flex: maxFlex(pct),
-              child: GestureDetector(
-                onTap: () {
-                  context.go('/home/devices?SOC=${label.toLowerCase()}');
-                },
-                child: Container(
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: color,
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 10,
-                        spreadRadius: 3,
-                        color: color.withOpacity(0.25),
-                      ),
-                    ],
+              return Expanded(
+                flex: maxFlex(pct),
+                child: GestureDetector(
+                  onTap: () {
+                    context.go('/home/devices?SOC=${label.toLowerCase()}');
+                  },
+                  child: Container(
+                    margin: EdgeInsets.only(
+                      right: i != statuses.length - 1 ? 4 : 0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(5),
+                      boxShadow: [
+                        BoxShadow(
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                          color: color.withOpacity(0.25),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: null,
                   ),
-                  alignment: Alignment.center,
-                  child: null,
-                  // showLabels
-                  //     ? LayoutBuilder(
-                  //       builder:
-                  //           (_, constraints) =>
-                  //               constraints.maxWidth > 40
-                  //                   ? Text(
-                  //                     "${(pct * 100).toStringAsFixed(0)}%",
-                  //                     style: GoogleFonts.urbanist(
-                  //                       fontSize: 13,
-                  //                       color: tWhite,
-                  //                       fontWeight: FontWeight.w600,
-                  //                     ),
-                  //                   )
-                  //                   : const SizedBox.shrink(),
-                  //     )
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+          ),
         ),
       ],
     );

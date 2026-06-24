@@ -14,6 +14,7 @@ class LargeHoverCard extends StatelessWidget {
   final Color bgColor;
   final bool isDark;
   final double? height;
+  final double? width;
 
   const LargeHoverCard({
     super.key,
@@ -25,19 +26,24 @@ class LargeHoverCard extends StatelessWidget {
     required this.bgColor,
     required this.isDark,
     this.height,
+    this.width,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 700;
+
     return HoverWrapper(
       builder: (hover) {
         return AnimatedContainer(
-          width: 190,
+          // width: 190,
+          width: width ?? 190, // CHANGE THIS
           height: height ?? 185,
           padding: const EdgeInsets.all(15),
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
               width: hover ? 1.5 : 0,
               color: hover ? iconColor.withOpacity(0.7) : Colors.transparent,
@@ -77,8 +83,10 @@ class LargeHoverCard extends StatelessWidget {
 
               Text(
                 value,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: GoogleFonts.urbanist(
-                  fontSize: 28,
+                  fontSize: isMobile ? 22 : 26,
                   fontWeight: FontWeight.bold,
                   color: isDark ? tWhite : tBlack,
                 ),
@@ -89,7 +97,7 @@ class LargeHoverCard extends StatelessWidget {
               Text(
                 label,
                 style: GoogleFonts.urbanist(
-                  fontSize: 13,
+                  fontSize: isMobile ? 12 : 13,
                   fontWeight: FontWeight.w600,
                   color: isDark ? tWhite : tBlack,
                 ),

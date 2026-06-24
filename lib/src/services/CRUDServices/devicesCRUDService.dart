@@ -15,14 +15,21 @@ class DevicesCRUDApiService {
   Future<DevicesCRUDModel> fetchDevices({
     required int page,
     required int sizePerPage,
+    String? searchText,
   }) async {
-    final uri = Uri.parse(BaseURLConfig.devicesApiUrl).replace(
-      queryParameters: {
-        "page": page.toString(),
-        "sizePerPage": sizePerPage.toString(),
-        "currentIndex": ((page - 1) * sizePerPage).toString(),
-      },
-    );
+    final queryParams = {
+      "page": page.toString(),
+      "sizePerPage": sizePerPage.toString(),
+      "currentIndex": ((page - 1) * sizePerPage).toString(),
+    };
+
+    if (searchText != null && searchText.trim().isNotEmpty) {
+      queryParams["searchText"] = searchText;
+    }
+
+    final uri = Uri.parse(
+      BaseURLConfig.devicesApiUrl,
+    ).replace(queryParameters: queryParams);
 
     final response = await http.get(
       uri,

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:svg_flutter/svg.dart';
-import '../../../models/alertDashboardModel.dart';
-import '../../../services/generalAPIServices.dart/reportApiServices/batteryReportAPIService.dart';
+// import 'package:tm_fleet_management/src/models/alertDashboardModel.dart';
+import '../../../models/userReportModel.dart';
+import '../../../services/generalAPIServices.dart/reportApiServices/batterySummaryReportAPIService.dart';
 import '../../../services/generalAPIServices.dart/reportApiServices/reportsAPIService.dart';
 import '../../../utils/appColors.dart';
 import 'custom_Toast.dart';
@@ -10,10 +11,14 @@ import 'custom_Toast.dart';
 class BatterySummaryreport extends StatefulWidget {
   final String title;
   final String description;
+  final bool isDark;
+  final bool isMobile;
   const BatterySummaryreport({
     super.key,
     required this.title,
     required this.description,
+    required this.isDark,
+    required this.isMobile,
   });
 
   @override
@@ -34,6 +39,7 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
   final List<String> formatOptions = ['Logs', 'XLSX', 'CSV', 'JSON', 'XML'];
   String selectedFormat = 'csv';
   bool _isRangeSelected = false;
+  bool _imeiError = false;
   final TextEditingController searchController = TextEditingController();
   TextEditingController? _searchFieldController;
 
@@ -173,12 +179,17 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
       print('Error loading user report: $e');
       print('Error details: ${e.toString()}');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load user data: ${e.toString()}'),
-            backgroundColor: tRed,
-            duration: Duration(seconds: 3),
-          ),
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(
+        //     content: Text('Failed to load user data: ${e.toString()}'),
+        //     backgroundColor: tRed,
+        //     duration: Duration(seconds: 3),
+        //   ),
+        // );
+        CustomToast.show(
+          context: context,
+          message: 'Failed to load user data',
+          type: ToastType.error,
         );
       }
     }
@@ -193,23 +204,27 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
   ];
 
   void _downloadReport() async {
+    if (_selectedImeis.isEmpty) {
+      setState(() {
+        _imeiError = true;
+      });
+      return;
+    }
     setState(() {
       isLoading = true;
       isDownloading = true;
+      _imeiError = false;
     });
 
     try {
-      if (fromDate == null || toDate == null) {
+      if (toDate == null) {
         throw Exception("Please select both From and To dates");
       }
 
       String fromDateApi = _formatDateForApi(fromDate!);
       String toDateApi = _formatDateForApi(toDate!);
 
-      print("FROM DATE 👉 $fromDateApi");
-      print("TO DATE 👉 $toDateApi");
-
-      String? imeiParam =
+      String? imeiList =
           _selectedImeis.isNotEmpty ? _selectedImeis.join(',') : null;
 
       String? groupIdParam =
@@ -228,13 +243,13 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
       // String formatParam = (format.isNotEmpty ? format : 'csv').toLowerCase();
       String formatParam = format.isNotEmpty ? format.toLowerCase() : 'csv';
 
-      final batteryReportApi = BatteryReportApiService();
+      final batteryReportApi = BatterySummaryReportApiService();
 
       await batteryReportApi.downloadReport(
         context: context,
         fromDate: fromDateApi,
         toDate: toDateApi,
-        imei: imeiParam,
+        imeiList: imeiList,
         groupId: groupIdParam,
         batteryStatus: batteryStatusParam,
         vehicleType: vehicleTypeParam,
@@ -292,6 +307,8 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || (screenWidth <= 600);
 
     return Stack(
       children: [
@@ -302,27 +319,32 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? tWhite : tBlack,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: GoogleFonts.urbanist(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? tWhite : tBlack,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      widget.description,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 13,
-                        color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                      const SizedBox(height: 5),
+                      Text(
+                        widget.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 11 : 13,
+                          color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                SizedBox(width: isMobile ? 15 : 0),
                 _filterButton(isDark),
               ],
             ),
@@ -335,20 +357,49 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
             const SizedBox(height: 15),
 
             Row(
+              mainAxisAlignment:
+                  isMobile
+                      ? MainAxisAlignment.spaceBetween
+                      : MainAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    _dateLabelBox('From', isDark),
+                    _dateLabelBox('From', isDark, isMobile),
                     const SizedBox(width: 5),
                     _dateValueBox(
                       _formatDate(fromDate!),
                       isDark,
+                      isMobile,
                       onTap: () async {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: fromDate!,
                           firstDate: DateTime(2020),
                           lastDate: DateTime.now(),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: Colors.blue,
+                                  onPrimary: tWhite,
+                                  onSurface: tBlack,
+                                ),
+                                // datePickerTheme: DatePickerThemeData(
+                                //   todayBackgroundColor:
+                                //       const WidgetStatePropertyAll(
+                                //         tTransparent,
+                                //       ),
+                                //   todayForegroundColor:
+                                //       const WidgetStatePropertyAll(tBlueSky),
+                                //   todayBorder: BorderSide(
+                                //     color: tBlueSky,
+                                //     width: 1.5,
+                                //   ),
+                                // ),
+                              ),
+                              child: child!,
+                            );
+                          },
                         );
                         if (picked != null) {
                           setState(() => fromDate = picked);
@@ -357,22 +408,47 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
                     ),
                   ],
                 ),
-                const SizedBox(width: 30),
+                SizedBox(width: isMobile ? 10 : 30),
 
                 /// TO DATE
                 Row(
                   children: [
-                    _dateLabelBox('To', isDark),
+                    _dateLabelBox('To', isDark, isMobile),
                     const SizedBox(width: 5),
                     _dateValueBox(
                       _formatDate(toDate!),
                       isDark,
+                      isMobile,
                       onTap: () async {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: toDate!,
                           firstDate: DateTime(2020),
                           lastDate: DateTime.now(),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: Colors.blue,
+                                  onPrimary: tWhite,
+                                  onSurface: tBlack,
+                                ),
+                                // datePickerTheme: DatePickerThemeData(
+                                //   todayBackgroundColor:
+                                //       const WidgetStatePropertyAll(
+                                //         tTransparent,
+                                //       ),
+                                //   todayForegroundColor:
+                                //       const WidgetStatePropertyAll(tBlueSky),
+                                //   todayBorder: BorderSide(
+                                //     color: tBlueSky,
+                                //     width: 1.5,
+                                //   ),
+                                // ),
+                              ),
+                              child: child!,
+                            );
+                          },
                         );
                         if (picked != null) {
                           setState(() {
@@ -393,7 +469,7 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
 
             // Search Section
             Text(
-              'Search by Group ',
+              'Filter by IMEI ',
               style: GoogleFonts.urbanist(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -401,9 +477,9 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
               ),
             ),
             const SizedBox(height: 10),
-            _searchField(isDark),
+            _searchField(isDark, isMobile),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 25),
             ElevatedButton(
               onPressed: _downloadReport,
               style: ElevatedButton.styleFrom(
@@ -416,24 +492,56 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
                   vertical: 12,
                 ),
               ),
-              child: Text(
-                'Generate Report',
-                style: GoogleFonts.urbanist(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: tBlack,
-                ),
-              ),
+              child:
+                  isLoading
+                      ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: tWhite,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Downloading...',
+                            style: GoogleFonts.urbanist(
+                              fontSize: isMobile ? 12 : 14,
+                              fontWeight: FontWeight.w600,
+                              color: tWhite,
+                            ),
+                          ),
+                        ],
+                      )
+                      : Text(
+                        'Generate Report',
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 12 : 14,
+                          fontWeight: FontWeight.w600,
+                          color: tBlack,
+                        ),
+                      ),
             ),
           ],
         ),
         if (_showFilterPanel)
-          Positioned(top: 50, right: 0, child: _buildFilterPanel(isDark)),
+          Positioned(
+            top: 50,
+            right: 0,
+            left:
+                (widget.isMobile || MediaQuery.of(context).size.width < 600)
+                    ? 0
+                    : null,
+            child: _buildFilterPanel(isDark),
+          ),
       ],
     );
   }
 
-  Widget _dateLabelBox(String text, bool isDark) {
+  Widget _dateLabelBox(String text, bool isDark, bool isMobile) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -443,7 +551,7 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
       child: Text(
         text,
         style: GoogleFonts.urbanist(
-          fontSize: 13,
+          fontSize: isMobile ? 11 : 13,
           color: isDark ? tWhite : tBlack,
           fontWeight: FontWeight.w600,
         ),
@@ -453,7 +561,8 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
 
   Widget _dateValueBox(
     String value,
-    bool isDark, {
+    bool isDark,
+    bool isMobile, {
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -467,7 +576,7 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
         child: Text(
           value,
           style: GoogleFonts.urbanist(
-            fontSize: 13,
+            fontSize: isMobile ? 11 : 13,
             color: isDark ? tWhite : tBlack,
             fontWeight: FontWeight.w600,
           ),
@@ -645,201 +754,200 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
   //     ],
   //   );
   // }
-  Widget _searchField(bool isDark) {
+  Widget _searchField(bool isDark, bool isMobile) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         /// SEARCH FIELD
-        Autocomplete<String>(
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            //final allOptions = [..._imeis, ..._groups.map((g) => g.name ?? '')];
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Autocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                final allOptions = [
+                  ..._imeis,
+                  ..._groups.map((g) => g.name ?? ''),
+                ];
 
-            if (textEditingValue.text.isEmpty) {
-              return _imeis;
-            }
+                final uniqueOptions =
+                    allOptions
+                        .where((item) => item.isNotEmpty)
+                        .toSet()
+                        .toList();
 
-            return _imeis.where(
-              (item) => item.toLowerCase().contains(
-                textEditingValue.text.toLowerCase(),
-              ),
-            );
-          },
-          onSelected: (selection) {
-            if (_imeis.contains(selection)) {
-              if (!_selectedImeis.contains(selection)) {
-                setState(() {
-                  _selectedGroupIds.clear();
-                  _selectedImeis.add(selection);
-                });
-              }
-            } else {
-              final group = _groups.firstWhere(
-                (g) => g.name == selection || g.id == selection,
-                orElse: () => Groups(),
-              );
+                if (textEditingValue.text.isEmpty) {
+                  return uniqueOptions;
+                }
 
-              if (group.id != null && !_selectedGroupIds.contains(group.id)) {
-                setState(() {
-                  _selectedImeis.clear();
-                  _selectedGroupIds.add(group.id!);
-                });
-              }
-            }
-
-            _searchFieldController?.clear();
-            searchController.clear();
-            FocusScope.of(context).unfocus();
-          },
-          fieldViewBuilder: (context, controller, focusNode, _) {
-            // Store reference to the controller
-            _searchFieldController = controller;
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              cursorColor: isDark ? tWhite : tBlack,
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isDark ? tWhite : tBlack,
-              ),
-              decoration: InputDecoration(
-                hintText: "Enter IMEI",
-                hintStyle: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.6)
-                          : tBlack.withOpacity(0.6),
-                ),
-                prefixIcon: Icon(
-                  Icons.search_outlined,
-                  size: 18,
-                  color: isDark ? tWhite : tBlack,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
+                return uniqueOptions.where(
+                  (item) => item.toLowerCase().contains(
+                    textEditingValue.text.toLowerCase(),
                   ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(
+                );
+              },
+              onSelected: (selection) {
+                bool isImeiMatch(String imei) {
+                  return imei.trim().toLowerCase() ==
+                      selection.trim().toLowerCase();
+                }
+
+                bool isGroupMatch(String groupName) {
+                  return groupName.trim().toLowerCase() ==
+                      selection.trim().toLowerCase();
+                }
+
+                final matchedImei = _imeis.firstWhere(
+                  (imei) => isImeiMatch(imei),
+                  orElse: () => '',
+                );
+
+                if (matchedImei.isNotEmpty) {
+                  if (!_selectedImeis.contains(matchedImei)) {
+                    setState(() {
+                      _selectedGroupIds.clear();
+                      _selectedImeis.add(matchedImei);
+                    });
+                  }
+                } else {
+                  final group = _groups.firstWhere(
+                    (g) => isGroupMatch(g.name ?? '') || g.id == selection,
+                    orElse: () => Groups(),
+                  );
+
+                  if (group.id != null &&
+                      !_selectedGroupIds.contains(group.id)) {
+                    setState(() {
+                      /// clear imeis when group selected
+                      _selectedImeis.clear();
+
+                      _selectedGroupIds.add(group.id!);
+                    });
+                  }
+                }
+
+                // Clear the search field after selection
+                _searchFieldController?.clear();
+                searchController.clear();
+                FocusScope.of(context).unfocus();
+              },
+              fieldViewBuilder: (context, controller, focusNode, _) {
+                _searchFieldController = controller;
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  cursorColor: isDark ? tWhite : tBlack,
+                  style: GoogleFonts.urbanist(
+                    fontSize: isMobile ? 11 : 13,
+                    fontWeight: FontWeight.w500,
                     color: isDark ? tWhite : tBlack,
-                    width: 1,
                   ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
-                  ),
-                ),
-              ),
-            );
-          },
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                color: tTransparent, // important
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? tBlack : tWhite,
-                    border: Border.all(
+                  decoration: InputDecoration(
+                    hintText: "Search...",
+                    hintStyle: GoogleFonts.urbanist(
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w500,
                       color:
                           isDark
-                              ? tWhite.withOpacity(0.5)
-                              : tBlack.withOpacity(0.5),
-                      width: 1,
+                              ? tWhite.withOpacity(0.6)
+                              : tBlack.withOpacity(0.6),
                     ),
-                    borderRadius: BorderRadius.circular(4), // optional
+                    prefixIcon: Icon(
+                      Icons.search_outlined,
+                      size: 18,
+                      color: isDark ? tWhite : tBlack,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
                   ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: 200,
-                      maxWidth: MediaQuery.of(context).size.width * 0.57,
-                    ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final option = options.elementAt(index);
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    color: Colors.transparent, // IMPORTANT
+                    child: Container(
+                      margin: EdgeInsets.only(top: 6),
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: isDark ? tBlack : tWhite,
+                        boxShadow: [
+                          BoxShadow(
+                            spreadRadius: 2,
+                            blurRadius: 10,
+                            color:
+                                isDark
+                                    ? tWhite.withOpacity(0.25)
+                                    : tBlack.withOpacity(0.15),
+                          ),
+                        ],
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: 200,
+                          maxWidth:
+                              isMobile
+                                  ? MediaQuery.of(context).size.width - 32
+                                  : MediaQuery.of(context).size.width * 0.57,
+                        ),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final option = options.elementAt(index);
 
-                        final bool isImei = _imeis.contains(option);
-
-                        return InkWell(
-                          onTap: () => onSelected(option),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color:
-                                      isDark
-                                          ? tWhite.withOpacity(0.1)
-                                          : tBlack.withOpacity(0.1),
+                            return InkWell(
+                              onTap: () => onSelected(option),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                // Icon(
-                                //   isImei ? Icons.phone_android : Icons.group,
-                                //   size: 16,
-                                //   color: isDark ? tWhite : tBlack,
-                                // ),
-                                const SizedBox(width: 8),
-                                // Option text
-                                Expanded(
-                                  child: Text(
-                                    option,
-                                    style: GoogleFonts.urbanist(
-                                      fontSize: 13,
-                                      color: isDark ? tWhite : tBlack,
-                                    ),
-                                  ),
-                                ),
-                                //
-                                if (!isImei) ...[
-                                  const SizedBox(width: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
                                       color:
                                           isDark
-                                              ? Colors.grey[800]
-                                              : Colors.grey[200],
-                                      borderRadius: BorderRadius.zero,
-                                    ),
-                                    child: Text(
-                                      "Group",
-                                      style: GoogleFonts.urbanist(
-                                        fontSize: 10,
-                                        color: isDark ? tWhite : tBlack,
-                                      ),
+                                              ? tWhite.withOpacity(0.1)
+                                              : tBlack.withOpacity(0.1),
                                     ),
                                   ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                                ),
+                                child: Text(
+                                  option,
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: isMobile ? 11 : 13,
+                                    color: isDark ? tWhite : tBlack,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         ),
@@ -868,22 +976,18 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
                 onDeleted: () {
                   setState(() {
                     _selectedGroupIds.remove(groupId);
+                    // Clear the search field when deleting group
                     _searchFieldController?.clear();
                   });
                 },
                 backgroundColor:
-                    isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.1),
+                    isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
                 deleteIconColor: Colors.grey,
                 labelStyle: TextStyle(
                   color: isDark ? tWhite : tBlack,
                   fontSize: 12,
                 ),
-                side: const BorderSide(color: Colors.grey),
-                avatar: CircleAvatar(
-                  backgroundColor: Colors.grey[200],
-                  radius: 0,
-                  child: Icon(Icons.group, size: 12, color: Colors.grey[700]),
-                ),
+                side: BorderSide.none,
               );
             }),
 
@@ -891,6 +995,7 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
             ..._selectedImeis.map((imei) {
               return Chip(
                 label: Text(imei),
+                // deleteIcon: const Icon(Icons.close, size: 16),
                 deleteIcon: SvgPicture.asset(
                   'icons/cancel.svg',
                   width: 16,
@@ -909,9 +1014,9 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
                 deleteIconColor: Colors.grey,
                 labelStyle: TextStyle(
                   color: isDark ? tWhite : tBlack,
-                  fontSize: 12,
+                  fontSize: 13,
                 ),
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide.none,
               );
             }),
           ],
@@ -919,6 +1024,7 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
       ],
     );
   }
+
   // Widget _chipSection({
   //   required String title,
   //   required List<String> options,
@@ -978,6 +1084,7 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
     required String selected,
     required Function(String) onSelected,
     required bool isDark,
+    required bool isMobile,
     bool? isEVFleet,
   }) {
     // Add this debug print
@@ -1011,13 +1118,13 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tBlack,
+                  checkmarkColor: tWhite,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
-                      fontSize: 13,
+                      fontSize: isMobile ? 11 : 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
@@ -1044,8 +1151,21 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
     ),
     child: IconButton(
       onPressed: () {
-        if (!mounted) return;
-        setState(() => _showFilterPanel = !_showFilterPanel);
+        final isMobile =
+            widget.isMobile || MediaQuery.of(context).size.width < 600;
+
+        if (isMobile) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => _buildMobileFilterPanel(isDark),
+          );
+        } else {
+          setState(() {
+            _showFilterPanel = !_showFilterPanel;
+          });
+        }
       },
       icon: SvgPicture.asset(
         'icons/filter.svg',
@@ -1056,84 +1176,210 @@ class _BatterySummaryreportState extends State<BatterySummaryreport> {
     ),
   );
 
-  // void _generateReport() {
-
-  //   ScaffoldMessenger.of(context).showSnackBar(
-  //     SnackBar(
-  //       content: Text('Generating battery report...'),
-  //       backgroundColor: tBlue,
-  //     ),
-  //   );
-  // }
-
   Widget _buildFilterPanel(bool isDark) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || screenWidth < 600;
+
+    final double panelWidth = isMobile ? screenWidth - 32 : 350.0;
+
     return Material(
       color: Colors.transparent,
-      child: Container(
-        width: 350,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? tBlack : tWhite,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isDark ? tWhite : tBlack),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _chipSection(
-              title: "Range",
-              options: rangeOptions,
-              selected: range,
-              onSelected: (val) {
-                setState(() {
-                  _applyRange(val);
-                });
-              },
-              isDark: isDark,
-            ),
-            const SizedBox(height: 15),
-            // Format Filter
-            _chipSection(
-              title: "Format",
-              options: formatOptions,
-              selected: format,
-              onSelected: (val) => setState(() => format = val),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 15),
-
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: () {
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Container(
+          width: panelWidth,
+          margin: EdgeInsets.only(
+            right: isMobile ? 16 : 0,
+            left: isMobile ? 16 : 0,
+          ),
+          padding: EdgeInsets.all(isMobile ? 12 : 16),
+          decoration: BoxDecoration(
+            color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
+            border: Border.all(color: isDark ? tWhite : tBlack),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isMobile ? 0.2 : 0.3),
+                blurRadius: isMobile ? 8 : 10,
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _chipSection(
+                title: "Range",
+                options: rangeOptions,
+                selected: range,
+                onSelected: (val) {
                   setState(() {
-                    _showFilterPanel = false;
+                    range = val;
+                    _applyRange(val);
                   });
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: tGreen8,
-                  foregroundColor: tWhite,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text(
-                  "Apply Filters",
-                  style: TextStyle(
-                    color: tBlack,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                isDark: isDark,
+                isMobile: isMobile,
               ),
-            ),
-          ],
+
+              SizedBox(height: isMobile ? 12 : 15),
+
+              _chipSection(
+                title: "Filter by Format",
+                options: formatOptions,
+                selected: format,
+                onSelected: (val) {
+                  setState(() {
+                    format = val;
+                  });
+                },
+                isDark: isDark,
+                isMobile: isMobile,
+              ),
+
+              SizedBox(height: isMobile ? 20 : 15),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _showFilterPanel = false;
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: tGreen8,
+                      foregroundColor: tWhite,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 16 : 20,
+                        vertical: isMobile ? 10 : 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
+                      ),
+                    ),
+                    child: Text(
+                      "Apply Filters",
+                      style: GoogleFonts.urbanist(
+                        fontSize: isMobile ? 13 : 14,
+                        fontWeight: FontWeight.w600,
+                        color: tWhite,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileFilterPanel(bool isDark) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? tBlack : tWhite,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: StatefulBuilder(
+            builder: (context, modalSetState) {
+              return SingleChildScrollView(
+                controller: scrollController,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 50,
+                        height: 5,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+
+                    _chipSection(
+                      title: "Range",
+                      options: rangeOptions,
+                      selected: range,
+                      onSelected: (val) {
+                        modalSetState(() {
+                          range = val;
+                          _applyRange(val);
+                        });
+
+                        setState(() {
+                          range = val;
+                          _applyRange(val);
+                        });
+                      },
+                      isDark: isDark,
+                      isMobile: true,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    _chipSection(
+                      title: "Filter by Format",
+                      options: formatOptions,
+                      selected: format,
+                      onSelected: (val) {
+                        modalSetState(() {
+                          format = val;
+                        });
+
+                        setState(() {
+                          format = val;
+                        });
+                      },
+                      isDark: isDark,
+                      isMobile: true,
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: tGreen8,
+                          foregroundColor: tWhite,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          "Apply Filters",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: tWhite,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

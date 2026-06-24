@@ -453,7 +453,7 @@ class TechGridPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1;
 
-    final gridColor = (isDark ? Colors.white : Colors.black).withOpacity(0.02);
+    final gridColor = (isDark ? Colors.white : Colors.black).withOpacity(0.04);
 
     paint.color = gridColor;
 

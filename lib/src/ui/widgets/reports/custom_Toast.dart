@@ -132,9 +132,14 @@ class _ToastWidgetState extends State<_ToastWidget>
           child: Material(
             color: Colors.transparent,
             child: Container(
+              // constraints: BoxConstraints(
+              //   minWidth: 200,
+              //   maxWidth: screenWidth * 0.4,
+              // ),
               constraints: BoxConstraints(
-                minWidth: 200,
-                maxWidth: screenWidth * 0.4,
+                minWidth: screenWidth < 600 ? 120 : 200,
+                maxWidth:
+                    screenWidth < 600 ? screenWidth * 0.9 : screenWidth * 0.4,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(

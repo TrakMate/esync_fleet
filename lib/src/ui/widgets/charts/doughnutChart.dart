@@ -78,6 +78,10 @@ class SingleDoughnutChart extends StatelessWidget {
     final double normalizedAvg =
         ((avgValue - min) / (max - min)).clamp(0, 1) * 100;
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -86,7 +90,7 @@ class SingleDoughnutChart extends StatelessWidget {
           title,
           style: GoogleFonts.urbanist(
             fontWeight: FontWeight.bold,
-            fontSize: 12,
+            fontSize: isMobile ? 10 : 12,
             color: isDark ? tWhite : tBlack,
           ),
         ),
@@ -122,18 +126,17 @@ class SingleDoughnutChart extends StatelessWidget {
                   sections:
                       isNegative
                           ? [
-                            // 🔴 Negative: draw grey first, then value
                             PieChartSectionData(
                               value: 100 - normalizedCurrent,
                               color:
                                   isDark ? Colors.grey[800] : Colors.grey[300],
-                              radius: 20,
+                              radius: isMobile ? 18 : 20,
                               showTitle: false,
                             ),
                             PieChartSectionData(
                               value: normalizedCurrent,
                               color: Colors.red, // negative color
-                              radius: 20,
+                              radius: isMobile ? 18 : 20,
                               showTitle: false,
                             ),
                           ]
@@ -141,14 +144,14 @@ class SingleDoughnutChart extends StatelessWidget {
                             PieChartSectionData(
                               value: normalizedCurrent,
                               color: primaryColor,
-                              radius: 20,
+                              radius: isMobile ? 18 : 20,
                               showTitle: false,
                             ),
                             PieChartSectionData(
                               value: 100 - normalizedCurrent,
                               color:
                                   isDark ? Colors.grey[800] : Colors.grey[300],
-                              radius: 20,
+                              radius: isMobile ? 18 : 20,
                               showTitle: false,
                             ),
                           ],
@@ -162,7 +165,7 @@ class SingleDoughnutChart extends StatelessWidget {
               // currentValue.floor().toString(),
               style: GoogleFonts.urbanist(
                 fontWeight: FontWeight.bold,
-                fontSize: 20,
+                fontSize: isMobile ? 18 : 20,
                 color: primaryColor,
               ),
             ),
@@ -175,7 +178,7 @@ class SingleDoughnutChart extends StatelessWidget {
         Text(
           "Avg: ${avgValue.toStringAsFixed(0)} $unit",
           style: GoogleFonts.urbanist(
-            fontSize: 12,
+            fontSize: isMobile ? 10 : 12,
             fontWeight: FontWeight.bold,
             color: isDark ? tWhite : tBlack,
           ),

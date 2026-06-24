@@ -322,7 +322,9 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
               scrollDirection: Axis.vertical,
               child: DataTable(
                 headingRowColor: WidgetStateProperty.all(
-                  isDark ? tGreen8.withOpacity(0.15) : tGreen8.withOpacity(0.1),
+                  isDark
+                      ? tGreen8.withOpacity(0.15)
+                      : tGreen8.withOpacity(0.05),
                 ),
                 headingTextStyle: GoogleFonts.urbanist(
                   fontWeight: FontWeight.w700,
@@ -430,7 +432,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                   height: 10,
                                   decoration: BoxDecoration(
                                     color:
-                                        user["active"] == true ? tBlue : tRed,
+                                        user["active"] == true ? tGreen8 : tRed,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
@@ -438,7 +440,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                         spreadRadius: 2,
                                         color:
                                             user["active"] == true
-                                                ? tBlue
+                                                ? tGreen8
                                                 : tRed,
                                       ),
                                     ],
@@ -454,7 +456,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                     borderRadius: BorderRadius.circular(20),
                                     color:
                                         user["active"] == true
-                                            ? tBlue.withOpacity(0.15)
+                                            ? tGreen8.withOpacity(0.15)
                                             : tRed.withOpacity(0.15),
                                   ),
                                   child: Text(
@@ -465,7 +467,9 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                       color:
-                                          user["active"] == true ? tBlue : tRed,
+                                          user["active"] == true
+                                              ? tGreen8
+                                              : tRed,
                                     ),
                                   ),
                                 ),
@@ -480,7 +484,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                     'icons/edit.svg',
                                     height: 20,
                                     width: 20,
-                                    color: tBlue,
+                                    color: tGreen8,
                                   ),
                                   onPressed: () {
                                     // TODO: open edit dialog
@@ -502,7 +506,7 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
                                     'icons/resetpwd.svg',
                                     height: 20,
                                     width: 20,
-                                    color: tBlue,
+                                    color: tGreen8,
                                   ),
                                   onPressed: () {
                                     // TODO: reset password
@@ -549,12 +553,12 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),

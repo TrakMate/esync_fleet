@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:svg_flutter/svg.dart';
 
 import '../../../models/userReportModel.dart';
-import '../../../services/generalAPIServices.dart/reportApiServices/alertAPIService.dart';
+import '../../../services/generalAPIServices.dart/reportApiServices/alertReportAPIService.dart';
 import '../../../services/generalAPIServices.dart/reportApiServices/reportsAPIService.dart';
 import '../../../utils/appColors.dart';
 import 'custom_Toast.dart';
@@ -12,10 +12,14 @@ import 'custom_Toast.dart';
 class AlertsReportView extends StatefulWidget {
   final String title;
   final String description;
+  final bool isDark;
+  final bool isMobile;
   const AlertsReportView({
     super.key,
     required this.title,
     required this.description,
+    required this.isDark,
+    required this.isMobile,
   });
 
   @override
@@ -77,6 +81,35 @@ class _AlertsReportViewState extends State<AlertsReportView> {
         "${months[date.month - 1]} "
         "${date.year}";
   }
+
+  // void _resetFilters() {
+  //   final now = DateTime.now();
+
+  //   setState(() {
+  //     // Reset dates
+  //     fromDate = now;
+  //     toDate = now;
+
+  //     // Reset filters
+  //     alertStatus = 'All';
+  //     format = 'XLSX';
+  //     range = 'All';
+
+  //     selectedRangeDays = null;
+  //     _isRangeSelected = false;
+
+  //     // Clear selections
+  //     _selectedImeis.clear();
+  //     _selectedGroupIds.clear();
+
+  //     // Clear search
+  //     _searchFieldController?.clear();
+  //     searchController.clear();
+
+  //     // Close filter panel
+  //     _showFilterPanel = false;
+  //   });
+  // }
 
   void _applyRange(String range) {
     final now = DateTime.now();
@@ -164,7 +197,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
       String toDateApi = _formatDateForApi(toDate!);
       int rangeDays = _calculateRangeDays();
 
-      String? imei =
+      String? imeiList =
           _selectedImeis.isNotEmpty ? _selectedImeis.join(',') : null;
 
       String? groupId =
@@ -180,7 +213,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
         context: context,
         fromDate: fromDateApi,
         toDate: toDateApi,
-        imei: imei,
+        imeiList: imeiList,
         groupId: groupId,
         rangeDays: rangeDays,
         status: statusParam,
@@ -191,6 +224,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
               isDownloading = false;
               isLoading = false;
             });
+            // _resetFilters();
           }
           CustomToast.show(
             context: context,
@@ -233,6 +267,8 @@ class _AlertsReportViewState extends State<AlertsReportView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || (screenWidth <= 600);
 
     return Stack(
       children: [
@@ -243,28 +279,33 @@ class _AlertsReportViewState extends State<AlertsReportView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? tWhite : tBlack,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: GoogleFonts.urbanist(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? tWhite : tBlack,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 5),
+                      const SizedBox(height: 5),
 
-                    Text(
-                      widget.description,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 13,
-                        color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                      Text(
+                        widget.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 11 : 13,
+                          color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                SizedBox(width: isMobile ? 15 : 0),
                 _filterButton(isDark),
               ],
             ),
@@ -276,21 +317,38 @@ class _AlertsReportViewState extends State<AlertsReportView> {
             ),
             const SizedBox(height: 15),
             Row(
+              mainAxisAlignment:
+                  isMobile
+                      ? MainAxisAlignment.spaceBetween
+                      : MainAxisAlignment.start,
               children: [
                 /// FROM DATE
                 Row(
                   children: [
-                    _dateLabelBox('From', isDark),
+                    _dateLabelBox('From', isDark, isMobile),
                     const SizedBox(width: 5),
                     _dateValueBox(
                       _formatDate(fromDate!),
                       isDark,
+                      isMobile,
                       onTap: () async {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: fromDate!,
                           firstDate: DateTime(2020),
                           lastDate: DateTime.now(),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: Colors.blue,
+                                  onPrimary: tWhite,
+                                  onSurface: tBlack,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
                         );
                         if (picked != null) {
                           setState(() => fromDate = picked);
@@ -299,23 +357,35 @@ class _AlertsReportViewState extends State<AlertsReportView> {
                     ),
                   ],
                 ),
-
-                const SizedBox(width: 30),
+                SizedBox(width: isMobile ? 10 : 30),
 
                 /// TO DATE
                 Row(
                   children: [
-                    _dateLabelBox('To', isDark),
+                    _dateLabelBox('To', isDark, isMobile),
                     const SizedBox(width: 5),
                     _dateValueBox(
                       _formatDate(toDate!),
                       isDark,
+                      isMobile,
                       onTap: () async {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: toDate!,
                           firstDate: DateTime(2020),
                           lastDate: DateTime.now(),
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: Colors.blue,
+                                  onPrimary: tWhite,
+                                  onSurface: tBlack,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
                         );
                         if (picked != null) {
                           setState(() => toDate = picked);
@@ -333,10 +403,11 @@ class _AlertsReportViewState extends State<AlertsReportView> {
               selected: alertStatus,
               onSelected: (val) => setState(() => alertStatus = val),
               isDark: isDark,
+              isMobile: isMobile,
             ),
             const SizedBox(height: 15),
             Text(
-              'Search by IMEI or Group Name',
+              'Filter by IMEI or Group Name',
               style: GoogleFonts.urbanist(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -344,10 +415,10 @@ class _AlertsReportViewState extends State<AlertsReportView> {
               ),
             ),
             SizedBox(height: 10),
-            _searchField(isDark),
-            SizedBox(height: 10),
+            _searchField(isDark, isMobile),
+            SizedBox(height: 25),
             ElevatedButton(
-              onPressed: isDownloading ? null : _downloadReport,
+              onPressed: _downloadReport,
               style: ElevatedButton.styleFrom(
                 backgroundColor: tGreen8,
                 shape: RoundedRectangleBorder(
@@ -358,24 +429,56 @@ class _AlertsReportViewState extends State<AlertsReportView> {
                   vertical: 12,
                 ),
               ),
-              child: Text(
-                'Generate Report',
-                style: GoogleFonts.urbanist(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: tBlack,
-                ),
-              ),
+              child:
+                  isLoading
+                      ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: tWhite,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Downloading...',
+                            style: GoogleFonts.urbanist(
+                              fontSize: isMobile ? 12 : 14,
+                              fontWeight: FontWeight.w600,
+                              color: tWhite,
+                            ),
+                          ),
+                        ],
+                      )
+                      : Text(
+                        'Generate Report',
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 12 : 14,
+                          fontWeight: FontWeight.w600,
+                          color: tWhite,
+                        ),
+                      ),
             ),
           ],
         ),
         if (_showFilterPanel)
-          Positioned(top: 50, right: 0, child: _buildFilterPanel(isDark)),
+          Positioned(
+            top: 50,
+            right: 0,
+            left:
+                (widget.isMobile || MediaQuery.of(context).size.width < 600)
+                    ? 0
+                    : null,
+            child: _buildFilterPanel(isDark),
+          ),
       ],
     );
   }
 
-  Widget _dateLabelBox(String text, bool isDark) {
+  Widget _dateLabelBox(String text, bool isDark, bool isMobile) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -385,7 +488,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
       child: Text(
         text,
         style: GoogleFonts.urbanist(
-          fontSize: 13,
+          fontSize: isMobile ? 11 : 13,
           color: isDark ? tWhite : tBlack,
           fontWeight: FontWeight.w600,
         ),
@@ -395,7 +498,8 @@ class _AlertsReportViewState extends State<AlertsReportView> {
 
   Widget _dateValueBox(
     String value,
-    bool isDark, {
+    bool isDark,
+    bool isMobile, {
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -409,7 +513,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
         child: Text(
           value,
           style: GoogleFonts.urbanist(
-            fontSize: 13,
+            fontSize: isMobile ? 11 : 13,
             color: isDark ? tWhite : tBlack,
             fontWeight: FontWeight.w600,
           ),
@@ -424,6 +528,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
     required String selected,
     required Function(String) onSelected,
     required bool isDark,
+    required bool isMobile,
     bool? isEVFleet,
   }) {
     return Column(
@@ -447,24 +552,29 @@ class _AlertsReportViewState extends State<AlertsReportView> {
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tBlack,
+                  checkmarkColor: tWhite,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
-                      fontSize: 13,
+                      fontSize: isMobile ? 11 : 13,
                       fontWeight: FontWeight.w600,
 
-                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
                   selectedColor: tGreen8,
                   backgroundColor:
-                      isDark
-                          ? tWhite.withOpacity(0.15)
-                          : tBlack.withOpacity(0.1),
+                      isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
                   side: BorderSide(color: Colors.transparent, width: 0),
-                  onSelected: (_) => onSelected(option),
+                  // onSelected: (_) => onSelected(option),
+                  onSelected: (_) {
+                    if (selected == option) {
+                      onSelected('All');
+                    } else {
+                      onSelected(option);
+                    }
+                  },
                 );
               }).toList(),
         ),
@@ -472,361 +582,200 @@ class _AlertsReportViewState extends State<AlertsReportView> {
     );
   }
 
-  // Widget _searchField(bool isDark) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       Autocomplete<String>(
-  //         optionsBuilder: (TextEditingValue textEditingValue) {
-  //           if (textEditingValue.text.isEmpty) {
-  //             return const Iterable<String>.empty();
-  //           }
-
-  //           return [..._imeis, ..._groups.map((g) => g.name ?? '')].where(
-  //             (item) => item.toLowerCase().contains(
-  //               textEditingValue.text.toLowerCase(),
-  //             ),
-  //           );
-  //         },
-
-  //         onSelected: (selection) {
-  //           /// If IMEI selectedl
-  //           if (_imeis.contains(selection)) {
-  //             if (!_selectedImeis.contains(selection)) {
-  //               setState(() {
-  //                 _selectedGroupIds.clear();
-
-  //                 _selectedImeis.add(selection);
-  //               });
-  //             }
-  //           } else {
-  //             final group = _groups.firstWhere(
-  //               (g) => g.name == selection || g.id == selection,
-  //               orElse: () => Groups(),
-  //             );
-
-  //             if (group.id != null && !_selectedGroupIds.contains(group.id)) {
-  //               setState(() {
-  //                 _selectedImeis.clear();
-
-  //                 _selectedGroupIds.add(group.id!);
-  //               });
-  //             }
-  //           }
-
-  //           searchController.clear();
-  //           FocusScope.of(context).unfocus();
-  //         },
-
-  //         // fieldViewBuilder: (context, controller, focusNode, _) {
-  //         //   return TextField(
-  //         //     controller: controller,
-  //         //     focusNode: focusNode,
-  //         //     decoration: InputDecoration(
-  //         //       hintText: "Enter Group Name, Group ID or IMEI",
-  //         //       hintStyle: GoogleFonts.urbanist(
-  //         //         fontSize: 13,
-  //         //         fontWeight: FontWeight.w500,
-  //         //         color:
-  //         //             isDark
-  //         //                 ? tWhite.withOpacity(0.6)
-  //         //                 : tBlack.withOpacity(0.6),
-  //         //       ),
-  //         //       prefixIcon: Icon(
-  //         //         Icons.search_outlined,
-  //         //         size: 18,
-  //         //         color: isDark ? tWhite : tBlack,
-  //         //       ),
-  //         //       border: OutlineInputBorder(
-  //         //         borderRadius: BorderRadius.circular(0),
-  //         //       ),
-  //         //     ),
-  //         //   );
-  //         // },
-  //         fieldViewBuilder: (context, controller, focusNode, _) {
-  //           return TextField(
-  //             controller: controller,
-  //             focusNode: focusNode,
-  //             cursorColor:
-  //                 isDark ? tWhite : tBlack, // ← Add this for cursor color
-  //             style: GoogleFonts.urbanist(
-  //               fontSize: 13,
-  //               fontWeight: FontWeight.w500,
-  //               color: isDark ? tWhite : tBlack, // ← Add this for text color
-  //             ),
-  //             decoration: InputDecoration(
-  //               hintText: "Enter Group Name, Group ID or IMEI",
-  //               hintStyle: GoogleFonts.urbanist(
-  //                 fontSize: 13,
-  //                 fontWeight: FontWeight.w500,
-  //                 color:
-  //                     isDark
-  //                         ? tWhite.withOpacity(0.6)
-  //                         : tBlack.withOpacity(0.6),
-  //               ),
-  //               prefixIcon: Icon(
-  //                 Icons.search_outlined,
-  //                 size: 18,
-  //                 color: isDark ? tWhite : tBlack,
-  //               ),
-  //               border: OutlineInputBorder(
-  //                 borderRadius: BorderRadius.circular(0),
-  //                 borderSide: BorderSide(
-  //                   // ← Add this for border color
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //               enabledBorder: OutlineInputBorder(
-  //                 // ← Add this for normal state
-  //                 borderRadius: BorderRadius.circular(0),
-  //                 borderSide: BorderSide(
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //               focusedBorder: OutlineInputBorder(
-  //                 // ← Add this for focused state
-  //                 borderRadius: BorderRadius.circular(0),
-  //                 borderSide: BorderSide(
-  //                   color: isDark ? tWhite : tBlack,
-  //                   width: 1,
-  //                 ),
-  //               ),
-  //             ),
-  //           );
-  //         },
-  //       ),
-
-  //       const SizedBox(height: 10),
-
-  //       Wrap(
-  //         spacing: 6,
-  //         runSpacing: 6,
-  //         children: [
-  //           ..._selectedGroupIds.map((groupId) {
-  //             final group = _groups.firstWhere(
-  //               (g) => g.id == groupId,
-  //               orElse: () => Groups(),
-  //             );
-
-  //             return Chip(
-  //               label: Text(group.name ?? groupId),
-  //               deleteIcon: const Icon(Icons.close, size: 16),
-  //               onDeleted: () {
-  //                 setState(() {
-  //                   _selectedGroupIds.remove(groupId);
-  //                 });
-  //               },
-  //             );
-  //           }),
-
-  //           ..._selectedImeis.map((imei) {
-  //             return Chip(
-  //               label: Text(imei),
-  //               deleteIcon: const Icon(Icons.close, size: 16),
-  //               onDeleted: () {
-  //                 setState(() {
-  //                   _selectedImeis.remove(imei);
-  //                 });
-  //               },
-  //             );
-  //           }),
-  //         ],
-  //       ),
-  //     ],
-  //   );
-  // }
-  Widget _searchField(bool isDark) {
+  Widget _searchField(bool isDark, bool isMobile) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         /// SEARCH FIELD
-        Autocomplete<String>(
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            final allOptions = [..._imeis, ..._groups.map((g) => g.name ?? '')];
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Autocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                final allOptions = [
+                  ..._imeis,
+                  ..._groups.map((g) => g.name ?? ''),
+                ];
 
-            final uniqueOptions =
-                allOptions.where((item) => item.isNotEmpty).toSet().toList();
+                final uniqueOptions =
+                    allOptions
+                        .where((item) => item.isNotEmpty)
+                        .toSet()
+                        .toList();
 
-            if (textEditingValue.text.isEmpty) {
-              return uniqueOptions;
-            }
+                if (textEditingValue.text.isEmpty) {
+                  return uniqueOptions;
+                }
 
-            return uniqueOptions.where(
-              (item) => item.toLowerCase().contains(
-                textEditingValue.text.toLowerCase(),
-              ),
-            );
-          },
-          onSelected: (selection) {
-            final matchedImei = _imeis.firstWhere(
-              (imei) =>
-                  imei.trim().toLowerCase() == selection.trim().toLowerCase(),
-              orElse: () => '',
-            );
-
-            if (matchedImei.isNotEmpty) {
-              if (!_selectedImeis.contains(matchedImei)) {
-                setState(() {
-                  _selectedGroupIds.clear();
-                  _selectedImeis.add(matchedImei);
-                });
-              } else {}
-            } else {
-              final group = _groups.firstWhere(
-                (g) =>
-                    g.name?.trim().toLowerCase() ==
-                        selection.trim().toLowerCase() ||
-                    g.id == selection,
-                orElse: () => Groups(),
-              );
-
-              if (group.id != null && !_selectedGroupIds.contains(group.id)) {
-                setState(() {
-                  _selectedImeis.clear();
-                  _selectedGroupIds.add(group.id!);
-                });
-              }
-            }
-
-            _searchFieldController?.clear();
-            searchController.clear();
-            FocusScope.of(context).unfocus();
-          },
-          fieldViewBuilder: (context, controller, focusNode, _) {
-            // Store reference to the controller
-            _searchFieldController = controller;
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              cursorColor: isDark ? tWhite : tBlack,
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isDark ? tWhite : tBlack,
-              ),
-              decoration: InputDecoration(
-                hintText: "Enter Group Name or IMEI",
-                hintStyle: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.6)
-                          : tBlack.withOpacity(0.6),
-                ),
-                prefixIcon: Icon(
-                  Icons.search_outlined,
-                  size: 18,
-                  color: isDark ? tWhite : tBlack,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
+                return uniqueOptions.where(
+                  (item) => item.toLowerCase().contains(
+                    textEditingValue.text.toLowerCase(),
                   ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
+                );
+              },
+              onSelected: (selection) {
+                bool isImeiMatch(String imei) {
+                  return imei.trim().toLowerCase() ==
+                      selection.trim().toLowerCase();
+                }
+
+                bool isGroupMatch(String groupName) {
+                  return groupName.trim().toLowerCase() ==
+                      selection.trim().toLowerCase();
+                }
+
+                final matchedImei = _imeis.firstWhere(
+                  (imei) => isImeiMatch(imei),
+                  orElse: () => '',
+                );
+
+                if (matchedImei.isNotEmpty) {
+                  if (!_selectedImeis.contains(matchedImei)) {
+                    setState(() {
+                      _selectedGroupIds.clear();
+                      _selectedImeis.add(matchedImei);
+                    });
+                  }
+                } else {
+                  final group = _groups.firstWhere(
+                    (g) => isGroupMatch(g.name ?? '') || g.id == selection,
+                    orElse: () => Groups(),
+                  );
+
+                  if (group.id != null &&
+                      !_selectedGroupIds.contains(group.id)) {
+                    setState(() {
+                      /// clear imeis when group selected
+                      _selectedImeis.clear();
+
+                      _selectedGroupIds.add(group.id!);
+                    });
+                  }
+                }
+
+                // Clear the search field after selection
+                _searchFieldController?.clear();
+                searchController.clear();
+                FocusScope.of(context).unfocus();
+              },
+              fieldViewBuilder: (context, controller, focusNode, _) {
+                _searchFieldController = controller;
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  cursorColor: isDark ? tWhite : tBlack,
+                  style: GoogleFonts.urbanist(
+                    fontSize: isMobile ? 11 : 13,
+                    fontWeight: FontWeight.w500,
                     color: isDark ? tWhite : tBlack,
-                    width: 1,
                   ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
-                  ),
-                ),
-              ),
-            );
-          },
-          // Customize the dropdown appearance
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                // color:
-                //     isDark
-                //         ? Colors.grey[900]
-                //         : Colors.white, // Dropdown background
-                color: tTransparent, // important
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? tBlack : tWhite,
-                    border: Border.all(
+                  decoration: InputDecoration(
+                    hintText: "Search...",
+                    hintStyle: GoogleFonts.urbanist(
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w500,
                       color:
                           isDark
-                              ? tWhite.withOpacity(0.5)
-                              : tBlack.withOpacity(0.5),
-                      width: 1,
+                              ? tWhite.withOpacity(0.6)
+                              : tBlack.withOpacity(0.6),
                     ),
-                    borderRadius: BorderRadius.circular(4), // optional
+                    prefixIcon: Icon(
+                      Icons.search_outlined,
+                      size: 18,
+                      color: isDark ? tWhite : tBlack,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
                   ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: 200,
-                      maxWidth: MediaQuery.of(context).size.width * 0.57,
-                    ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final option = options.elementAt(index);
-                        final isImei = _imeis.any(
-                          (imei) =>
-                              imei.trim().toLowerCase() ==
-                              option.trim().toLowerCase(),
-                        );
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    color: Colors.transparent, // IMPORTANT
+                    child: Container(
+                      margin: EdgeInsets.only(top: 6),
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: isDark ? tBlack : tWhite,
+                        boxShadow: [
+                          BoxShadow(
+                            spreadRadius: 2,
+                            blurRadius: 10,
+                            color:
+                                isDark
+                                    ? tWhite.withOpacity(0.25)
+                                    : tBlack.withOpacity(0.15),
+                          ),
+                        ],
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: 200,
+                          maxWidth:
+                              isMobile
+                                  ? MediaQuery.of(context).size.width - 32
+                                  : MediaQuery.of(context).size.width * 0.57,
+                        ),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final option = options.elementAt(index);
 
-                        return InkWell(
-                          onTap: () => onSelected(option),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color:
-                                      isDark
-                                          ? tWhite.withOpacity(0.1)
-                                          : tBlack.withOpacity(0.1),
+                            return InkWell(
+                              onTap: () => onSelected(option),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                // Icon(
-                                //   isImei ? Icons.phone_android : Icons.group,
-                                //   size: 16,
-                                //   color: isDark ? tWhite : tBlack,
-                                // ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    option,
-                                    style: GoogleFonts.urbanist(
-                                      fontSize: 13,
-                                      color: isDark ? tWhite : tBlack,
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color:
+                                          isDark
+                                              ? tWhite.withOpacity(0.1)
+                                              : tBlack.withOpacity(0.1),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                                child: Text(
+                                  option,
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: isMobile ? 11 : 13,
+                                    color: isDark ? tWhite : tBlack,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         ),
@@ -855,17 +804,18 @@ class _AlertsReportViewState extends State<AlertsReportView> {
                 onDeleted: () {
                   setState(() {
                     _selectedGroupIds.remove(groupId);
+                    // Clear the search field when deleting group
                     _searchFieldController?.clear();
                   });
                 },
                 backgroundColor:
-                    isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.1),
+                    isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
                 deleteIconColor: Colors.grey,
                 labelStyle: TextStyle(
                   color: isDark ? tWhite : tBlack,
                   fontSize: 12,
                 ),
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide.none,
               );
             }),
 
@@ -873,6 +823,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
             ..._selectedImeis.map((imei) {
               return Chip(
                 label: Text(imei),
+                // deleteIcon: const Icon(Icons.close, size: 16),
                 deleteIcon: SvgPicture.asset(
                   'icons/cancel.svg',
                   width: 16,
@@ -882,6 +833,7 @@ class _AlertsReportViewState extends State<AlertsReportView> {
                 onDeleted: () {
                   setState(() {
                     _selectedImeis.remove(imei);
+                    // Clear the search field when deleting IMEI
                     _searchFieldController?.clear();
                   });
                 },
@@ -890,9 +842,9 @@ class _AlertsReportViewState extends State<AlertsReportView> {
                 deleteIconColor: Colors.grey,
                 labelStyle: TextStyle(
                   color: isDark ? tWhite : tBlack,
-                  fontSize: 12,
+                  fontSize: 13,
                 ),
-                side: const BorderSide(color: Colors.grey),
+                side: BorderSide.none,
               );
             }),
           ],
@@ -910,8 +862,21 @@ class _AlertsReportViewState extends State<AlertsReportView> {
     ),
     child: IconButton(
       onPressed: () {
-        if (!mounted) return;
-        setState(() => _showFilterPanel = !_showFilterPanel);
+        final isMobile =
+            widget.isMobile || MediaQuery.of(context).size.width < 600;
+
+        if (isMobile) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => _buildMobileFilterPanel(isDark),
+          );
+        } else {
+          setState(() {
+            _showFilterPanel = !_showFilterPanel;
+          });
+        }
       },
       icon: SvgPicture.asset(
         'icons/filter.svg',
@@ -921,65 +886,211 @@ class _AlertsReportViewState extends State<AlertsReportView> {
       ),
     ),
   );
+
   Widget _buildFilterPanel(bool isDark) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || screenWidth < 600;
+
+    final double panelWidth = isMobile ? screenWidth - 32 : 350.0;
+
     return Material(
       color: Colors.transparent,
-      child: Container(
-        width: 350,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? tBlack : tWhite,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isDark ? tWhite : tBlack),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _chipSection(
-              title: "Range",
-              options: rangeOptions,
-              selected: range,
-              onSelected: (val) {
-                setState(() {
-                  range = val;
-                  _applyRange(val);
-                });
-              },
-              isDark: isDark,
-            ),
-            SizedBox(height: 15),
-            _chipSection(
-              title: "Filter by Format",
-              options: formatOptions,
-              selected: format,
-              onSelected: (val) => setState(() => format = val),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 15),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: () {
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Container(
+          width: panelWidth,
+          margin: EdgeInsets.only(
+            right: isMobile ? 16 : 0,
+            left: isMobile ? 16 : 0,
+          ),
+          padding: EdgeInsets.all(isMobile ? 12 : 16),
+          decoration: BoxDecoration(
+            color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
+            border: Border.all(color: isDark ? tWhite : tBlack),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isMobile ? 0.2 : 0.3),
+                blurRadius: isMobile ? 8 : 10,
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _chipSection(
+                title: "Range",
+                options: rangeOptions,
+                selected: range,
+                onSelected: (val) {
                   setState(() {
-                    _showFilterPanel = false;
+                    range = val;
+                    _applyRange(val);
                   });
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: tBlue,
-                  foregroundColor: tWhite,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text("Apply Filters"),
+                isDark: isDark,
+                isMobile: isMobile,
               ),
-            ),
-          ],
+
+              SizedBox(height: isMobile ? 12 : 15),
+
+              _chipSection(
+                title: "Filter by Format",
+                options: formatOptions,
+                selected: format,
+                onSelected: (val) {
+                  setState(() {
+                    format = val;
+                  });
+                },
+                isDark: isDark,
+                isMobile: isMobile,
+              ),
+
+              SizedBox(height: isMobile ? 20 : 15),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _showFilterPanel = false;
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: tGreen8,
+                      foregroundColor: tWhite,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 16 : 20,
+                        vertical: isMobile ? 10 : 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
+                      ),
+                    ),
+                    child: Text(
+                      "Apply Filters",
+                      style: GoogleFonts.urbanist(
+                        fontSize: isMobile ? 13 : 14,
+                        fontWeight: FontWeight.w600,
+                        color: tWhite,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileFilterPanel(bool isDark) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? tBlack : tWhite,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: StatefulBuilder(
+            builder: (context, modalSetState) {
+              return SingleChildScrollView(
+                controller: scrollController,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 50,
+                        height: 5,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+
+                    _chipSection(
+                      title: "Range",
+                      options: rangeOptions,
+                      selected: range,
+                      onSelected: (val) {
+                        modalSetState(() {
+                          range = val;
+                          _applyRange(val);
+                        });
+
+                        setState(() {
+                          range = val;
+                          _applyRange(val);
+                        });
+                      },
+                      isDark: isDark,
+                      isMobile: true,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    _chipSection(
+                      title: "Filter by Format",
+                      options: formatOptions,
+                      selected: format,
+                      onSelected: (val) {
+                        modalSetState(() {
+                          format = val;
+                        });
+
+                        setState(() {
+                          format = val;
+                        });
+                      },
+                      isDark: isDark,
+                      isMobile: true,
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: tGreen8,
+                          foregroundColor: tWhite,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          "Apply Filters",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: tWhite,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

@@ -13,6 +13,8 @@ class BaseURLConfig {
   //CRUD API URLs
   static const String userApiURL = '$baseURL/api/user';
 
+  static const String UpdateUserApiURL = '$baseURL/api/super/user';
+
   static const String groupApiURL = '$baseURL/api/groups';
 
   static const String commandsALLApiURL = '$baseURL/api/commands/ALL';
@@ -22,6 +24,12 @@ class BaseURLConfig {
   static const String devicesApiUrl = '$baseURL/api/device?';
 
   static const String devicesDeleteApiUrl = '$baseURL/api/device';
+
+  static const String orgApiUrl = '$baseURL/api/super/org?';
+  static const String orgDeleteApiUrl = '$baseURL/api/super/org';
+  static const String canConfigOrgNameApiUrl =
+      '$baseURL/api/super/orgCANTabMapping';
+  static const String canTabNameApiUrl = '$baseURL/api/super/canTabNames';
 
   // dashboard all details
   static const String dashboardApiUrl = '$baseURL/api/dashboard/summary';
@@ -47,6 +55,8 @@ class BaseURLConfig {
   static const String deviceOverviewApiUrl = '$baseURL/api/device/overview';
   static const String deviceDiagnosticApiUrl =
       '$baseURL/api/device/Diagnostics';
+  static const String deviceCanApiUrl =
+      '$baseURL/api/device/orgCanData/download';
   static const String deviceConfigurationApiUrl = '$baseURL/api/commands';
   static const String deviceAlertsApiUrl = '$baseURL/api/alerts/details';
   static const String deviceTripsApiUrl = '$baseURL/api/tripfulldetails';
@@ -62,6 +72,8 @@ class BaseURLConfig {
   static const String tripsApiUrl = '$baseURL/api/trips/status';
   static const String tripsRoutePlayBackPerTripIDApiUrl =
       '$baseURL/api/trips/tripRoutePlayback/{tripId}';
+  static const String downloadDetailedTripApiUrl =
+      '$baseURL/api/v3/trips/tripRoutePlayback/{tripId}';
 
   // alerts
   static const String alertsApiUrl = '$baseURL/api/alerts';
@@ -69,5 +81,14 @@ class BaseURLConfig {
   static const String alertCountApiUrl =
       '$baseURL/api/alerts/critical-overview';
   static const String reportsApiUrl = '$baseURL/api/v3/report';
+  static const String vehicleReportApiUrl = '$baseURL/api/v3/reports/vehicle';
+  static const String vehicleSummaryReportApiUrl =
+      '$baseURL/api/v3/reports/vehicleSummary';
+  static const String tripReportApiUrl = '$baseURL/api/v3/reports/trips';
+  static const String alertReportApiUrl = '$baseURL/api/v3/reports/Alerts';
+
+  static const String batteryReportApiUrl = '$baseURL/api/v3/reports/battery';
+  static const String batterySummaryReportApiUrl =
+      '$baseURL/api/v3/reports/batterysummary';
   static const String deviceDetailApiUrl = '$baseURL/api/device/deviceDetails';
 }

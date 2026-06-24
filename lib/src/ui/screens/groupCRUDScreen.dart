@@ -145,7 +145,9 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
               scrollDirection: Axis.vertical,
               child: DataTable(
                 headingRowColor: WidgetStateProperty.all(
-                  isDark ? tGreen8.withOpacity(0.15) : tGreen8.withOpacity(0.1),
+                  isDark
+                      ? tGreen8.withOpacity(0.15)
+                      : tGreen8.withOpacity(0.05),
                 ),
                 headingTextStyle: GoogleFonts.urbanist(
                   fontWeight: FontWeight.w700,
@@ -225,7 +227,7 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
                                     'icons/edit.svg',
                                     height: 22,
                                     width: 22,
-                                    color: tBlue,
+                                    color: tGreen8,
                                   ),
                                   onPressed: () {
                                     // open edit dialog
@@ -282,13 +284,13 @@ class _GroupCRUDContentState extends State<GroupCRUDContent> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
               shape: BoxShape.circle,
               // borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),

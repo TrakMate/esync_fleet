@@ -84,8 +84,8 @@ class _LandingScreenState extends State<LandingScreen>
       'title': "Basic",
       'description': "Real-time tracking, basic alerts and daily reports.",
       'icon': "icons/sale.svg",
-      'iconColor': tBlue,
-      'bgColor': tBlue.withOpacity(0.12),
+      'iconColor': tGreen8,
+      'bgColor': tGreen8.withOpacity(0.12),
     },
     {
       'title': "Business",
@@ -190,12 +190,12 @@ class _LandingScreenState extends State<LandingScreen>
                           ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: tBlue),
+                            border: Border.all(color: tGreen8),
                           ),
                           child: Text(
                             'Login',
                             style: GoogleFonts.urbanist(
-                              color: tBlue,
+                              color: tGreen8,
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
@@ -224,7 +224,7 @@ class _LandingScreenState extends State<LandingScreen>
                               return CustomPaint(
                                 painter: RadarSweepPainter(
                                   rotation: rotation,
-                                  color: tBlue,
+                                  color: tGreen8,
                                   isDark: isDark,
                                 ),
                               );
@@ -279,7 +279,7 @@ class _LandingScreenState extends State<LandingScreen>
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  border: Border.all(color: tBlue.withOpacity(0.4)),
+                  border: Border.all(color: tGreen8.withOpacity(0.4)),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -337,7 +337,7 @@ class _LandingScreenState extends State<LandingScreen>
           style: GoogleFonts.urbanist(
             fontSize: 30,
             fontWeight: FontWeight.bold,
-            color: isDark ? tBlue : tBlue2,
+            color: isDark ? tGreen8 : tGreenDark,
           ),
         ),
       ],
@@ -371,7 +371,7 @@ class _LandingScreenState extends State<LandingScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
               decoration: BoxDecoration(
-                color: tBlue,
+                color: tGreen8,
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Text(
@@ -388,12 +388,12 @@ class _LandingScreenState extends State<LandingScreen>
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: tBlue),
+                border: Border.all(color: tGreen8),
               ),
               child: Text(
                 'Contact Sales',
                 style: GoogleFonts.urbanist(
-                  color: tBlue,
+                  color: tGreen8,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                 ),
@@ -825,14 +825,14 @@ class _LandingScreenState extends State<LandingScreen>
                 ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: tBlue),
+                  border: Border.all(color: tGreen8),
                 ),
                 child: Text(
                   'Talk to Sales',
                   style: GoogleFonts.urbanist(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: tBlue,
+                    color: tGreen8,
                   ),
                 ),
               ),

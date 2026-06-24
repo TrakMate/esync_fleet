@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:svg_flutter/svg_flutter.dart';
 // import '../../../models/dashboardDetailsModel.dart';
 import '../../../models/vehicleDashboardModel.dart';
 import '../../../utils/appColors.dart';
@@ -77,6 +78,37 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
         .reduce(max);
   }
 
+  double get chartMaxValue {
+    if (chartData.isEmpty) return 10;
+
+    final maxValue = chartData
+        .map(
+          (e) => max(
+            (e['utilization'] as num).toDouble(),
+            (e['nonutilization'] as num).toDouble(),
+          ),
+        )
+        .reduce(max);
+
+    return _roundUpMax(maxValue);
+  }
+
+  double _roundUpMax(double value) {
+    if (value <= 10) return 10;
+    if (value <= 50) return 50;
+    if (value <= 100) return 100;
+    if (value <= 500) return 500;
+    if (value <= 1000) return 1000;
+    if (value <= 5000) return 5000;
+    if (value <= 10000) return 10000;
+
+    final magnitude = pow(10, value.toInt().toString().length - 1);
+
+    return ((value / magnitude).ceil() * magnitude).toDouble();
+  }
+
+  double get chartInterval => chartMaxValue / 5;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -84,22 +116,33 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 🔹 Header
+        // Header
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Vehicle Utilization ',
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isDark ? tWhite : tBlack,
-              ),
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'icons/bar_chart.svg',
+                  height: 16,
+                  width: 16,
+                  color: isDark ? tWhite : tBlack,
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'Vehicle Utilization ',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? tWhite : tBlack,
+                  ),
+                ),
+              ],
             ),
             Container(
               decoration: BoxDecoration(
                 color: tGrey.withOpacity(0.1),
-                // borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
               ),
               padding: const EdgeInsets.all(5),
               child: Row(
@@ -120,6 +163,7 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
             children: [
               BarChart(
                 BarChartData(
+                  maxY: chartMaxValue,
                   gridData: FlGridData(show: false),
                   borderData: FlBorderData(show: false),
                   alignment: BarChartAlignment.spaceAround,
@@ -134,10 +178,8 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
                               chartData[value.toInt()]["label"],
                               style: GoogleFonts.urbanist(
                                 fontSize: 11,
-                                color:
-                                    isDark
-                                        ? Colors.white70
-                                        : tBlack.withOpacity(0.7),
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : tBlack,
                               ),
                             );
                           }
@@ -145,8 +187,28 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
                         },
                       ),
                     ),
+                    // leftTitles: AxisTitles(
+                    //   sideTitles: SideTitles(showTitles: false),
+                    // ),
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 45,
+                        interval: chartInterval,
+                        getTitlesWidget: (value, meta) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              NumberFormat.compact().format(value),
+                              style: GoogleFonts.urbanist(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? tWhite : tBlack,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     topTitles: AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -163,6 +225,8 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
                     touchTooltipData: BarTouchTooltipData(
                       tooltipRoundedRadius: 10,
                       tooltipPadding: const EdgeInsets.all(10),
+                      fitInsideHorizontally: true,
+                      fitInsideVertically: true,
                       getTooltipColor: (group) => isDark ? tWhite : tBlack,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         final data = chartData[group.x.toInt()];
@@ -256,17 +320,37 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
                           showingTooltipIndicators:
                               touchedIndex == i ? [0, 1] : [],
                           barRods: [
+                            // BarChartRodData(
+                            //   toY: (item["utilization"] as num).toDouble(),
+                            //   color: tGreen.withOpacity(0.9),
+                            //   width: 10,
+                            //   borderRadius: BorderRadius.circular(0),
+                            // ),
                             BarChartRodData(
                               toY: (item["utilization"] as num).toDouble(),
-                              color: tGreen.withOpacity(0.9),
                               width: 10,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tGreen.withOpacity(0), tGreen],
+                              ),
                             ),
+                            // BarChartRodData(
+                            //   toY: (item["nonutilization"] as num).toDouble(),
+                            //   color: tGrey.withOpacity(0.9),
+                            //   width: 10,
+                            //   borderRadius: BorderRadius.circular(0),
+                            // ),
                             BarChartRodData(
                               toY: (item["nonutilization"] as num).toDouble(),
-                              color: tGrey.withOpacity(0.9),
                               width: 10,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tGrey.withOpacity(0), tGrey],
+                              ),
                             ),
                           ],
                         );
@@ -318,7 +402,7 @@ class _VehicleUtilizationChartState extends State<VehicleUtilizationChart> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? (isDark ? tWhite : tBlack) : tTransparent,
-          // borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(5),
         ),
         child: Text(
           label,

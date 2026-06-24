@@ -11,6 +11,7 @@ environment:
   sdk: ^3.7.2
 
 dependencies:
+  loading_animation_widget: ^1.2.0+4
   flutter:
     sdk: flutter
 

@@ -3,10 +3,12 @@ import 'dart:typed_data';
 import 'dart:ui';
 import 'package:excel/excel.dart' as excel;
 import 'package:file_saver/file_saver.dart';
+import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:svg_flutter/svg_flutter.dart';
 import '../../../models/CRUDModels/devicesCRUDModel.dart';
 import '../../../models/CRUDModels/groupsCRUDModel.dart';
@@ -18,8 +20,8 @@ import '../../forms/devices/deviceDeleteDialog.dart';
 import '../../widgets/reports/custom_Toast.dart';
 
 class DevicesCRUDScreen extends StatefulWidget {
-  const DevicesCRUDScreen({super.key});
-
+  final bool isMobile;
+  const DevicesCRUDScreen({super.key, this.isMobile = false});
   @override
   State<DevicesCRUDScreen> createState() => _DevicesCRUDScreenState();
 }
@@ -30,6 +32,7 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
   String? _role;
   int page = 1;
   int sizePerPage = 10;
+  final GlobalKey _pageSizeKey = GlobalKey();
 
   bool isLoading = false;
   bool isError = false;
@@ -39,39 +42,29 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
   int currentPage = 1;
   int totalPages = 1;
 
-  List<Entities> filteredallDevices = [];
+  // List<Entities> filteredallDevices = [];
   List<GroupEntity> groups = [];
   final DevicesCRUDApiService _devicesApiService = DevicesCRUDApiService();
-  final TextEditingController _searchController = TextEditingController();
   final _apiService = GroupsApiService();
+  final TextEditingController _searchController = TextEditingController();
 
-  final List<int> pageSizeOptions = [10, 25, 50, 100];
   String orgType = '';
   int currentIndex = 0;
   String? selectedGroup;
-  List<Entities> allDevices = [];
   String searchText = '';
   Timer? _debounce;
-
+  OverlayEntry? _pageSizeOverlayEntry;
+  final LayerLink _pageSizeLayerLink = LayerLink();
+  final List<int> pageSizeOptions = [10, 25, 50, 100];
   bool isGroupsLoading = false;
-
+  List<Entities> allDevices = []; // original data
+  List<Entities> filteredallDevices = []; // filtered data
   @override
   void initState() {
     super.initState();
+    _loadRole();
     _initialLoad();
     _loadGroups();
-  }
-
-  Future<void> _initialLoad() async {
-    if (!mounted) return;
-    setState(() {
-      isLoading = true;
-      filteredallDevices.clear();
-      currentPage = 1;
-      currentIndex = 0;
-    });
-
-    await _reloadDevices();
   }
 
   void _filterDevices(String query) {
@@ -89,6 +82,26 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     });
   }
 
+  Future<void> _initialLoad() async {
+    if (!mounted) return;
+    setState(() {
+      isLoading = true;
+      filteredallDevices.clear();
+      currentPage = 1;
+      currentIndex = 0;
+    });
+
+    await _reloadDevices();
+  }
+
+  Future<void> _loadRole() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+      _role = prefs.getString('role') ?? 'VIEWER';
+    });
+  }
+
   String formatDate(String? rawDate) {
     if (rawDate == null || rawDate.isEmpty) return "--";
     try {
@@ -99,31 +112,100 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     }
   }
 
-  String cleanExcelText(dynamic value) {
-    if (value == null) return "--";
-
-    String text = value.toString();
-
-    text = text.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]'), '');
-
-    return text;
+  void _hidePageSizeDropdown() {
+    if (_pageSizeOverlayEntry != null) {
+      try {
+        _pageSizeOverlayEntry!.remove();
+      } catch (_) {}
+      _pageSizeOverlayEntry = null;
+    }
   }
 
-  String _formatDate(dynamic date) {
-    if (date == null) return "--";
+  void _showPageSizeDropdown(BuildContext context) {
+    final overlay = Overlay.of(context);
+    final renderObject = _pageSizeKey.currentContext?.findRenderObject();
 
-    try {
-      if (date is DateTime) {
-        return "${date.day}-${date.month}-${date.year}";
-      } else {
-        final parsed = DateTime.tryParse(date.toString());
-        if (parsed != null) {
-          return "${parsed.day}-${parsed.month}-${parsed.year}";
-        }
-      }
-    } catch (_) {}
+    if (renderObject == null || renderObject is! RenderBox) {
+      return;
+    }
 
-    return "--";
+    final RenderBox renderBox = renderObject;
+    final double fieldWidth = renderBox.size.width;
+
+    _pageSizeOverlayEntry = OverlayEntry(
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return Positioned(
+          width: fieldWidth,
+          child: CompositedTransformFollower(
+            link: _pageSizeLayerLink,
+            offset: const Offset(0, 45),
+            showWhenUnlinked: false,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack.withOpacity(0.95) : Colors.white,
+                  border: Border.all(
+                    color:
+                        isDark
+                            ? tWhite.withOpacity(0.10)
+                            : Colors.grey.shade300,
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    if (!isDark)
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                  ],
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  children:
+                      pageSizeOptions.map((s) {
+                        return InkWell(
+                          onTap: () {
+                            if (!mounted) return;
+
+                            setState(() {
+                              sizePerPage = s;
+                              page = 1;
+                              currentPage = 1;
+                            });
+
+                            _hidePageSizeDropdown();
+                            _reloadDevices();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Text(
+                              "$s / page",
+                              style: GoogleFonts.urbanist(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_pageSizeOverlayEntry!);
   }
 
   Future<void> _reloadDevices() async {
@@ -139,12 +221,14 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
       final result = await _devicesApiService.fetchDevices(
         page: currentPage,
         sizePerPage: sizePerPage,
+        searchText: searchText,
       );
 
       if (!mounted) return;
 
       setState(() {
-        filteredallDevices = result.entities ?? [];
+        allDevices = result.entities ?? [];
+        filteredallDevices = allDevices;
         totalCount = result.totalCount ?? 0;
         totalPages = totalCount == 0 ? 1 : (totalCount / sizePerPage).ceil();
         isLoading = false;
@@ -187,8 +271,36 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     }
   }
 
+  String cleanExcelText(dynamic value) {
+    if (value == null) return "--";
+
+    String text = value.toString();
+
+    text = text.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]'), '');
+
+    return text;
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return "--";
+
+    try {
+      if (date is DateTime) {
+        return "${date.day}-${date.month}-${date.year}";
+      } else {
+        final parsed = DateTime.tryParse(date.toString());
+        if (parsed != null) {
+          return "${parsed.day}-${parsed.month}-${parsed.year}";
+        }
+      }
+    } catch (_) {}
+
+    return "--";
+  }
+
   @override
   void dispose() {
+    _hidePageSizeDropdown();
     _horizontalController.dispose();
     _verticalController.dispose();
     super.dispose();
@@ -304,122 +416,126 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
   //     ],
   //   );
   // }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
 
+    final isMobile = widget.isMobile || (screenWidth <= 600);
     return Stack(
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "Devices",
-                  style: GoogleFonts.urbanist(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? tWhite : tBlack,
+            if (!isMobile)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Devices",
+                    style: GoogleFonts.urbanist(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? tWhite : tBlack,
+                    ),
                   ),
-                ),
-                Row(
+                  Row(
+                    children: [
+                      if (_role != "VIEWER")
+                        _addNewDeviceButton(isDark, isMobile),
+                      const SizedBox(width: 10),
+                      _buildPageSizeSelector(isDark, isMobile),
+                    ],
+                  ),
+                ],
+              ),
+
+            // Mobile Layout
+            if (isMobile)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 0),
+                child: Column(
                   children: [
-                    // _addNewDeviceButton(isDark),
-                    if (_role != "VIEWER") _addNewDeviceButton(isDark),
-                    const SizedBox(width: 10),
+                    // Row 1: Title + Add Device Button
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Devices",
+                          style: GoogleFonts.urbanist(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                        if (_role != "VIEWER")
+                          _addNewDeviceButton(isDark, isMobile),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
 
-                    // Container(
-                    //   height: 42,
-                    //   padding: const EdgeInsets.symmetric(horizontal: 12),
-                    //   decoration: BoxDecoration(
-                    //     color: isDark ? Colors.white10 : Colors.grey.shade100,
-                    //     border: Border.all(
-                    //       color: isDark ? Colors.white24 : Colors.black12,
-                    //     ),
-                    //   ),
-                    //   child: DropdownButtonHideUnderline(
-                    //     child: DropdownButton<int>(
-                    //       value: sizePerPage,
-                    //       icon: Icon(
-                    //         Icons.expand_more_rounded,
-                    //         size: 20,
-                    //         color:
-                    //             isDark
-                    //                 ? tWhite.withOpacity(0.8)
-                    //                 : Colors.grey.shade700,
-                    //       ),
-                    //       dropdownColor:
-                    //           isDark ? tBlack.withOpacity(0.95) : Colors.white,
-                    //       borderRadius: BorderRadius.circular(10),
-                    //       style: GoogleFonts.urbanist(
-                    //         fontSize: 14,
-                    //         fontWeight: FontWeight.w500,
-                    //         color: isDark ? tWhite : Colors.black87,
-                    //       ),
-                    //       items:
-                    //           pageSizeOptions
-                    //               .map(
-                    //                 (s) => DropdownMenuItem(
-                    //                   value: s,
-                    //                   child: Text(
-                    //                     "$s / page",
-                    //                     style: GoogleFonts.urbanist(
-                    //                       fontSize: 14,
-                    //                       fontWeight: FontWeight.w600,
-                    //                       color:
-                    //                           isDark ? tWhite : Colors.black87,
-                    //                     ),
-                    //                   ),
-                    //                 ),
-                    //               )
-                    //               .toList(),
-                    //       onChanged: (v) async {
-                    //         if (v == null) return;
-                    //         if (!mounted) return;
+                    // Row 2: Search (full width)
+                    Row(
+                      children: [
+                        Expanded(child: _buildFilterBySearch(isDark, isMobile)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
 
-                    //         setState(() {
-                    //           sizePerPage = v;
-                    //           currentPage = 1;
-                    //           currentIndex = 0;
-                    //           isLoading = true;
-                    //         });
+                    // Row 3: Download + Page Selector (side by side)
+                    Row(
+                      children: [
+                        Expanded(child: _downloadButton(isDark, isMobile)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildPageSizeSelector(isDark, isMobile),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
 
-                    //         await _reloadDevices();
-                    //       },
-                    //     ),
-                    //   ),
-                    // ),
-                    _downloadButton(isDark),
+                    // Note text for search
+                    if (isMobile)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '(Note: Filter by Search)',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 10,
+                            color:
+                                isDark
+                                    ? tWhite.withOpacity(0.6)
+                                    : tBlack.withOpacity(0.6),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildFilterBySearch(isDark),
-                    // _downloadButton(isDark),
-                  ],
-                ),
-              ],
-            ),
+              ),
+
+            if (!isMobile) const SizedBox(height: 16),
+
+            if (!isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildFilterBySearch(isDark, false),
+                      _downloadButton(isDark, false),
+                    ],
+                  ),
+                ],
+              ),
 
             const SizedBox(height: 16),
-
-            Expanded(
-              child: _buildTableArea(isDark), // Always build the table
-            ),
+            Expanded(child: _buildTableArea(isDark)),
 
             const SizedBox(height: 12),
-
-            // Pagination Footer - Dimmed during loading
             Opacity(
               opacity: isLoading ? 0.5 : 1.0,
               child: IgnorePointer(
@@ -429,7 +545,6 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
             ),
           ],
         ),
-        // Loading Overlay
         if (isLoading) _buildLoadingOverlay(isDark),
       ],
     );
@@ -650,17 +765,39 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
   //     ),
   //   );
   // }
+
   Widget _buildTableArea(bool isDark) {
+    // if (!isLoading && filteredallDevices.isEmpty) {
+    //   return Center(
+    //     child: Text(
+    //       isError
+    //           ? (errorMessage ?? "Failed to load devices")
+    //           : "No devices found.",
+    //       style: GoogleFonts.urbanist(
+    //         fontSize: 14,
+    //         color: isDark ? tWhite : tBlack,
+    //       ),
+    //     ),
+    //   );
+    // }
     if (!isLoading && filteredallDevices.isEmpty) {
       return Center(
-        child: Text(
-          isError
-              ? (errorMessage ?? "Failed to load devices")
-              : "No devices found.",
-          style: GoogleFonts.urbanist(
-            fontSize: 14,
-            color: isDark ? tWhite : tBlack,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SvgPicture.asset('icons/nodata1.svg', height: 120, width: 120),
+
+            const SizedBox(height: 16),
+
+            Text(
+              "No devices found",
+              style: GoogleFonts.urbanist(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? tWhite : tBlack,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -707,7 +844,7 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                     headingRowColor: WidgetStateProperty.all(
                       isDark
                           ? tGreen8.withOpacity(0.15)
-                          : tGreen8.withOpacity(0.1),
+                          : tGreen8.withOpacity(0.05),
                     ),
                     headingTextStyle: GoogleFonts.urbanist(
                       fontWeight: FontWeight.w700,
@@ -728,22 +865,23 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                       width: 0.4,
                     ),
                     dividerThickness: 0.01,
-                    columns: const [
-                      DataColumn(label: Text("S.No")),
-                      DataColumn(label: Text("IMEI")),
-                      DataColumn(label: Text("SIM No.")),
-                      DataColumn(label: Text("Vehicle No.")),
-                      DataColumn(label: Text("FG Code")),
-                      DataColumn(label: Text("Registration No.")),
-                      DataColumn(label: Text("Battery No.")),
-                      DataColumn(label: Text("Group")),
-                      DataColumn(label: Text("Created Date")),
-                      DataColumn(label: Text("Firmware Ver.")),
-                      DataColumn(label: Text("Hardware Ver.")),
-                      DataColumn(label: Text("Product")),
-                      DataColumn(label: Text("Vehicle Model")),
-                      DataColumn(label: Text("Dealer Code")),
-                      DataColumn(label: Text("Actions")),
+                    columns: [
+                      const DataColumn(label: Text("S.No")),
+                      const DataColumn(label: Text("IMEI")),
+                      const DataColumn(label: Text("SIM No.")),
+                      const DataColumn(label: Text("Vehicle No.")),
+                      const DataColumn(label: Text("FG Code")),
+                      const DataColumn(label: Text("Registration No.")),
+                      const DataColumn(label: Text("Battery No.")),
+                      const DataColumn(label: Text("Group")),
+                      const DataColumn(label: Text("Created Date")),
+                      const DataColumn(label: Text("Firmware Ver.")),
+                      const DataColumn(label: Text("Hardware Ver.")),
+                      const DataColumn(label: Text("Product")),
+                      const DataColumn(label: Text("Vehicle Model")),
+                      const DataColumn(label: Text("Dealer Code")),
+                      if (_role != "VIEWER")
+                        const DataColumn(label: Text("Actions")),
                     ],
                     rows:
                         filteredallDevices.asMap().entries.map((entry) {
@@ -757,7 +895,43 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                           return DataRow(
                             cells: [
                               DataCell(Text(sNo.toString())),
-                              DataCell(Text(d.imei ?? '--')),
+                              // DataCell(Text(d.imei ?? '--')),
+                              DataCell(
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        d.imei ?? "--",
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.copy,
+                                        size: 14,
+                                        color: isDark ? tWhite : tBlack,
+                                      ),
+                                      onPressed: () {
+                                        Clipboard.setData(
+                                          ClipboardData(text: d.imei ?? "--"),
+                                        );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text("ID Copied"),
+                                            duration: Duration(
+                                              milliseconds: 800,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+
                               DataCell(Text(d.simno ?? '--')),
                               DataCell(Text(d.vehicleNo ?? '--')),
                               DataCell(Text(d.fgCode ?? '--')),
@@ -790,7 +964,6 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                               DataCell(Text(d.product ?? '--')),
                               DataCell(Text(d.vehicleModel ?? '--')),
                               DataCell(Text(d.dealerCode ?? '--')),
-                              // ACTION BUTTONS
                               if (_role != "VIEWER")
                                 DataCell(
                                   Row(
@@ -906,12 +1079,151 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
                                     ],
                                   ),
                                 ),
+                              // ACTION BUTTONS
+                              // DataCell(
+                              //   Row(
+                              //     children: [
+
+                              //       IconButton(
+                              //         icon: SvgPicture.asset(
+                              //           'icons/edit.svg',
+                              //           height: 20,
+                              //           width: 20,
+                              //           color: tBlue,
+                              //         ),
+                              //         onPressed:
+                              //             isLoading
+                              //                 ? null
+                              //                 : () {
+                              //                   showDeviceCreateUpdateDialog(
+                              //                     context: context,
+                              //                     title: "Update Device",
+                              //                     confirmText: "Update",
+                              //                     initialImei: d.imei ?? "",
+                              //                     initialVehicleNo: d.vehicleNo,
+                              //                     initialDeviceType:
+                              //                         d.deviceType ?? "NON_EV",
+                              //                     initialBatteryNo: d.batteryNo,
+                              //                     initialGroupId:
+                              //                         d.groupDetails?.id,
+                              //                     initialVehicleModel:
+                              //                         d.vehicleModel,
+                              //                     initialDealerCode:
+                              //                         d.dealerCode,
+                              //                     initialRtoNumber: d.rtoNumber,
+                              //                     initialFgCode: d.fgCode,
+                              //                     allGroups: groups,
+                              //                     onConfirm: ({
+                              //                       required String imei,
+                              //                       required String vehicleNo,
+                              //                       required String deviceType,
+                              //                       required String batteryNo,
+                              //                       required String group,
+                              //                       required String
+                              //                       vehicleModel,
+                              //                       required String dealerCode,
+                              //                       required String rtoNumber,
+                              //                       required String fgCode,
+                              //                     }) async {
+                              //                       await _devicesApiService
+                              //                           .updateDevice(imei, {
+                              //                             "imei": imei,
+                              //                             "vehicleNo":
+                              //                                 vehicleNo,
+                              //                             "deviceType":
+                              //                                 deviceType,
+                              //                             if (deviceType !=
+                              //                                 "NON_EV")
+                              //                               "batteryNo":
+                              //                                   batteryNo,
+                              //                             "group": group,
+                              //                             "vehicleModel":
+                              //                                 vehicleModel,
+                              //                             "dealerCode":
+                              //                                 dealerCode,
+                              //                             "rtoNumber":
+                              //                                 rtoNumber,
+                              //                             "fgCode": fgCode,
+                              //                             "org": d.org,
+                              //                             "product": d.product,
+                              //                             "hwver": d.hwver,
+                              //                             "fwver": d.fwver,
+                              //                             "simno": d.simno,
+                              //                             "createdDate":
+                              //                                 d.createdDate,
+                              //                           });
+
+                              //                       await _reloadDevices();
+                              //                     },
+                              //                   );
+                              //                 },
+                              //       ),
+                              //     ],
+                              //   ),
+                              // ),
                             ],
                           );
                         }).toList(),
                   ),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageSizeSelector(bool isDark, bool isMobile) {
+    return Container(
+      height: 42,
+      width: isMobile ? double.infinity : 150,
+      child: CompositedTransformTarget(
+        key: _pageSizeKey,
+        link: _pageSizeLayerLink,
+        child: GestureDetector(
+          onTap: () {
+            if (_pageSizeOverlayEntry == null) {
+              _showPageSizeDropdown(context);
+            } else {
+              _hidePageSizeDropdown();
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: isDark ? tWhite.withOpacity(0.08) : Colors.grey.shade50,
+              border: Border.all(
+                color: isDark ? tWhite.withOpacity(0.10) : Colors.grey.shade300,
+                width: 1.2,
+              ),
+              boxShadow: [
+                if (!isDark)
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "$sizePerPage / page",
+                  style: GoogleFonts.urbanist(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? tWhite : Colors.black87,
+                  ),
+                ),
+                Icon(
+                  Icons.expand_more_rounded,
+                  size: 20,
+                  color:
+                      isDark ? tWhite.withOpacity(0.8) : Colors.grey.shade700,
+                ),
+              ],
             ),
           ),
         ),
@@ -958,7 +1270,8 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
   Widget _buildPaginationControls(bool isDark) {
     const int visiblePageCount = 5;
     final computedTotalPages = totalPages < 1 ? 1 : totalPages;
-
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isTablet = MediaQuery.of(context).size.width < 1100;
     int startPage =
         ((currentPage - 1) ~/ visiblePageCount) * visiblePageCount + 1;
     int endPage = (startPage + visiblePageCount - 1).clamp(1, totalPages);
@@ -1001,12 +1314,12 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
               style: GoogleFonts.urbanist(
                 color:
                     isSelected
-                        ? tBlack
+                        ? tWhite
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),
                 fontWeight: FontWeight.w600,
-                fontSize: 13,
+                fontSize: isMobile ? 11 : (isTablet ? 12 : 13),
               ),
             ),
           ),
@@ -1017,202 +1330,488 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     final controller = TextEditingController();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white10 : Colors.grey.shade100,
-              border: Border.all(
-                color: isDark ? Colors.white24 : Colors.black12,
-              ),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: sizePerPage,
-                icon: Icon(
-                  Icons.expand_more_rounded,
-                  size: 18,
-                  color:
-                      isDark ? tWhite.withOpacity(0.8) : Colors.grey.shade700,
-                ),
-                dropdownColor: isDark ? tBlack.withOpacity(0.95) : Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                style: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? tWhite : Colors.black87,
-                ),
-                items:
-                    pageSizeOptions.map((s) {
-                      return DropdownMenuItem(
-                        value: s,
-                        child: Text(
-                          "$s / page",
+      padding: const EdgeInsets.only(top: 0, bottom: 4),
+      child:
+          isMobile
+              ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  /// Pagination Buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      /// Previous
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_left,
+                          color: isDark ? tWhite : tBlack,
+                          size: 18,
+                        ),
+                        onPressed:
+                            currentPage > 1
+                                ? () async {
+                                  if (!mounted) return;
+
+                                  setState(() {
+                                    currentPage--;
+                                    page = currentPage;
+                                    currentIndex =
+                                        (currentPage - 1) * sizePerPage;
+                                    isLoading = true;
+                                  });
+
+                                  await _reloadDevices();
+                                }
+                                : null,
+                      ),
+
+                      Row(children: pageButtons),
+
+                      /// Next
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_right,
+                          color: isDark ? tWhite : tBlack,
+                          size: 18,
+                        ),
+                        onPressed:
+                            currentPage < totalPages
+                                ? () async {
+                                  if (!mounted) return;
+
+                                  setState(() {
+                                    currentPage++;
+                                    page = currentPage;
+                                    currentIndex =
+                                        (currentPage - 1) * sizePerPage;
+                                    isLoading = true;
+                                  });
+
+                                  await _reloadDevices();
+                                }
+                                : null,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  /// Jump + Page Info
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 28,
+                        child: TextField(
+                          controller: controller,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 10,
+                            color: isDark ? tWhite : tBlack,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Page',
+                            hintStyle: GoogleFonts.urbanist(
+                              fontSize: 10,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                          onSubmitted: (value) async {
+                            final p = int.tryParse(value);
+
+                            if (p != null && p >= 1 && p <= totalPages) {
+                              if (!mounted) return;
+
+                              setState(() {
+                                currentPage = p;
+                                page = currentPage;
+                                currentIndex = (currentPage - 1) * sizePerPage;
+                                isLoading = true;
+                              });
+
+                              await _reloadDevices();
+                            }
+                          },
+                          cursorColor: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Text(
+                        'Page $currentPage of $computedTotalPages',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 12,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+              : Center(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      /// Previous
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_left,
+                          color: isDark ? tWhite : tBlack,
+                          size: 22,
+                        ),
+                        onPressed:
+                            currentPage > 1
+                                ? () async {
+                                  if (!mounted) return;
+
+                                  setState(() {
+                                    currentPage--;
+                                    page = currentPage;
+                                    currentIndex =
+                                        (currentPage - 1) * sizePerPage;
+                                    isLoading = true;
+                                  });
+
+                                  await _reloadDevices();
+                                }
+                                : null,
+                      ),
+
+                      Row(children: pageButtons),
+
+                      /// Next
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_right,
+                          color: isDark ? tWhite : tBlack,
+                          size: 22,
+                        ),
+                        onPressed:
+                            currentPage < totalPages
+                                ? () async {
+                                  if (!mounted) return;
+
+                                  setState(() {
+                                    currentPage++;
+                                    page = currentPage;
+                                    currentIndex =
+                                        (currentPage - 1) * sizePerPage;
+                                    isLoading = true;
+                                  });
+
+                                  await _reloadDevices();
+                                }
+                                : null,
+                      ),
+
+                      const SizedBox(width: 16),
+
+                      /// Jump to page
+                      SizedBox(
+                        width: 70,
+                        height: 32,
+                        child: TextField(
+                          controller: controller,
                           style: GoogleFonts.urbanist(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? tWhite : Colors.black87,
+                            color: isDark ? tWhite : tBlack,
                           ),
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: 'Page',
+                            hintStyle: GoogleFonts.urbanist(
+                              fontSize: 12,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                          onSubmitted: (value) async {
+                            final p = int.tryParse(value);
+
+                            if (p != null && p >= 1 && p <= totalPages) {
+                              if (!mounted) return;
+
+                              setState(() {
+                                currentPage = p;
+                                page = currentPage;
+                                currentIndex = (currentPage - 1) * sizePerPage;
+                                isLoading = true;
+                              });
+
+                              await _reloadDevices();
+                            }
+                          },
+                          cursorColor: isDark ? tWhite : tBlack,
                         ),
-                      );
-                    }).toList(),
-                onChanged: (v) async {
-                  if (v == null) return;
-                  if (!mounted) return;
+                      ),
 
-                  setState(() {
-                    sizePerPage = v;
-                    currentPage = 1;
-                    currentIndex = 0;
-                    isLoading = true;
-                  });
+                      const SizedBox(width: 10),
 
-                  await _reloadDevices();
-                },
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Previous
-          IconButton(
-            icon: Icon(
-              Icons.chevron_left,
-              color: isDark ? tWhite : tBlack,
-              size: 22,
-            ),
-            onPressed:
-                currentPage > 1
-                    ? () async {
-                      if (!mounted) return; // FIX
-                      setState(() {
-                        currentPage--;
-                        page = currentPage;
-                        currentIndex = (currentPage - 1) * sizePerPage;
-                        isLoading = true;
-                      });
-                      await _reloadDevices();
-                    }
-                    : null,
-          ),
-
-          Row(children: pageButtons),
-
-          // Next
-          IconButton(
-            icon: Icon(
-              Icons.chevron_right,
-              color: isDark ? tWhite : tBlack,
-              size: 22,
-            ),
-            onPressed:
-                currentPage < totalPages
-                    ? () async {
-                      if (!mounted) return; // FIX
-                      setState(() {
-                        currentPage++;
-                        page = currentPage;
-                        currentIndex = (currentPage - 1) * sizePerPage;
-                        isLoading = true;
-                      });
-                      await _reloadDevices();
-                    }
-                    : null,
-          ),
-
-          const SizedBox(width: 16),
-
-          // Jump to page
-          SizedBox(
-            width: 70,
-            height: 32,
-            child: TextField(
-              controller: controller,
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                color: isDark ? tWhite : tBlack,
-              ),
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: 'Page',
-                hintStyle: GoogleFonts.urbanist(
-                  fontSize: 12,
-                  color: isDark ? Colors.white54 : Colors.black54,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 0.8,
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 0.8,
-                  ),
-                ),
-
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1.2, // slightly thicker when focused
-                  ),
-                ),
-
-                disabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color:
-                        isDark
-                            ? tWhite.withOpacity(0.4)
-                            : tBlack.withOpacity(0.4),
-                    width: 0.8,
+                      Text(
+                        'Page $currentPage of $computedTotalPages · $totalCount items',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 13,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              onSubmitted: (value) async {
-                final p = int.tryParse(value);
-                if (p != null && p >= 1 && p <= totalPages) {
-                  if (!mounted) return; // FIX
-                  setState(() {
-                    currentPage = p;
-                    page = currentPage;
-                    currentIndex = (currentPage - 1) * sizePerPage;
-                    isLoading = true;
-                  });
-                  await _reloadDevices();
-                }
-              },
-              cursorColor: isDark ? tWhite : tBlack,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          Text(
-            'Page $currentPage of $computedTotalPages · $totalCount items',
-            style: GoogleFonts.urbanist(
-              fontSize: 13,
-              color: isDark ? tWhite : tBlack,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          // 🔽 Items per page dropdown
-        ],
-      ),
     );
   }
 
-  Widget _addNewDeviceButton(bool isDark) => Container(
+  // Widget _buildPaginationControls(bool isDark) {
+  //   const int visiblePageCount = 5;
+  //   final computedTotalPages = totalPages < 1 ? 1 : totalPages;
+
+  //   int startPage =
+  //       ((currentPage - 1) ~/ visiblePageCount) * visiblePageCount + 1;
+  //   int endPage = (startPage + visiblePageCount - 1).clamp(1, totalPages);
+
+  //   final pageButtons = <Widget>[];
+
+  //   for (int pageNum = startPage; pageNum <= endPage; pageNum++) {
+  //     final isSelected = pageNum == currentPage;
+
+  //     pageButtons.add(
+  //       GestureDetector(
+  //         onTap: () async {
+  //           if (pageNum == currentPage) return;
+
+  //           if (!mounted) return; // FIX
+  //           setState(() {
+  //             currentPage = pageNum;
+  //             page = currentPage;
+  //             currentIndex = (currentPage - 1) * sizePerPage;
+  //             isLoading = true;
+  //           });
+
+  //           await _reloadDevices();
+  //         },
+  //         child: Container(
+  //           margin: const EdgeInsets.symmetric(horizontal: 4),
+  //           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  //           decoration: BoxDecoration(
+  //             color: isSelected ? tBlue : Colors.transparent,
+  //             borderRadius: BorderRadius.circular(6),
+  //             border: Border.all(
+  //               color:
+  //                   isSelected
+  //                       ? tBlue
+  //                       : (isDark ? Colors.white54 : Colors.black54),
+  //             ),
+  //           ),
+  //           child: Text(
+  //             '$pageNum',
+  //             style: GoogleFonts.urbanist(
+  //               color:
+  //                   isSelected
+  //                       ? tWhite
+  //                       : (isDark
+  //                           ? tWhite.withOpacity(0.8)
+  //                           : tBlack.withOpacity(0.8)),
+  //               fontWeight: FontWeight.w600,
+  //               fontSize: 13,
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //     );
+  //   }
+
+  //   final controller = TextEditingController();
+
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(vertical: 10),
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.center,
+  //       children: [
+  //         // Previous
+  //         IconButton(
+  //           icon: Icon(
+  //             Icons.chevron_left,
+  //             color: isDark ? tWhite : tBlack,
+  //             size: 22,
+  //           ),
+  //           onPressed:
+  //               currentPage > 1
+  //                   ? () async {
+  //                     if (!mounted) return; // FIX
+  //                     setState(() {
+  //                       currentPage--;
+  //                       page = currentPage;
+  //                       currentIndex = (currentPage - 1) * sizePerPage;
+  //                       isLoading = true;
+  //                     });
+  //                     await _reloadDevices();
+  //                   }
+  //                   : null,
+  //         ),
+
+  //         Row(children: pageButtons),
+
+  //         // Next
+  //         IconButton(
+  //           icon: Icon(
+  //             Icons.chevron_right,
+  //             color: isDark ? tWhite : tBlack,
+  //             size: 22,
+  //           ),
+  //           onPressed:
+  //               currentPage < totalPages
+  //                   ? () async {
+  //                     if (!mounted) return; // FIX
+  //                     setState(() {
+  //                       currentPage++;
+  //                       page = currentPage;
+  //                       currentIndex = (currentPage - 1) * sizePerPage;
+  //                       isLoading = true;
+  //                     });
+  //                     await _reloadDevices();
+  //                   }
+  //                   : null,
+  //         ),
+
+  //         const SizedBox(width: 16),
+
+  //         // Jump to page
+  //         SizedBox(
+  //           width: 70,
+  //           height: 32,
+  //           child: TextField(
+  //             controller: controller,
+  //             style: GoogleFonts.urbanist(
+  //               fontSize: 13,
+  //               color: isDark ? tWhite : tBlack,
+  //             ),
+  //             keyboardType: TextInputType.number,
+  //             decoration: InputDecoration(
+  //               hintText: 'Page',
+  //               hintStyle: GoogleFonts.urbanist(
+  //                 fontSize: 12,
+  //                 color: isDark ? Colors.white54 : Colors.black54,
+  //               ),
+  //               contentPadding: const EdgeInsets.symmetric(
+  //                 horizontal: 8,
+  //                 vertical: 4,
+  //               ),
+  //               border: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 0.8,
+  //                 ),
+  //               ),
+  //               enabledBorder: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 0.8,
+  //                 ),
+  //               ),
+
+  //               focusedBorder: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 1.2, // slightly thicker when focused
+  //                 ),
+  //               ),
+
+  //               disabledBorder: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color:
+  //                       isDark
+  //                           ? tWhite.withOpacity(0.4)
+  //                           : tBlack.withOpacity(0.4),
+  //                   width: 0.8,
+  //                 ),
+  //               ),
+  //             ),
+  //             onSubmitted: (value) async {
+  //               final p = int.tryParse(value);
+  //               if (p != null && p >= 1 && p <= totalPages) {
+  //                 if (!mounted) return; // FIX
+  //                 setState(() {
+  //                   currentPage = p;
+  //                   page = currentPage;
+  //                   currentIndex = (currentPage - 1) * sizePerPage;
+  //                   isLoading = true;
+  //                 });
+  //                 await _reloadDevices();
+  //               }
+  //             },
+  //             cursorColor: isDark ? tWhite : tBlack,
+  //           ),
+  //         ),
+
+  //         const SizedBox(width: 10),
+
+  //         Text(
+  //           'Page $currentPage of $computedTotalPages · $totalCount items',
+  //           style: GoogleFonts.urbanist(
+  //             fontSize: 13,
+  //             color: isDark ? tWhite : tBlack,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  Widget _addNewDeviceButton(bool isDark, bool isMobile) => Container(
     height: 40,
     padding: EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(color: isDark ? tWhite : tBlack),
@@ -1283,7 +1882,7 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     ),
   );
 
-  Widget _downloadButton(bool isDark) => Container(
+  Widget _downloadButton(bool isDark, bool isMobile) => Container(
     height: 40,
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(color: isDark ? tWhite : tBlack),
@@ -1398,74 +1997,71 @@ class _DevicesCRUDScreenState extends State<DevicesCRUDScreen> {
     ),
   );
 
-  Widget _buildFilterBySearch(bool isDark) => Column(
+  Widget _buildFilterBySearch(bool isDark, bool isMobile) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Container(
-        width: 200,
+        width: isMobile ? double.infinity : 180,
         height: 40,
         decoration: BoxDecoration(
           color: tTransparent,
-          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: isDark ? tWhite : tBlack, width: 1),
         ),
         child: TextField(
           controller: _searchController,
+          cursorColor: isDark ? tWhite : tBlack,
           onChanged: (value) {
-            _filterDevices(value);
-            if (_debounce?.isActive ?? false) _debounce!.cancel();
+            // _filterDevices(value);
+
+            if (_debounce?.isActive ?? false) {
+              _debounce!.cancel();
+            }
+
             _debounce = Timer(const Duration(milliseconds: 500), () {
-              searchText = value;
-              currentPage = 1;
+              if (!mounted) return;
+
+              setState(() {
+                searchText = value.trim();
+                currentPage = 1;
+              });
+
               _reloadDevices();
             });
           },
           style: GoogleFonts.urbanist(
-            fontSize: 13,
+            fontSize: isMobile ? 15 : 13,
             fontWeight: FontWeight.w500,
             color: isDark ? tWhite : tBlack,
           ),
           decoration: InputDecoration(
             hintText: 'Search...',
             hintStyle: GoogleFonts.urbanist(
-              fontSize: 13,
+              fontSize: isMobile ? 14 : 12,
               fontWeight: FontWeight.w500,
               color: isDark ? tWhite.withOpacity(0.6) : tBlack.withOpacity(0.6),
             ),
-
+            border: InputBorder.none,
             prefixIcon: Icon(
               Icons.search,
-              size: 20,
+              size: 18,
               color: isDark ? tWhite : tBlack,
             ),
-
-            filled: true,
-            fillColor: tTransparent,
-
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(0),
-              borderSide: BorderSide(color: isDark ? tWhite : tBlack, width: 1),
-            ),
-
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(0),
-              borderSide: BorderSide(color: isDark ? tWhite : tBlack, width: 2),
-            ),
-
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(0)),
           ),
         ),
       ),
-
-      const SizedBox(height: 5),
-
-      Text(
-        '(Note: Search by IMEI or Model)',
-        style: GoogleFonts.urbanist(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: isDark ? tWhite.withOpacity(0.6) : tBlack.withOpacity(0.6),
+      // Only show note text on non-mobile (tablet/desktop)
+      if (!isMobile)
+        Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Text(
+            '(Note: Filter by Search)',
+            style: GoogleFonts.urbanist(
+              fontSize: 10,
+              color: isDark ? tWhite.withOpacity(0.6) : tBlack.withOpacity(0.6),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
-      ),
     ],
   );
 }

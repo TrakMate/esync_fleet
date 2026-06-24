@@ -61,6 +61,11 @@ class TripsApiService {
       '{tripId}',
       tripId,
     );
+
+    // final url = BaseURLConfig.downloadDetailedTripApiUrl.replaceAll(
+    //   '{tripId}',
+    //   tripId,
+    // );
     final uri = Uri.parse(url);
 
     final response = await http.get(

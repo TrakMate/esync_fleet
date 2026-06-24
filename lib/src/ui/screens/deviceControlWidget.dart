@@ -10,6 +10,7 @@ import '../../utils/appResponsive.dart';
 import 'deviceConfigurationInfoScreen.dart';
 import 'deviceDiagnosticsInfoScreen.dart';
 import 'deviceGeneralInfoScreen.dart';
+import 'deviceInformationScreen.dart';
 
 class DeviceControlWidget extends StatefulWidget {
   final DeviceEntity device;
@@ -42,9 +43,86 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
     selectedIndex = widget.initialTab;
 
     return ResponsiveLayout(
-      mobile: const Center(child: Text("Mobile / Tablet layout coming soon")),
-      tablet: const Center(child: Text("Mobile / Tablet layout coming soon")),
+      // mobile: const Center(child: Text("Mobile / Tablet layout coming soon")),
+      mobile: _buildMobileLayout(),
+      tablet: _buildTabletLayout(context),
       desktop: _buildDesktopLayout(context),
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    LoggerUtil.getInstance.print(widget.device);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// ---------------------------
+        /// Top Row (Tabs + Date Filter)
+        /// ---------------------------
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [_buildTabBar(context, isDark)],
+        ),
+        SizedBox(height: 5),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            _buildLabelBox("Filter By Date", tGreen8, isDark),
+            const SizedBox(width: 5),
+            _buildDynamicDatePicker(isDark),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: _buildTabContent(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    LoggerUtil.getInstance.print(widget.device);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// ---------------------------
+        /// Top Row (Tabs + Date Filter)
+        /// ---------------------------
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildTabBar(context, isDark),
+            Row(
+              children: [
+                _buildLabelBox("Filter By Date", tGreen8, isDark),
+                const SizedBox(width: 5),
+                _buildDynamicDatePicker(isDark),
+              ],
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        /// ---------------------------
+        /// Dynamic Screen Content
+        /// ---------------------------
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: _buildTabContent(),
+          ),
+        ),
+      ],
     );
   }
 
@@ -65,11 +143,7 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
             _buildTabBar(context, isDark),
             Row(
               children: [
-                _buildLabelBox(
-                  "Filter By Date",
-                  isDark ? tGreen8 : tBlack,
-                  isDark,
-                ),
+                _buildLabelBox("Filter By Date", tGreen8, isDark),
                 const SizedBox(width: 5),
                 _buildDynamicDatePicker(isDark),
               ],
@@ -95,15 +169,58 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
   /// ----------------------------------------------
   /// Build Tab Bar
   /// ----------------------------------------------
+  // Widget _buildTabBar(BuildContext context, bool isDark) {
+  //   return Container(
+  //     width: 450,
+  //     height: 40,
+  //     decoration: BoxDecoration(
+  //       border: Border.all(color: isDark ? tWhite : tBlack, width: 0.6),
+  //     ),
+  //     padding: const EdgeInsets.all(5),
+  //     child: Row(
+  //       children: [
+  //         _buildTabButton("Overview", 0, () {
+  //           context.go(
+  //             '/home/devices/${widget.device.imei}/overview',
+  //             extra: widget.device,
+  //           );
+  //         }, isDark),
+  //         _buildTabButton("Go live", 1, () {
+  //           context.go(
+  //             '/home/devices/${widget.device.imei}/goLive',
+  //             extra: widget.device,
+  //           );
+  //         }, isDark),
+  //         _buildTabButton("Device Control", 2, () {
+  //           context.go(
+  //             '/home/devices/${widget.device.imei}/deviceControl',
+  //             extra: widget.device,
+  //           );
+  //         }, isDark),
+  //       ],
+  //     ),
+  //   );
+  // }
+
   Widget _buildTabBar(BuildContext context, bool isDark) {
+    final isDisconnected =
+        widget.device.status?.toLowerCase() == "disconnected";
+
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+
+    final isTablet = screenWidth >= 600 && screenWidth < 1100;
+
     return Container(
-      width: 450,
+      width: isMobile ? 300 : (isTablet ? 350 : 450),
       height: 40,
       decoration: BoxDecoration(
         border: Border.all(color: isDark ? tWhite : tBlack, width: 0.6),
       ),
       padding: const EdgeInsets.all(5),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _buildTabButton("Overview", 0, () {
             context.go(
@@ -111,18 +228,30 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
               extra: widget.device,
             );
           }, isDark),
-          _buildTabButton("Diagnostics", 1, () {
-            context.go(
-              '/home/devices/${widget.device.imei}/diagnostics',
-              extra: widget.device,
-            );
-          }, isDark),
-          _buildTabButton("Controller", 2, () {
-            context.go(
-              '/home/devices/${widget.device.imei}/controller',
-              extra: widget.device,
-            );
-          }, isDark),
+
+          if (!isDisconnected)
+            _buildTabButton("Go live", 1, () {
+              context.go(
+                '/home/devices/${widget.device.imei}/goLive',
+                extra: widget.device,
+              );
+            }, isDark),
+
+          if (!isDisconnected)
+            _buildTabButton("Information", 2, () {
+              context.go(
+                '/home/devices/${widget.device.imei}/information',
+                extra: widget.device,
+              );
+            }, isDark),
+
+          if (!isDisconnected)
+            _buildTabButton("Device Control", 3, () {
+              context.go(
+                '/home/devices/${widget.device.imei}/deviceControl',
+                extra: widget.device,
+              );
+            }, isDark),
         ],
       ),
     );
@@ -137,6 +266,10 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
     VoidCallback onTap,
     bool isDark,
   ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+
     final isSelected = selectedIndex == index;
 
     return Expanded(
@@ -144,13 +277,13 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
         onPressed: onTap,
         style: TextButton.styleFrom(
           backgroundColor: isSelected ? tGreen8 : (isDark ? tBlack : tWhite),
-          foregroundColor: isSelected ? tBlack : (isDark ? tWhite : tBlack),
+          foregroundColor: isSelected ? tWhite : (isDark ? tWhite : tBlack),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
         ),
         child: Text(
           label,
           style: GoogleFonts.urbanist(
-            fontSize: 13,
+            fontSize: isMobile ? 10 : 13,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -213,10 +346,15 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
         device: widget.device,
         key: const ValueKey(1),
       );
+    } else if (selectedIndex == 2) {
+      return DeviceInformationScreen(
+        device: widget.device,
+        key: const ValueKey(2),
+      );
     } else {
       return DeviceConfigInfoScreen(
         device: widget.device,
-        key: const ValueKey(2),
+        key: const ValueKey(3),
       );
     }
   }
@@ -331,9 +469,6 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
     }
   }
 
-  /// ----------------------------------------------
-  /// Utility Label Box
-  /// ----------------------------------------------
   Widget _buildLabelBox(String text, Color textColor, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -344,7 +479,7 @@ class _DeviceControlWidgetState extends State<DeviceControlWidget> {
         text,
         style: GoogleFonts.urbanist(
           fontSize: 12,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
           color: textColor,
         ),
       ),

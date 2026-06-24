@@ -29,24 +29,30 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
 
-        // Expecting API to return {"accessToken": "..."}
         final token = data['accessToken'] ?? data['token'];
+
         if (token != null && token.isNotEmpty) {
           emit(LoginSuccess(token: token));
         } else {
-          emit(const LoginFailure(error: 'Invalid response: missing token'));
+          emit(
+            LoginFailure(
+              error: 'Invalid response: missing token',
+              statusCode: response.statusCode,
+            ),
+          );
         }
       } else {
         final errorData = jsonDecode(response.body);
+
         emit(
           LoginFailure(
-            error:
-                errorData['error'] ?? 'Login failed (${response.statusCode})',
+            error: errorData['error'] ?? 'Login failed',
+            statusCode: response.statusCode,
           ),
         );
       }
     } catch (error) {
-      emit(LoginFailure(error: error.toString()));
+      emit(LoginFailure(error: error.toString(), statusCode: null));
     }
   }
 }

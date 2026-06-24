@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:svg_flutter/svg_flutter.dart';
 // import '../../../models/dashboardDetailsModel.dart';
 import '../../../models/alertDashboardModel.dart';
 import '../../../models/alertGraphModel.dart';
@@ -70,6 +71,30 @@ class _AlertsChartState extends State<AlertsChart> {
         .toDouble();
   }
 
+  double get chartMaxY {
+    if (chartData.isEmpty) return 10;
+
+    final maxValue = chartData
+        .map(
+          (e) => max(
+            (e['critical'] as num).toDouble(),
+            (e['nonCritical'] as num).toDouble(),
+          ),
+        )
+        .reduce(max);
+
+    // Round up to a nice number
+    if (maxValue <= 10) return 10;
+    if (maxValue <= 50) return (maxValue / 10).ceil() * 10;
+    if (maxValue <= 100) return (maxValue / 20).ceil() * 20;
+    if (maxValue <= 500) return (maxValue / 50).ceil() * 50;
+    if (maxValue <= 1000) return (maxValue / 100).ceil() * 100;
+
+    return (maxValue / 500).ceil() * 500;
+  }
+
+  double get yInterval => chartMaxY / 5;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -81,18 +106,29 @@ class _AlertsChartState extends State<AlertsChart> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Alerts',
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isDark ? tWhite : tBlack,
-              ),
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'icons/bar_chart.svg',
+                  height: 16,
+                  width: 16,
+                  color: isDark ? tWhite : tBlack,
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'Alerts',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? tWhite : tBlack,
+                  ),
+                ),
+              ],
             ),
             Container(
               decoration: BoxDecoration(
                 color: tGrey.withOpacity(0.1),
-                // borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
               ),
               padding: const EdgeInsets.all(5),
               child: Row(
@@ -113,6 +149,7 @@ class _AlertsChartState extends State<AlertsChart> {
             children: [
               BarChart(
                 BarChartData(
+                  maxY: chartMaxY,
                   gridData: FlGridData(show: false),
                   borderData: FlBorderData(show: false),
                   alignment: BarChartAlignment.spaceAround,
@@ -127,10 +164,8 @@ class _AlertsChartState extends State<AlertsChart> {
                               chartData[value.toInt()]["label"],
                               style: GoogleFonts.urbanist(
                                 fontSize: 11,
-                                color:
-                                    isDark
-                                        ? Colors.white70
-                                        : tBlack.withOpacity(0.7),
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : tBlack,
                               ),
                             );
                           }
@@ -138,8 +173,28 @@ class _AlertsChartState extends State<AlertsChart> {
                         },
                       ),
                     ),
+                    // leftTitles: AxisTitles(
+                    //   sideTitles: SideTitles(showTitles: false),
+                    // ),
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        interval: yInterval,
+                        getTitlesWidget: (value, meta) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              format.format(value.toInt()),
+                              style: GoogleFonts.urbanist(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? tWhite : tBlack,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     topTitles: AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -252,15 +307,23 @@ class _AlertsChartState extends State<AlertsChart> {
                           barRods: [
                             BarChartRodData(
                               toY: item["critical"].toDouble(),
-                              color: tOrange1.withOpacity(0.9),
                               width: 10,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tOrange1.withOpacity(0), tOrange1],
+                              ),
                             ),
                             BarChartRodData(
                               toY: item["nonCritical"].toDouble(),
-                              color: tBlueSky.withOpacity(0.9),
                               width: 10,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tBlueSky.withOpacity(0), tBlueSky],
+                              ),
                             ),
                           ],
                         );
@@ -313,7 +376,7 @@ class _AlertsChartState extends State<AlertsChart> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? (isDark ? tWhite : tBlack) : Colors.transparent,
-          // borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(5),
         ),
         child: Text(
           label,

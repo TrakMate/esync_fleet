@@ -19,7 +19,7 @@ Future<void> showUserDeleteConfirmDialog({
       return StatefulBuilder(
         builder: (_, setState) {
           return Dialog(
-            backgroundColor: Colors.transparent,
+            backgroundColor: Colors.transparent, // 👈 important
             child: Container(
               width: 420,
               decoration: BoxDecoration(

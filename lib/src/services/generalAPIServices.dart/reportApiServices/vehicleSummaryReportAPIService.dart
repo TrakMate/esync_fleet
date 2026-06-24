@@ -9,11 +9,11 @@ import '../../apiURL.dart';
 import 'downloadService.dart';
 
 class VehicleSummaryApiService {
-  final String baseUrl = BaseURLConfig.reportsApiUrl + "/vehiclesummary";
+  final String baseUrl = BaseURLConfig.vehicleSummaryReportApiUrl;
 
   Future<VehicleSummaryModel> fetchVehicleSummary({
     required String toDate,
-    String? imei,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -29,7 +29,7 @@ class VehicleSummaryApiService {
 
       String url = _buildUrl(
         toDate: toDate,
-        imei: imei,
+        imeiList: imeiList,
         groupId: groupId,
         rangeDays: rangeDays,
         status: status,
@@ -75,7 +75,7 @@ class VehicleSummaryApiService {
   }
 
   Future<VehicleSummaryModel> fetchRecentVehicleSummary({
-    String? imei,
+    String? imeiList,
     String? groupId,
     String? status,
     String? availability,
@@ -86,7 +86,7 @@ class VehicleSummaryApiService {
 
     return fetchVehicleSummary(
       toDate: toDate,
-      imei: imei,
+      imeiList: imeiList,
       groupId: groupId,
       rangeDays: 7,
       status: status,
@@ -96,35 +96,24 @@ class VehicleSummaryApiService {
 
   String _buildUrl({
     required String toDate,
-    String? imei,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
     String? availability,
     String? format,
   }) {
-    String url = baseUrl;
+    String url =
+        (imeiList != null && imeiList.isNotEmpty)
+            ? "$baseUrl/$imeiList"
+            : baseUrl;
 
-    if (availability != null &&
-        availability.isNotEmpty &&
-        availability != 'All') {
-      url += "/$availability";
-    } else {
-      url += "/All";
-    }
-
-    // Add query parameters
     Map<String, String> queryParams = {};
 
-    // Only add fromDate and toDate if rangeDays is null or 0
     if (rangeDays == null || rangeDays <= 0) {
       if (toDate.isNotEmpty) {
         queryParams["toDate"] = toDate;
       }
-    }
-
-    if (imei != null && imei.isNotEmpty) {
-      queryParams["imei"] = imei;
     }
 
     if (groupId != null && groupId.isNotEmpty) {
@@ -139,18 +128,24 @@ class VehicleSummaryApiService {
       queryParams["StatusFilter"] = status;
     }
 
-    // Add format for download URLs
+    if (availability != null &&
+        availability.isNotEmpty &&
+        availability != 'All') {
+      queryParams["availability"] = availability;
+    }
+
     if (format != null && format.isNotEmpty) {
       queryParams["format"] = format.toLowerCase();
     }
 
     final uri = Uri.parse(url).replace(queryParameters: queryParams);
+
     return uri.toString();
   }
 
   Future<String> getDownloadUrl({
     required String toDate,
-    String? imei,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -159,7 +154,7 @@ class VehicleSummaryApiService {
   }) async {
     return _buildUrl(
       toDate: toDate,
-      imei: imei,
+      imeiList: imeiList,
       groupId: groupId,
       rangeDays: rangeDays,
       status: status,
@@ -171,7 +166,7 @@ class VehicleSummaryApiService {
   Future<void> downloadReport({
     required BuildContext context,
     required String toDate,
-    String? imei,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -183,13 +178,61 @@ class VehicleSummaryApiService {
     try {
       String url = _buildUrl(
         toDate: toDate,
-        imei: imei,
+        imeiList: imeiList,
         groupId: groupId,
         rangeDays: rangeDays,
         status: status,
         availability: availability,
         format: format,
       );
+
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken');
+
+      if (token == null) {
+        onError("Authentication required - Please login again");
+        return;
+      }
+
+      final uri = Uri.parse(url);
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode != 200) {
+        onError("Failed to fetch data: HTTP ${response.statusCode}");
+        return;
+      }
+
+      final jsonData = json.decode(response.body);
+
+      bool hasNoData = false;
+
+      if (jsonData['totalCount'] == 0) {
+        hasNoData = true;
+      } else if (jsonData['entities'] is List &&
+          (jsonData['entities'] as List).isEmpty) {
+        hasNoData = true;
+      } else if (jsonData['data'] is List &&
+          (jsonData['data'] as List).isEmpty) {
+        hasNoData = true;
+      } else if (jsonData['items'] is List &&
+          (jsonData['items'] as List).isEmpty) {
+        hasNoData = true;
+      } else if (jsonData['summary'] == null && jsonData['vehicles'] == null) {
+        hasNoData =
+            jsonData.isEmpty ||
+            (jsonData.keys.length == 1 && jsonData.containsKey('message'));
+      }
+
+      if (hasNoData) {
+        onError("No data found for the selected filters");
+        return;
+      }
 
       String fileExtension = format?.toLowerCase() ?? 'csv';
       String timestamp = DateTime.now()
@@ -201,8 +244,8 @@ class VehicleSummaryApiService {
 
       String fileName = 'vehicle_summary_${toDate}';
 
-      if (imei != null && imei.isNotEmpty) {
-        fileName += '_$imei';
+      if (imeiList != null && imeiList.isNotEmpty) {
+        fileName += '_$imeiList';
       } else if (groupId != null && groupId.isNotEmpty) {
         fileName += '_group_$groupId';
       }

@@ -14,10 +14,14 @@ import 'custom_Toast.dart';
 class VehicleSummaryReportView extends StatefulWidget {
   final String title;
   final String description;
+  final bool isDark;
+  final bool isMobile;
   const VehicleSummaryReportView({
     super.key,
     required this.title,
     required this.description,
+    required this.isDark,
+    required this.isMobile,
   });
 
   @override
@@ -36,6 +40,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
 
   String availability = 'All';
   String vehicleStatus = 'All';
+  bool _imeiError = false;
 
   final TextEditingController searchController = TextEditingController();
   TextEditingController? _searchFieldController;
@@ -71,6 +76,27 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
     'Non Coverage',
     'Disconnected',
   ];
+  // void _resetFilters() {
+  //   setState(() {
+  //     // Reset dates
+  //     final now = DateTime.now();
+  //     fromDate = now;
+  //     toDate = now;
+
+  //     range = 'All';
+  //     _isRangeSelected = false;
+  //     selectedRangeDays = null;
+
+  //     availability = 'All';
+  //     vehicleStatus = 'All';
+  //     format = 'XLSX';
+
+  //     _selectedImeis.clear();
+  //     _selectedGroupIds.clear();
+
+  //     _searchFieldController?.clear();
+  //   });
+  // }
 
   final List<String> _activeNonEVStatuses = ['Moving', 'Stopped', 'Idle'];
   final List<String> _activeEVStatuses = ['Charging', 'Discharging', 'Idle'];
@@ -94,7 +120,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
 
   Color _statusColor(String status, bool isEVFleet) {
     final map = isEVFleet ? _evStatusColors : _nonEVStatusColors;
-    return map[status] ?? tBlue;
+    return map[status] ?? tGreen8;
   }
 
   bool _isActiveStatus(String status, bool isEVFleet) {
@@ -234,16 +260,23 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
   }
 
   Future<void> _downloadReport() async {
+    if (_selectedImeis.isEmpty) {
+      setState(() {
+        _imeiError = true;
+      });
+      return;
+    }
     setState(() {
       isDownloading = true;
       isLoading = true;
+      _imeiError = false;
     });
 
     try {
       String toDateApi = _formatDateForApi(toDate!);
       int rangeDays = _calculateRangeDays();
 
-      String? imei =
+      String? imeiList =
           _selectedImeis.isNotEmpty ? _selectedImeis.join(',') : null;
       String? groupId =
           _selectedGroupIds.isNotEmpty ? _selectedGroupIds.join(',') : null;
@@ -259,7 +292,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
         await vehicleSummaryApi.downloadReport(
           context: context,
           toDate: '',
-          imei: imei,
+          imeiList: imeiList,
           groupId: groupId,
           rangeDays: rangeDays,
           status: statusParam,
@@ -271,6 +304,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                 isDownloading = false;
                 isLoading = false;
               });
+              // _resetFilters();
             }
 
             CustomToast.show(
@@ -300,7 +334,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
         await vehicleSummaryApi.downloadReport(
           context: context,
           toDate: toDateApi,
-          imei: imei,
+          imeiList: imeiList,
           groupId: groupId,
           rangeDays: rangeDays,
           status: statusParam,
@@ -312,6 +346,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                 isDownloading = false;
                 isLoading = false;
               });
+              // _resetFilters();
             }
 
             CustomToast.show(
@@ -360,7 +395,8 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mode = context.watch<FleetModeProvider>().mode;
     final bool isEVFleet = mode == 'EV Fleet';
-
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || (screenWidth <= 600);
     final filteredStatuses = _getFilteredStatuses(isEVFleet);
 
     return Stack(
@@ -371,28 +407,33 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? tWhite : tBlack,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: GoogleFonts.urbanist(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? tWhite : tBlack,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      widget.description,
-                      style: GoogleFonts.urbanist(
-                        fontSize: 13,
-                        color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                      const SizedBox(height: 5),
+                      Text(
+                        widget.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 11 : 13,
+                          color: (isDark ? tWhite : tBlack).withOpacity(0.8),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                _filterButton(isDark),
+                SizedBox(width: isMobile ? 15 : 0),
+                _filterButton(isDark, isMobile),
               ],
             ),
             const SizedBox(height: 5),
@@ -438,17 +479,44 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                     /// TO DATE
                     Row(
                       children: [
-                        _dateLabelBox('Date', isDark),
+                        _dateLabelBox('Date', isDark, isMobile),
                         const SizedBox(width: 5),
                         _dateValueBox(
                           _formatDate(toDate!),
                           isDark,
+                          isMobile,
                           onTap: () async {
                             final picked = await showDatePicker(
                               context: context,
                               initialDate: toDate!,
                               firstDate: DateTime(2020),
                               lastDate: DateTime.now(),
+                              builder: (context, child) {
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    colorScheme: const ColorScheme.light(
+                                      primary: Colors.blue,
+                                      onPrimary: tWhite,
+                                      onSurface: tBlack,
+                                    ),
+                                    // datePickerTheme: DatePickerThemeData(
+                                    //   todayBackgroundColor:
+                                    //       const WidgetStatePropertyAll(
+                                    //         tTransparent,
+                                    //       ),
+                                    //   todayForegroundColor:
+                                    //       const WidgetStatePropertyAll(
+                                    //         tBlueSky,
+                                    //       ),
+                                    //   todayBorder: BorderSide(
+                                    //     color: tBlueSky,
+                                    //     width: 1.5,
+                                    //   ),
+                                    // ),
+                                  ),
+                                  child: child!,
+                                );
+                              },
                             );
                             if (picked != null) {
                               setState(() {
@@ -489,7 +557,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                 // ),
                 const SizedBox(height: 15),
                 Text(
-                  'Search by IMEI',
+                  'Filter by IMEI',
                   style: GoogleFonts.urbanist(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -497,10 +565,10 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _searchField(isDark),
-                const SizedBox(height: 10),
+                _searchField(isDark, isMobile),
+                const SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: isLoading ? null : _downloadReport,
+                  onPressed: _downloadReport,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: tGreen8,
                     shape: RoundedRectangleBorder(
@@ -528,7 +596,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                               Text(
                                 'Downloading...',
                                 style: GoogleFonts.urbanist(
-                                  fontSize: 14,
+                                  fontSize: isMobile ? 12 : 14,
                                   fontWeight: FontWeight.w600,
                                   color: tWhite,
                                 ),
@@ -538,9 +606,9 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
                           : Text(
                             'Generate Report',
                             style: GoogleFonts.urbanist(
-                              fontSize: 14,
+                              fontSize: isMobile ? 12 : 14,
                               fontWeight: FontWeight.w600,
-                              color: tBlack,
+                              color: tWhite,
                             ),
                           ),
                 ),
@@ -549,12 +617,20 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
           ],
         ),
         if (_showFilterPanel)
-          Positioned(top: 50, right: 0, child: _buildFilterPanel(isDark)),
+          Positioned(
+            top: 50,
+            right: 0,
+            left:
+                (widget.isMobile || MediaQuery.of(context).size.width < 600)
+                    ? 0
+                    : null,
+            child: _buildFilterPanel(isDark),
+          ),
       ],
     );
   }
 
-  Widget _dateLabelBox(String text, bool isDark) {
+  Widget _dateLabelBox(String text, bool isDark, bool isMobile) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -564,7 +640,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
       child: Text(
         text,
         style: GoogleFonts.urbanist(
-          fontSize: 13,
+          fontSize: isMobile ? 11 : 13,
           color: isDark ? tWhite : tBlack,
           fontWeight: FontWeight.w600,
         ),
@@ -574,7 +650,8 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
 
   Widget _dateValueBox(
     String value,
-    bool isDark, {
+    bool isDark,
+    bool isMobile, {
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -588,7 +665,7 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
         child: Text(
           value,
           style: GoogleFonts.urbanist(
-            fontSize: 13,
+            fontSize: isMobile ? 11 : 13,
             color: isDark ? tWhite : tBlack,
             fontWeight: FontWeight.w600,
           ),
@@ -634,21 +711,19 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
 
                 return ChoiceChip(
                   showCheckmark: true,
-                  checkmarkColor: tBlack,
+                  checkmarkColor: tWhite,
                   label: Text(
                     option,
                     style: GoogleFonts.urbanist(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? tBlack : (isDark ? tWhite : tBlack),
+                      color: isSelected ? tWhite : (isDark ? tWhite : tBlack),
                     ),
                   ),
                   selected: isSelected,
                   selectedColor: selectedColor ?? tGreen8,
                   backgroundColor:
-                      isDark
-                          ? tWhite.withOpacity(0.15)
-                          : tBlack.withOpacity(0.1),
+                      isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
                   side: BorderSide(color: Colors.transparent, width: 0),
                   onSelected: (_) => onSelected(option),
                 );
@@ -787,203 +862,281 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
   //     ],
   //   );
   // }
-  Widget _searchField(bool isDark) {
+  Widget _searchField(bool isDark, bool isMobile) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Autocomplete<String>(
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            if (textEditingValue.text.isEmpty) {
-              return _imeis;
-            }
+        /// SEARCH FIELD
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Autocomplete<String>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text.isEmpty) {
+                  return _imeis;
+                }
 
-            return _imeis.where(
-              (item) => item.toLowerCase().contains(
-                textEditingValue.text.toLowerCase(),
-              ),
-            );
-          },
-
-          onSelected: (selection) {
-            if (!_selectedImeis.contains(selection)) {
-              setState(() {
-                _selectedImeis.add(selection);
-              });
-            }
-
-            // Clear the search field after selection
-            _searchFieldController?.clear();
-            FocusScope.of(context).unfocus();
-          },
-
-          fieldViewBuilder: (context, controller, focusNode, _) {
-            // Store reference to the controller
-            _searchFieldController = controller;
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              cursorColor: isDark ? tWhite : tBlack,
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isDark ? tWhite : tBlack,
-              ),
-              decoration: InputDecoration(
-                hintText: "Enter IMEI",
-                hintStyle: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.6)
-                          : tBlack.withOpacity(0.6),
-                ),
-                prefixIcon: Icon(
-                  Icons.search_outlined,
-                  size: 18,
-                  color: isDark ? tWhite : tBlack,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
+                return _imeis.where(
+                  (item) => item.toLowerCase().contains(
+                    textEditingValue.text.toLowerCase(),
                   ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(0),
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1,
-                  ),
-                ),
-              ),
-            );
-          },
+                );
+              },
+              // onSelected: (selection) {
+              //   final matchedImei = _imeis.firstWhere(
+              //     (imei) => imei.toLowerCase() == selection.toLowerCase(),
+              //     orElse: () => '',
+              //   );
 
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                color: tTransparent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? tBlack : tWhite,
-                    border: Border.all(
+              //   if (matchedImei.isNotEmpty) {
+              //     if (!_selectedImeis.contains(matchedImei)) {
+              //       setState(() {
+              //         _selectedGroupIds.clear();
+              //         _selectedImeis.add(matchedImei);
+              //       });
+              //     }
+              //   } else {
+              //     final group = _groups.firstWhere(
+              //       (g) =>
+              //           g.name?.toLowerCase() == selection.toLowerCase() ||
+              //           g.id == selection,
+              //       orElse: () => Groups(),
+              //     );
+
+              //     if (group.id != null && !_selectedGroupIds.contains(group.id)) {
+              //       setState(() {
+              //         /// clear imeis when group selected
+              //         _selectedImeis.clear();
+              //         _selectedGroupIds.add(group.id!);
+              //       });
+              //     }
+              //   }
+
+              //   // Clear the search field
+              //   _searchFieldController?.clear();
+              //   FocusScope.of(context).unfocus();
+              // },
+              onSelected: (selection) {
+                final group = _groups.firstWhere(
+                  (g) => g.name?.toLowerCase() == selection.toLowerCase(),
+                  orElse: () => Groups(),
+                );
+
+                // if (group.id != null && !_selectedGroupIds.contains(group.id)) {
+                //   setState(() {
+                //     _selectedGroupIds.add(group.id!);
+                //   });
+                // }
+                if (group.id != null) {
+                  setState(() {
+                    _selectedGroupIds.clear();
+
+                    _selectedGroupIds.add(group.id!);
+                  });
+                }
+
+                _searchFieldController?.clear();
+                searchController.clear();
+
+                FocusScope.of(context).unfocus();
+              },
+
+              fieldViewBuilder: (context, controller, focusNode, _) {
+                _searchFieldController = controller;
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  cursorColor: isDark ? tWhite : tBlack,
+                  style: GoogleFonts.urbanist(
+                    fontSize: isMobile ? 11 : 13,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? tWhite : tBlack,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: "Search...",
+                    hintStyle: GoogleFonts.urbanist(
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w500,
                       color:
                           isDark
-                              ? tWhite.withOpacity(0.5)
-                              : tBlack.withOpacity(0.5),
-                      width: 1,
+                              ? tWhite.withOpacity(0.6)
+                              : tBlack.withOpacity(0.6),
                     ),
-                    borderRadius: BorderRadius.circular(4), // optional
+                    prefixIcon: Icon(
+                      Icons.search_outlined,
+                      size: 18,
+                      color: isDark ? tWhite : tBlack,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(0),
+                      borderSide: BorderSide(
+                        color: isDark ? tWhite : tBlack,
+                        width: 1,
+                      ),
+                    ),
                   ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: 200,
-                      maxWidth: MediaQuery.of(context).size.width * 0.57,
-                    ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: options.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final option = options.elementAt(index);
-                        return InkWell(
-                          onTap: () => onSelected(option),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color:
-                                      isDark
-                                          ? tWhite.withOpacity(0.1)
-                                          : tBlack.withOpacity(0.1),
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    color: Colors.transparent, // IMPORTANT
+                    child: Container(
+                      margin: EdgeInsets.only(top: 6),
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: isDark ? tBlack : tWhite,
+                        boxShadow: [
+                          BoxShadow(
+                            spreadRadius: 2,
+                            blurRadius: 10,
+                            color:
+                                isDark
+                                    ? tWhite.withOpacity(0.25)
+                                    : tBlack.withOpacity(0.15),
+                          ),
+                        ],
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: 200,
+                          maxWidth:
+                              isMobile
+                                  ? MediaQuery.of(context).size.width - 32
+                                  : MediaQuery.of(context).size.width * 0.57,
+                        ),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final option = options.elementAt(index);
+
+                            return InkWell(
+                              onTap: () => onSelected(option),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                // Icon(
-                                //   Icons.phone_android,
-                                //   size: 16,
-                                //   color: isDark ? tWhite : tBlack,
-                                // ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    option,
-                                    style: GoogleFonts.urbanist(
-                                      fontSize: 13,
-                                      color: isDark ? tWhite : tBlack,
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color:
+                                          isDark
+                                              ? tWhite.withOpacity(0.1)
+                                              : tBlack.withOpacity(0.1),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                                child: Text(
+                                  option,
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: isMobile ? 11 : 13,
+                                    color: isDark ? tWhite : tBlack,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         ),
-
         const SizedBox(height: 10),
 
-        /// IMEI CHIPS ONLY
+        /// SELECTED IMEIs and GROUPS
         Wrap(
           spacing: 6,
           runSpacing: 6,
-          children:
-              _selectedImeis.map((imei) {
-                return Chip(
-                  label: Text(imei),
-                  deleteIcon: SvgPicture.asset(
-                    'icons/cancel.svg',
-                    width: 16,
-                    height: 16,
-                    colorFilter: ColorFilter.mode(Colors.grey, BlendMode.srcIn),
-                  ),
-                  onDeleted: () {
-                    setState(() {
-                      _selectedImeis.remove(imei);
-                      // Clear the search field when deleting chip
-                      _searchFieldController?.clear();
-                    });
-                  },
-                  backgroundColor:
-                      isDark
-                          ? tWhite.withOpacity(0.15)
-                          : tBlack.withOpacity(0.1),
-                  deleteIconColor: Colors.grey,
-                  labelStyle: TextStyle(
-                    color: isDark ? tWhite : tBlack,
-                    fontSize: 12,
-                  ),
-                  side: const BorderSide(color: Colors.grey),
-                );
-              }).toList(),
+          children: [
+            /// GROUP CHIPS
+            ..._selectedGroupIds.map((groupId) {
+              final group = _groups.firstWhere(
+                (g) => g.id == groupId,
+                orElse: () => Groups(),
+              );
+
+              return Chip(
+                label: Text(group.name ?? groupId),
+                deleteIcon: SvgPicture.asset(
+                  'icons/cancel.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: ColorFilter.mode(Colors.grey, BlendMode.srcIn),
+                ),
+                onDeleted: () {
+                  setState(() {
+                    _selectedGroupIds.remove(groupId);
+                    // Clear the search field when deleting group
+                    _searchFieldController?.clear();
+                  });
+                },
+                backgroundColor:
+                    isDark ? tGrey.withOpacity(0.1) : tBlack.withOpacity(0.1),
+                deleteIconColor: Colors.grey,
+                labelStyle: TextStyle(
+                  color: isDark ? tWhite : tBlack,
+                  fontSize: 12,
+                ),
+                side: BorderSide.none,
+              );
+            }),
+
+            /// IMEI CHIPS
+            ..._selectedImeis.map((imei) {
+              return Chip(
+                label: Text(imei),
+                // deleteIcon: const Icon(Icons.close, size: 16),
+                deleteIcon: SvgPicture.asset(
+                  'icons/cancel.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: ColorFilter.mode(Colors.grey, BlendMode.srcIn),
+                ),
+                onDeleted: () {
+                  setState(() {
+                    _selectedImeis.remove(imei);
+                    // Clear the search field when deleting IMEI
+                    _searchFieldController?.clear();
+                  });
+                },
+                backgroundColor:
+                    isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.1),
+                deleteIconColor: Colors.grey,
+                labelStyle: TextStyle(
+                  color: isDark ? tWhite : tBlack,
+                  fontSize: 13,
+                ),
+                side: BorderSide.none,
+              );
+            }),
+          ],
         ),
       ],
     );
   }
 
-  Widget _filterButton(bool isDark) => Container(
+  Widget _filterButton(bool isDark, bool isMobile) => Container(
     width: 40,
     height: 40,
     decoration: BoxDecoration(
@@ -992,8 +1145,16 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
     ),
     child: IconButton(
       onPressed: () {
-        if (!mounted) return;
-        setState(() => _showFilterPanel = !_showFilterPanel);
+        if (isMobile) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => _buildFilterPanel(isDark),
+          );
+        } else {
+          setState(() => _showFilterPanel = !_showFilterPanel);
+        }
       },
       icon: SvgPicture.asset(
         'icons/filter.svg',
@@ -1005,66 +1166,132 @@ class _VehicleSummaryReportViewState extends State<VehicleSummaryReportView> {
   );
 
   Widget _buildFilterPanel(bool isDark) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: 350,
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = widget.isMobile || screenWidth < 600;
+
+    if (isMobile) {
+      return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isDark ? tBlack : tWhite,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isDark ? tWhite : tBlack),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10),
-          ],
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: Column(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: _buildFilterContent(isDark, true),
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Container(
+          width: 350,
+          margin: const EdgeInsets.only(top: 10),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isDark ? tWhite : tBlack),
+          ),
+          child: _buildFilterContent(isDark, false),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterContent(bool isDark, bool isMobile) {
+    return StatefulBuilder(
+      builder: (context, modalSetState) {
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // _chipSection(
-            //   title: "Range",
-            //   options: rangeOptions,
-            //   selected: range,
-            //   onSelected: (val) {
-            //     setState(() {
-            //       _applyRange(val);
-            //     });
-            //   },
-            //   isDark: isDark,
-            // ),
-            // const SizedBox(height: 15),
-            _chipSection(
-              title: "Filter by Format",
-              options: formatOptions,
-              selected: format,
-              onSelected: (val) => setState(() => format = val),
-              isDark: isDark,
+            Text(
+              "Filter by Format",
+              style: GoogleFonts.urbanist(
+                fontSize: isMobile ? 12 : 13,
+                fontWeight: FontWeight.w700,
+                color: isDark ? tWhite : tBlack,
+              ),
             ),
-            const SizedBox(height: 15),
-            Align(
-              alignment: Alignment.centerRight,
+
+            SizedBox(height: isMobile ? 8 : 10),
+
+            Wrap(
+              spacing: isMobile ? 6 : 8,
+              runSpacing: isMobile ? 6 : 8,
+              children:
+                  formatOptions.map((option) {
+                    final isSelected = format == option;
+
+                    return FilterChip(
+                      label: Text(
+                        option,
+                        style: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: FontWeight.w500,
+                          color:
+                              isSelected
+                                  ? Colors.white
+                                  : (isDark ? tWhite : tBlack),
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: tGreen8,
+                      checkmarkColor: tWhite,
+                      onSelected: (_) {
+                        modalSetState(() {
+                          format = option;
+                        });
+
+                        setState(() {
+                          format = option;
+                        });
+                      },
+                    );
+                  }).toList(),
+            ),
+
+            SizedBox(height: isMobile ? 20 : 15),
+
+            SizedBox(
+              width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  setState(() {
-                    _showFilterPanel = false;
-                  });
+                  if (isMobile) {
+                    Navigator.pop(context);
+                  } else {
+                    setState(() {
+                      _showFilterPanel = false;
+                    });
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: tGreen8,
-                  foregroundColor: tBlack,
+                  foregroundColor: tWhite,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
+                  elevation: 0,
                 ),
-                child: const Text(
+                child: Text(
                   "Apply Filters",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.urbanist(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: tWhite,
+                  ),
                 ),
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

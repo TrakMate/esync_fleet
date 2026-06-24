@@ -3,7 +3,8 @@ import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import 'package:intl/intl.dart';
+import 'package:svg_flutter/svg_flutter.dart';
 import '../../../models/imeiGraphModel.dart';
 import '../../../utils/appColors.dart';
 
@@ -26,6 +27,9 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
   List<Map<String, dynamic>> chartData = [];
   int? touchedIndex;
   double? touchedY;
+
+  final NumberFormat format = NumberFormat('#,##,###');
+  final NumberFormat decimalFormat = NumberFormat('#,##,###0.0');
 
   double _getMaxY() {
     if (chartData.isEmpty) return 100;
@@ -110,6 +114,48 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
     return (value / maxValue) * 100;
   }
 
+  double get maxTrips => chartData.map((e) => e['trips'] as double).reduce(max);
+
+  double get maxDistance =>
+      chartData.map((e) => e['distance'] as double).reduce(max);
+
+  double get maxHours => chartData.map((e) => e['hours'] as double).reduce(max);
+
+  double get chartMaxValue {
+    if (chartData.isEmpty) return 100;
+
+    final maxTrips = chartData
+        .map((e) => (e['trips'] as num).toDouble())
+        .reduce(max);
+
+    final maxDistance = chartData
+        .map((e) => (e['distance'] as num).toDouble())
+        .reduce(max);
+
+    final maxHours = chartData
+        .map((e) => (e['hours'] as num).toDouble())
+        .reduce(max);
+
+    final maxValue = max(maxTrips, max(maxDistance, maxHours));
+
+    return _roundUpMax(maxValue);
+  }
+
+  double _roundUpMax(double value) {
+    if (value <= 10) return 10;
+    if (value <= 50) return 50;
+    if (value <= 100) return 100;
+    if (value <= 500) return 500;
+    if (value <= 1000) return 1000;
+    if (value <= 5000) return 5000;
+    if (value <= 10000) return 10000;
+
+    final magnitude = pow(10, value.toInt().toString().length - 1);
+    return ((value / magnitude).ceil() * magnitude).toDouble();
+  }
+
+  double get chartInterval => chartMaxValue / 5;
+
   @override
   void didUpdateWidget(covariant DeviceTripsChart oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -143,18 +189,29 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Trips',
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isDark ? tWhite : tBlack,
-              ),
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'icons/bar_chart.svg',
+                  height: 16,
+                  width: 16,
+                  color: isDark ? tWhite : tBlack,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Trips',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? tWhite : tBlack,
+                  ),
+                ),
+              ],
             ),
             Container(
               decoration: BoxDecoration(
                 color: tGrey.withOpacity(0.1),
-                // borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
               ),
               padding: const EdgeInsets.all(5),
               child: Row(
@@ -191,6 +248,7 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
                               chartData[value.toInt()]["label"],
                               style: GoogleFonts.urbanist(
                                 fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: isDark ? tWhite : tBlack,
                               ),
                             );
@@ -200,7 +258,27 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
                       ),
                     ),
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 35,
+                        interval: 20,
+                        getTitlesWidget: (value, meta) {
+                          final actualValue =
+                              ((value / 100) * _getMaxY()).round();
+
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              NumberFormat.compact().format(actualValue),
+                              style: GoogleFonts.urbanist(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : tBlack,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     topTitles: AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -224,9 +302,9 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
                         final legendColors = [tBlue, tGreen, tPink];
                         final legendLabels = ["Trips", "Distance", "Hours"];
                         final legendValues = [
-                          "${data["trips"]}",
-                          "${data["distance"]} km",
-                          "${data["hours"]} h",
+                          format.format(data["trips"]),
+                          "${format.format(data["distance"])} km",
+                          "${decimalFormat.format(data["hours"])} h",
                         ];
 
                         final spans = <TextSpan>[
@@ -320,24 +398,38 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
                           barRods: [
                             BarChartRodData(
                               toY: _norm(item["trips"].toDouble(), maxTrips),
-                              color: tBlue.withOpacity(0.9),
                               width: 8,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tBlue.withOpacity(0), tBlue],
+                              ),
                             ),
                             BarChartRodData(
-                              toY: _norm(
-                                item["distance"].toDouble(),
-                                maxDistance,
-                              ),
-                              color: tGreen.withOpacity(0.9),
+                              toY:
+                                  maxDistance == 0
+                                      ? 0
+                                      : (log(item["distance"] + 1) /
+                                              log(maxDistance + 1)) *
+                                          100,
                               width: 8,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tGreen.withOpacity(0), tGreen],
+                              ),
                             ),
                             BarChartRodData(
                               toY: _norm(item["hours"].toDouble(), maxHours),
-                              color: tPink.withOpacity(0.9),
                               width: 8,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tPink.withOpacity(0), tPink],
+                              ),
                             ),
                           ],
                         );
@@ -392,6 +484,7 @@ class _DeviceTripsChartState extends State<DeviceTripsChart> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? (isDark ? tWhite : tBlack) : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
         ),
         child: Text(
           label,
@@ -436,12 +529,11 @@ class CrosshairPainter extends CustomPainter {
 
     // final double spacing = size.width / (chartDataLength + 1);
     // final double xPos = spacing * (xIndex + 1);
-    final double xPos = size.width * ((xIndex + 0.5) / chartDataLength);
+    final double spacing = size.width / (chartDataLength + 1);
 
-    // final double yPos = size.height * (1 - (yValue / 100).clamp(0, 1));
-    final safeY = max(yValue, 1);
-    final double yPos = size.height * (1 - (safeY / maxY).clamp(0, 1));
+    final double xPos = spacing * (xIndex + 1);
 
+    final double yPos = size.height * (1 - (yValue / 100).clamp(0, 1));
     // Draw dashed vertical line
     _drawDashedLine(
       canvas,

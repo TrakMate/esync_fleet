@@ -2,6 +2,8 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 import 'package:flutter/material.dart';
 
+import '../../utils/appColors.dart';
+
 class GrafanaPanel extends StatelessWidget {
   final String url;
   final double height;
@@ -23,9 +25,15 @@ class GrafanaPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
       height: height,
       width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: isDark ? tWhite : tBlack, width: 1),
+      ),
       child: HtmlElementView(viewType: url),
     );
   }

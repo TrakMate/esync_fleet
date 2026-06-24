@@ -60,8 +60,9 @@ class Data {
   String? speed;
   String? odo;
   String? time;
+  String? address;
 
-  Data({this.lat, this.lng, this.speed, this.odo, this.time});
+  Data({this.lat, this.lng, this.speed, this.odo, this.time, this.address});
 
   Data.fromJson(Map<String, dynamic> json) {
     lat = json['lat'];
@@ -69,16 +70,18 @@ class Data {
     speed = json['speed'];
     odo = json['odo'];
     time = json['time'];
+    address = json['address'];
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['lat'] = this.lat;
-    data['lng'] = this.lng;
-    data['speed'] = this.speed;
-    data['odo'] = this.odo;
-    data['time'] = this.time;
-    return data;
+    return {
+      'lat': lat,
+      'lng': lng,
+      'speed': speed,
+      'odo': odo,
+      'time': time,
+      'address': address,
+    };
   }
 }
 

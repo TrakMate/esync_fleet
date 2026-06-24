@@ -1,100 +1,100 @@
 // class IMEIDistSpeedSocModel {
-//   String? imei;
-//   List<DistanceSpeedSocEntities>? entities;
+//   List<Data>? data;
 
-//   IMEIDistSpeedSocModel({this.imei, this.entities});
+//   IMEIDistSpeedSocModel({this.data});
 
 //   IMEIDistSpeedSocModel.fromJson(Map<String, dynamic> json) {
-//     imei = json['imei'];
-//     if (json['entities'] != null) {
-//       entities = <DistanceSpeedSocEntities>[];
-//       json['entities'].forEach((v) {
-//         entities!.add(new DistanceSpeedSocEntities.fromJson(v));
+//     if (json['data'] != null) {
+//       data = <Data>[];
+//       json['data'].forEach((v) {
+//         data!.add(new Data.fromJson(v));
 //       });
 //     }
 //   }
 
 //   Map<String, dynamic> toJson() {
 //     final Map<String, dynamic> data = new Map<String, dynamic>();
-//     data['imei'] = this.imei;
-//     if (this.entities != null) {
-//       data['entities'] = this.entities!.map((v) => v.toJson()).toList();
+//     if (this.data != null) {
+//       data['data'] = this.data!.map((v) => v.toJson()).toList();
 //     }
 //     return data;
 //   }
 // }
 
-// class DistanceSpeedSocEntities {
-//   final String? timeHr;
-//   final double? soc;
-//   final double? distance;
-//   final double? speed;
+// class Data {
+//   String? time;
+//   double? speed;
+//   double? distance;
+//   double? soc;
 
-//   DistanceSpeedSocEntities({this.timeHr, this.soc, this.distance, this.speed});
+//   Data({this.time, this.speed, this.distance, this.soc});
 
-//   factory DistanceSpeedSocEntities.fromJson(Map<String, dynamic> json) {
-//     return DistanceSpeedSocEntities(
-//       timeHr: json['time_hr'] as String?,
-//       soc: (json['soc'] as num?)?.toDouble(),
-//       distance: (json['Distance'] as num?)?.toDouble(),
-//       speed: (json['speed'] as num?)?.toDouble(),
-//     );
+//   Data.fromJson(Map<String, dynamic> json) {
+//     time = json['time'];
+//     speed = (json['speed'] ?? 0).toDouble();
+//     distance = (json['distance'] ?? 0).toDouble();
+//     soc = (json['soc'] ?? 0).toDouble();
 //   }
 
 //   Map<String, dynamic> toJson() {
-//     final Map<String, dynamic> data = new Map<String, dynamic>();
-//     data['time_hr'] = this.timeHr;
-//     data['soc'] = this.soc;
-//     data['Distance'] = this.distance;
-//     data['speed'] = this.speed;
+//     final Map<String, dynamic> data = {};
+//     data['time'] = time;
+//     data['speed'] = speed;
+//     data['distance'] = distance;
+//     data['soc'] = soc;
 //     return data;
 //   }
 // }
 
 class IMEIDistSpeedSocModel {
-  List<Data>? data;
+  List<ChartData>? oneHour;
+  List<ChartData>? sixHours;
+  List<ChartData>? twelveHours;
+  List<ChartData>? oneDay;
 
-  IMEIDistSpeedSocModel({this.data});
+  IMEIDistSpeedSocModel({
+    this.oneHour,
+    this.sixHours,
+    this.twelveHours,
+    this.oneDay,
+  });
 
   IMEIDistSpeedSocModel.fromJson(Map<String, dynamic> json) {
-    if (json['data'] != null) {
-      data = <Data>[];
-      json['data'].forEach((v) {
-        data!.add(new Data.fromJson(v));
-      });
-    }
-  }
+    oneHour =
+        (json['oneHour'] as List?)?.map((e) => ChartData.fromJson(e)).toList();
 
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    if (this.data != null) {
-      data['data'] = this.data!.map((v) => v.toJson()).toList();
-    }
-    return data;
+    sixHours =
+        (json['sixHours'] as List?)?.map((e) => ChartData.fromJson(e)).toList();
+
+    twelveHours =
+        (json['twelveHours'] as List?)
+            ?.map((e) => ChartData.fromJson(e))
+            .toList();
+
+    oneDay =
+        (json['oneDay'] as List?)?.map((e) => ChartData.fromJson(e)).toList();
   }
 }
 
-class Data {
+class ChartData {
   String? time;
   double? speed;
   double? distance;
   double? soc;
 
-  Data({this.time, this.speed, this.distance, this.soc});
+  ChartData({this.time, this.speed, this.distance, this.soc});
 
-  Data.fromJson(Map<String, dynamic> json) {
+  ChartData.fromJson(Map<String, dynamic> json) {
     time = json['time'];
     speed = (json['speed'] ?? 0).toDouble();
     distance = (json['distance'] ?? 0).toDouble();
-    soc = (json['soc'] ?? 0).toDouble();
+    soc = json['soc'];
   }
 
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = {};
-    data['time'] = time;
-    data['speed'] = speed;
-    data['distance'] = distance;
-    data['soc'] = soc;
-    return data;
-  }
+  Map<String, dynamic> toJson() => {
+    'time': time,
+    'speed': speed,
+    'distance': distance,
+    'soc': soc,
+  };
 }

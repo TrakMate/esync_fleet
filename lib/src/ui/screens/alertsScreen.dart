@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
@@ -12,6 +13,7 @@ import '../../provider/fleetModeProvider.dart';
 import '../../services/generalAPIServices.dart/alertCountAPIService.dart';
 import '../../services/generalAPIServices.dart/alertsAPIService.dart';
 import '../../utils/appColors.dart';
+import 'package:svg_flutter/svg.dart';
 
 import '../../utils/appResponsive.dart';
 import '../components/customTitleBar.dart';
@@ -95,7 +97,8 @@ final Set<String> batteryFaultTypes = {'Battery Fault'};
 
 class AlertsScreen extends StatefulWidget {
   final String type;
-  const AlertsScreen({super.key, required this.type});
+  final String imei;
+  const AlertsScreen({super.key, required this.type, required this.imei});
 
   @override
   State<AlertsScreen> createState() => _AlertsScreenState();
@@ -116,7 +119,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
   AlertCountModel? alertCountModel;
   final AlertCountApiService _alertCountApiService = AlertCountApiService();
   int currentPage = 1;
-  int rowsPerPage = 10;
+  int rowsPerPage = 25;
   int totalPages = 1;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -140,6 +143,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
     }
   }
 
+  final NumberFormat format = NumberFormat('#,##,###');
+
   void _onAlertCardTap(String? alertCategory) {
     setState(() {
       _selectedAlertCategory = alertCategory;
@@ -147,6 +152,17 @@ class _AlertsScreenState extends State<AlertsScreen> {
       selectedFilter = 'All';
     });
     fetchAlerts();
+  }
+
+  String _getFilterSvg(String filter) {
+    switch (filter) {
+      case 'Devices':
+      case 'Speed':
+      case 'Geo-Fence':
+      case 'All':
+      default:
+        return 'icons/nodata1.svg';
+    }
   }
 
   //
@@ -160,18 +176,44 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
     switch (selectedFilter) {
       case 'Devices':
-        // final Map<String, Alerts> uniqueDevices = {};
-
-        // for (var alert in (alertsModel?.alerts ?? [])) {
-        //   final key = alert.imei ?? alert.vehicleNumber ?? '';
-        //   if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
-        //     uniqueDevices[key] = alert;
-        //   }
-        // }
         combinedAlerts = List.from(alertsModel?.alerts ?? []);
         break;
 
+      // // Add from speed alerts
+      // for (var speedAlert in (alertsModel?.speedAlerts ?? [])) {
+      //   final key = speedAlert.imei ?? speedAlert.vehicleNumber ?? '';
+      //   if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
+      //     uniqueDevices[key] = Alerts(
+      //       imei: speedAlert.imei,
+      //       vehicleNumber: speedAlert.vehicleNumber,
+      //       alertType: speedAlert.alertType,
+      //       data: speedAlert.data,
+      //       time: speedAlert.time,
+      //       alertCategory: speedAlert.alertCategory,
+      //     );
+      //   }
+      // }
+
+      // // Add from geo-fence alerts
+      // for (var geoAlert in (alertsModel?.geoFenceAlerts ?? [])) {
+      //   final key = geoAlert.imei ?? geoAlert.vehicleNumber ?? '';
+      //   if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
+      //     uniqueDevices[key] = Alerts(
+      //       imei: geoAlert.imei,
+      //       vehicleNumber: geoAlert.vehicleNumber,
+      //       alertType: geoAlert.alertType ?? 'GeoFence',
+      //       data: geoAlert.data,
+      //       time: geoAlert.time,
+      //       alertCategory: geoAlert.alertCategory,
+      //     );
+      //   }
+      // }
+
+      // combinedAlerts = uniqueDevices.values.toList();
+      // break;
+
       case 'Speed':
+        // Convert SpeedAlerts to Alerts format
         combinedAlerts =
             (alertsModel?.speedAlerts ?? []).map((speedAlert) {
               return Alerts(
@@ -186,6 +228,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
         break;
 
       case 'Geo-Fence':
+        // Convert GeoFenceAlerts to Alerts format
         combinedAlerts =
             (alertsModel?.geoFenceAlerts ?? []).map((geoAlert) {
               return Alerts(
@@ -253,6 +296,173 @@ class _AlertsScreenState extends State<AlertsScreen> {
     setState(() {});
   }
 
+  void _applySearchFilter() {
+    if (alertsModel == null) {
+      _filteredAlerts = [];
+      return;
+    }
+
+    if (_searchQuery.isEmpty) {
+      _updateFilteredAlerts(); // Refresh with current filter
+    } else {
+      final query = _searchQuery.toLowerCase();
+      List<Alerts> sourceAlerts = [];
+
+      switch (selectedFilter) {
+        case 'Devices':
+          // Get unique devices
+          final Map<String, Alerts> uniqueDevices = {};
+          for (var alert in (alertsModel?.alerts ?? [])) {
+            final key = alert.imei ?? alert.vehicleNumber ?? '';
+            if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
+              uniqueDevices[key] = alert;
+            }
+          }
+          for (var speedAlert in (alertsModel?.speedAlerts ?? [])) {
+            final key = speedAlert.imei ?? speedAlert.vehicleNumber ?? '';
+            if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
+              uniqueDevices[key] = Alerts(
+                imei: speedAlert.imei,
+                vehicleNumber: speedAlert.vehicleNumber,
+                alertType: speedAlert.alertType,
+                data: speedAlert.data,
+                time: speedAlert.time,
+                alertCategory: speedAlert.alertCategory,
+              );
+            }
+          }
+          for (var geoAlert in (alertsModel?.geoFenceAlerts ?? [])) {
+            final key = geoAlert.imei ?? geoAlert.vehicleNumber ?? '';
+            if (key.isNotEmpty && !uniqueDevices.containsKey(key)) {
+              uniqueDevices[key] = Alerts(
+                imei: geoAlert.imei,
+                vehicleNumber: geoAlert.vehicleNumber,
+                alertType: geoAlert.alertType ?? 'GeoFence',
+                data: geoAlert.data,
+                time: geoAlert.time,
+                alertCategory: geoAlert.alertCategory,
+              );
+            }
+          }
+          sourceAlerts = uniqueDevices.values.toList();
+          break;
+
+        case 'Speed':
+          sourceAlerts =
+              (alertsModel?.speedAlerts ?? []).map((speedAlert) {
+                return Alerts(
+                  imei: speedAlert.imei,
+                  vehicleNumber: speedAlert.vehicleNumber,
+                  alertType: speedAlert.alertType,
+                  data: speedAlert.data,
+                  time: speedAlert.time,
+                  alertCategory: speedAlert.alertCategory,
+                );
+              }).toList();
+          break;
+
+        case 'Geo-Fence':
+          sourceAlerts =
+              (alertsModel?.geoFenceAlerts ?? []).map((geoAlert) {
+                return Alerts(
+                  imei: geoAlert.imei,
+                  vehicleNumber: geoAlert.vehicleNumber,
+                  alertType: geoAlert.alertType ?? 'GeoFence',
+                  data: geoAlert.data,
+                  time: geoAlert.time,
+                  alertCategory: geoAlert.alertCategory,
+                );
+              }).toList();
+          break;
+
+        case 'All':
+        default:
+          final allAlerts = <Alerts>[];
+          allAlerts.addAll(
+            (alertsModel?.alerts ?? []).map(
+              (alert) => Alerts(
+                imei: alert.imei,
+                vehicleNumber: alert.vehicleNumber,
+                alertType: alert.alertType,
+                data: alert.data,
+                time: alert.time,
+                alertCategory: alert.alertCategory,
+              ),
+            ),
+          );
+          allAlerts.addAll(
+            (alertsModel?.speedAlerts ?? []).map(
+              (speedAlert) => Alerts(
+                imei: speedAlert.imei,
+                vehicleNumber: speedAlert.vehicleNumber,
+                alertType: speedAlert.alertType,
+                data: speedAlert.data,
+                time: speedAlert.time,
+                alertCategory: speedAlert.alertCategory,
+              ),
+            ),
+          );
+          allAlerts.addAll(
+            (alertsModel?.geoFenceAlerts ?? []).map(
+              (geoAlert) => Alerts(
+                imei: geoAlert.imei,
+                vehicleNumber: geoAlert.vehicleNumber,
+                alertType: geoAlert.alertType ?? 'GeoFence',
+                data: geoAlert.data,
+                time: geoAlert.time,
+                alertCategory: geoAlert.alertCategory,
+              ),
+            ),
+          );
+          sourceAlerts = allAlerts;
+          break;
+      }
+
+      _filteredAlerts =
+          sourceAlerts.where((alert) {
+            return (alert.imei?.toLowerCase().contains(query) ?? false) ||
+                (alert.vehicleNumber?.toLowerCase().contains(query) ?? false);
+          }).toList();
+      setState(() {});
+    }
+  }
+  // Future<void> fetchAlerts() async {
+  //   if (!mounted) return;
+
+  //   setState(() => isLoading = true);
+
+  //   try {
+  //     final result = await _apiService.fetchAlerts(
+  //       type: widget.type,
+  //       searchText: _searchQuery.isNotEmpty ? _searchQuery : null,
+  //       date: apiDate,
+  //       currentIndex: (currentPage - 1) * rowsPerPage,
+  //       sizePerPage: rowsPerPage,
+  //     );
+
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       alertsModel = result;
+  //       _filteredAlerts = result.alerts ?? [];
+  //       totalPages = ((result.totalAlerts ?? 0) / rowsPerPage).ceil();
+  //     });
+  //   } catch (e) {
+  //     debugPrint("Alerts API Error: $e");
+  //   } finally {
+  //     if (!mounted) return;
+  //     setState(() => isLoading = false);
+  //   }
+  // }
+
+  String? _getApiImei() {
+    final imei = widget.imei?.trim();
+    if (imei == null || imei.isEmpty || imei.toLowerCase() == 'imei') {
+      return null;
+    }
+    return imei;
+  }
+
   Future<void> fetchAlerts() async {
     if (!mounted) return;
 
@@ -260,11 +470,11 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
     try {
       final result = await _apiService.fetchAlerts(
-        imei: null,
+        imei: _getApiImei(),
         alertType: _getApiAlertType(),
         searchText: _searchQuery.isNotEmpty ? _searchQuery : null,
         date: apiDate,
-        currentIndex: (currentPage - 1) * rowsPerPage,
+        currentIndex: (currentPage - 1),
         sizePerPage: rowsPerPage,
       );
 
@@ -315,7 +525,11 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
   Future<void> fetchAlertCounts() async {
     try {
-      final result = await _alertCountApiService.fetchAlertCounts();
+      final result = await _alertCountApiService.fetchAlertCounts(
+        imei: _getApiImei(),
+        date: apiDate,
+      );
+
       if (mounted) {
         setState(() {
           alertCountModel = result;
@@ -401,16 +615,693 @@ class _AlertsScreenState extends State<AlertsScreen> {
   }
 
   Widget _buildMobileLayout() {
-    return Container();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = context.watch<FleetModeProvider>().mode;
+    List<BreadcrumbItem>? breadcrumbs;
+    final hasValidImei =
+        widget.imei != null &&
+        widget.imei.isNotEmpty &&
+        widget.imei.toLowerCase() != 'imei';
+
+    if (hasValidImei) {
+      // Show IMEI in breadcrumbs
+      breadcrumbs = [
+        BreadcrumbItem(
+          label: "Alerts",
+          onTap: () {
+            context.go('/home/alerts/all');
+          },
+        ),
+        BreadcrumbItem(label: widget.imei, onTap: null),
+      ];
+    }
+
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            /// 🔹 HEADER
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FleetTitleBar(
+                    isDark: isDark,
+                    title: "Alerts",
+                    breadcrumbs: breadcrumbs,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  /// SEARCH + DATE
+                  Row(
+                    children: [
+                      Expanded(child: _buildFilterBySearch(isDark)),
+                      const SizedBox(width: 8),
+                      _buildDynamicDatePicker(isDark),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            /// 🔹 MAIN CONTENT
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        /// 🔸 STATS CARDS (2 × 2 GRID)
+                        Container(
+                          // padding: const EdgeInsets.all(8),
+                          decoration: _cardDecoration(isDark),
+                          child: Column(
+                            children: [
+                              /// ROW 1
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: LargeHoverCard(
+                                      height: 175,
+                                      value: NumberFormat('#,##,###').format(
+                                        int.tryParse(
+                                              alertsModel?.totalAlerts
+                                                      ?.toString() ??
+                                                  "0",
+                                            ) ??
+                                            0,
+                                      ),
+                                      label: "Total Alerts",
+                                      labelColor: tBlue,
+                                      icon: "icons/alert.svg",
+                                      iconColor: tBlue,
+                                      bgColor: tBlue.withOpacity(0.1),
+                                      isDark: isDark,
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 8),
+
+                                  Expanded(
+                                    child: LargeHoverCard(
+                                      height: 175,
+                                      value: NumberFormat('#,##,###').format(
+                                        int.tryParse(
+                                              alertsModel?.criticalAlerts
+                                                      ?.toString() ??
+                                                  "0",
+                                            ) ??
+                                            0,
+                                      ),
+                                      label: "Critical",
+                                      labelColor: tOrange1,
+                                      icon: "icons/alert.svg",
+                                      iconColor: tOrange1,
+                                      bgColor: tOrange1.withOpacity(0.1),
+                                      isDark: isDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              /// ROW 2
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: LargeHoverCard(
+                                      height: 175,
+
+                                      value: NumberFormat('#,##,###').format(
+                                        int.tryParse(
+                                              alertsModel?.nonCriticalAlerts
+                                                      ?.toString() ??
+                                                  "0",
+                                            ) ??
+                                            0,
+                                      ),
+                                      label: "Non-Critical",
+                                      labelColor: tBlueSky,
+                                      icon: "icons/alert.svg",
+                                      iconColor: tBlueSky,
+                                      bgColor: tBlueSky.withOpacity(0.1),
+                                      isDark: isDark,
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 8),
+
+                                  Expanded(
+                                    child: LargeHoverCard(
+                                      height: 175,
+
+                                      value:
+                                          alertsModel?.attentionNeededVehicles
+                                              ?.toString() ??
+                                          "0",
+                                      label: "Faults",
+                                      labelColor: tRed,
+                                      icon: "icons/fault.svg",
+                                      iconColor: tRed,
+                                      bgColor: tRed.withOpacity(0.1),
+                                      isDark: isDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        /// 🔸 FAULT OVERVIEW
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: _cardDecoration(isDark),
+                          child: _buildFaultSection(
+                            title: 'Fault Overview',
+                            faultTypes: allBatteryFaultTypes,
+                            colors: allBatteryFaultColors,
+                            isDark: isDark,
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        /// 🔸 ALERT BAR CHART
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: _cardDecoration(isDark),
+                          child: _buildCombinedAlertsBar(isDark),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        /// 🔸 ALERTS TABLE
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: MediaQuery.of(context).size.height * 0.4,
+                            maxHeight: MediaQuery.of(context).size.height * 0.6,
+                          ),
+                          child: Container(
+                            decoration: _cardDecoration(isDark),
+                            child: _buildAlertsTable(isDark),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        /// 🔹 LOADING
+        if (isLoading) _buildLoadingOverlay(isDark),
+      ],
+    );
   }
 
   Widget _buildTabletLayout() {
-    return Container();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = context.watch<FleetModeProvider>().mode;
+    List<BreadcrumbItem>? breadcrumbs;
+    final hasValidImei =
+        widget.imei != null &&
+        widget.imei.isNotEmpty &&
+        widget.imei.toLowerCase() != 'imei';
+
+    if (hasValidImei) {
+      // Show IMEI in breadcrumbs
+      breadcrumbs = [
+        BreadcrumbItem(
+          label: "Alerts",
+          onTap: () {
+            context.go('/home/alerts/all');
+          },
+        ),
+        BreadcrumbItem(label: widget.imei, onTap: null),
+      ];
+      // } else if (widget.type.isNotEmpty && widget.type != "All") {
+      //   breadcrumbs = [
+      //     BreadcrumbItem(
+      //       label: "Alerts",
+      //       onTap: () {
+      //         Navigator.pushReplacement(
+      //           context,
+      //           MaterialPageRoute(
+      //             builder: (context) => const AlertsScreen(type: "All", imei: ""),
+      //           ),
+      //         );
+      //       },
+      //     ),
+      //     BreadcrumbItem(label: widget.type, onTap: null),
+      //   ];
+    }
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            /// 🔹 HEADER
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                FleetTitleBar(
+                  isDark: isDark,
+                  title: "Alerts",
+                  breadcrumbs: breadcrumbs,
+                ),
+                Row(
+                  children: [
+                    SizedBox(width: 260, child: _buildFilterBySearch(isDark)),
+                    const SizedBox(width: 6),
+                    _buildDynamicDatePicker(isDark),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            /// 🔹 MAIN CONTENT
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          // padding: const EdgeInsets.all(10),
+                          decoration: _cardDecoration(isDark),
+                          child: IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                /// TOTAL (FULL HEIGHT)
+                                Expanded(
+                                  child: LargeHoverCard(
+                                    value: NumberFormat('#,##,###').format(
+                                      int.tryParse(
+                                            alertsModel?.totalAlerts
+                                                    ?.toString() ??
+                                                "0",
+                                          ) ??
+                                          0,
+                                    ),
+                                    label: "Total Alerts",
+                                    labelColor: tBlue,
+                                    icon: "icons/alert.svg",
+                                    iconColor: tBlue,
+                                    bgColor: tBlue.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+
+                                /// MIDDLE (CRITICAL + NON-CRITICAL)
+                                // Expanded(
+                                //   child: Column(
+                                //     children: [
+                                //       Expanded(
+                                //         child: SmallHoverCard(
+                                //           value: NumberFormat(
+                                //             '#,##,###',
+                                //           ).format(
+                                //             int.tryParse(
+                                //                   alertsModel?.criticalAlerts
+                                //                           ?.toString() ??
+                                //                       "0",
+                                //                 ) ??
+                                //                 0,
+                                //           ),
+                                //           label: "Critical",
+                                //           labelColor: tOrange1,
+                                //           icon: "icons/alert.svg",
+                                //           iconColor: tOrange1,
+                                //           bgColor: tOrange1.withOpacity(0.1),
+                                //           isDark: isDark,
+                                //         ),
+                                //       ),
+                                //       const SizedBox(height: 8),
+                                //       Expanded(
+                                //         child: SmallHoverCard(
+                                //           value: NumberFormat(
+                                //             '#,##,###',
+                                //           ).format(
+                                //             int.tryParse(
+                                //                   alertsModel?.nonCriticalAlerts
+                                //                           ?.toString() ??
+                                //                       "0",
+                                //                 ) ??
+                                //                 0,
+                                //           ),
+                                //           label: "Non-Critical",
+                                //           labelColor: tBlueSky,
+                                //           icon: "icons/alert.svg",
+                                //           iconColor: tBlueSky,
+                                //           bgColor: tBlueSky.withOpacity(0.1),
+                                //           isDark: isDark,
+                                //         ),
+                                //       ),
+                                //     ],
+                                //   ),
+                                // ),
+                                // const SizedBox(width: 10),
+                                Expanded(
+                                  child: LargeHoverCard(
+                                    value: NumberFormat('#,##,###').format(
+                                      int.tryParse(
+                                            alertsModel?.criticalAlerts
+                                                    ?.toString() ??
+                                                "0",
+                                          ) ??
+                                          0,
+                                    ),
+                                    label: "Critical",
+                                    labelColor: tOrange1,
+                                    icon: "icons/alert.svg",
+                                    iconColor: tOrange1,
+                                    bgColor: tOrange1.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: LargeHoverCard(
+                                    value: NumberFormat('#,##,###').format(
+                                      int.tryParse(
+                                            alertsModel?.nonCriticalAlerts
+                                                    ?.toString() ??
+                                                "0",
+                                          ) ??
+                                          0,
+                                    ),
+                                    label: "Non-Critical",
+                                    labelColor: tBlueSky,
+                                    icon: "icons/alert.svg",
+                                    iconColor: tBlueSky,
+                                    bgColor: tBlueSky.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+
+                                /// FAULTS
+                                Expanded(
+                                  child: LargeHoverCard(
+                                    value:
+                                        alertsModel?.attentionNeededVehicles
+                                            ?.toString() ??
+                                        "0",
+                                    label: "Faults",
+                                    labelColor: tRed,
+                                    icon: "icons/fault.svg",
+                                    iconColor: tRed,
+                                    bgColor: tRed.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: _cardDecoration(isDark),
+                          child: _buildFaultSection(
+                            title: 'Fault Overview',
+                            faultTypes: allBatteryFaultTypes,
+                            colors: allBatteryFaultColors,
+                            isDark: isDark,
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: _cardDecoration(isDark),
+                          child: _buildCombinedAlertsBar(isDark),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        SizedBox(
+                          height: 400,
+                          child: Container(
+                            decoration: _cardDecoration(isDark),
+                            child: _buildAlertsTable(isDark),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        /// 🔹 LOADING
+        if (isLoading) _buildLoadingOverlay(isDark),
+      ],
+    );
   }
 
+  // Widget _buildCombinedAlertsBar(bool isDark) {
+  //   final mode = context.watch<FleetModeProvider>().mode;
+  //   final isEV = mode == 'EV Fleet';
+
+  //   final lowBatteryCount = alertCountModel?.lowBattery ?? 0;
+  //   final lowFuelCount = alertCountModel?.lowFuel ?? 0;
+  //   final highTempCount = alertCountModel?.highTemperature ?? 0;
+  //   final fallCount = alertCountModel?.fall ?? 0;
+  //   final sosCount = alertCountModel?.soS ?? 0;
+  //   final batterycount = alertCountModel?.batteryFault ?? 0;
+
+  //   final Map<String, int> criticalAlertCounts = {};
+  //   final Map<String, Color> criticalAlertColors = {};
+
+  //   if (isEV) {
+  //     criticalAlertCounts['Battery Low'] = lowBatteryCount;
+  //     criticalAlertCounts['High Temperature'] = highTempCount;
+  //     criticalAlertCounts['Fall Detected'] = fallCount;
+  //     criticalAlertCounts['SOS Triggered'] = sosCount;
+  //     criticalAlertCounts['Battery Fault'] = batterycount;
+
+  //     criticalAlertColors['Battery Low'] = tOrange1;
+  //     criticalAlertColors['High Temperature'] = tOrange;
+  //     criticalAlertColors['Fall Detected'] = tPink1;
+  //     criticalAlertColors['SOS Triggered'] = tRed;
+  //     criticalAlertColors['Battery Fault'] = tBlueDark;
+  //   } else {
+  //     criticalAlertCounts['Low Fuel'] = lowFuelCount;
+  //     criticalAlertCounts['High Temperature'] = highTempCount;
+  //     criticalAlertCounts['Fall Detected'] = fallCount;
+  //     criticalAlertCounts['SOS Triggered'] = sosCount;
+
+  //     criticalAlertColors['Low Fuel'] = tOrange1;
+  //     criticalAlertColors['High Temperature'] = tOrange;
+  //     criticalAlertColors['Fall Detected'] = tPink1;
+  //     criticalAlertColors['SOS Triggered'] = const Color(0xFFFA0E0E);
+  //   }
+
+  //   final total = criticalAlertCounts.values.fold(0, (a, b) => a + b);
+
+  //   final nonZeroEntries =
+  //       criticalAlertCounts.entries.where((e) => e.value > 0).toList();
+
+  //   // 🔹 Loading State
+  //   if (isLoading) {
+  //     return Column(
+  //       crossAxisAlignment: CrossAxisAlignment.stretch,
+  //       children: [
+  //         Row(
+  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //           children: [
+  //             Text(
+  //               'Critical Alerts Overview',
+  //               style: GoogleFonts.urbanist(
+  //                 fontSize: 14,
+  //                 fontWeight: FontWeight.bold,
+  //                 color: isDark ? tWhite : tBlack,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 12),
+  //         Opacity(
+  //           opacity: 0.5,
+  //           child: Column(
+  //             children: [
+  //               Row(
+  //                 children: [
+  //                   Container(width: 10, height: 10, color: tOrange1),
+  //                   const SizedBox(width: 6),
+  //                   Text(
+  //                     'Loading...',
+  //                     style: GoogleFonts.urbanist(
+  //                       fontSize: 13,
+  //                       fontWeight: FontWeight.w600,
+  //                       color: isDark ? tWhite : tBlack,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //               const SizedBox(height: 20),
+  //               Container(height: 20, color: tGrey.withOpacity(0.3)),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     );
+  //   }
+
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.stretch,
+  //     children: [
+  //       /// 🔹 Title
+  //       Row(
+  //         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //         children: [
+  //           Text(
+  //             'Critical Alerts Overview',
+  //             style: GoogleFonts.urbanist(
+  //               fontSize: 14,
+  //               fontWeight: FontWeight.bold,
+  //               color: isDark ? tWhite : tBlack,
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+
+  //       const SizedBox(height: 6),
+
+  //       // Labels and counts in a row
+  //       Row(
+  //         children:
+  //             criticalAlertCounts.entries.map((entry) {
+  //               final label = entry.key;
+  //               final count = entry.value;
+  //               final color = criticalAlertColors[label]!;
+
+  //               final total = criticalAlertCounts.values.fold(
+  //                 0,
+  //                 (a, b) => a + b,
+  //               );
+  //               final percentage = total > 0 ? (count / total) * 100 : 0.0;
+
+  //               return Expanded(
+  //                 child: Column(
+  //                   crossAxisAlignment: CrossAxisAlignment.start,
+  //                   children: [
+  //                     /// 🔹 Color + Label
+  //                     Row(
+  //                       children: [
+  //                         Container(
+  //                           width: 10,
+  //                           height: 10,
+  //                           decoration: BoxDecoration(
+  //                             color: color,
+  //                             borderRadius: BorderRadius.zero,
+  //                           ),
+  //                         ),
+  //                         const SizedBox(width: 6),
+  //                         Flexible(
+  //                           child: Text(
+  //                             label,
+  //                             overflow: TextOverflow.ellipsis,
+  //                             style: GoogleFonts.urbanist(
+  //                               fontSize: 12,
+  //                               fontWeight: FontWeight.w600,
+  //                               color: isDark ? tWhite : tBlack,
+  //                             ),
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+
+  //                     const SizedBox(height: 6),
+
+  //                     /// 🔹 Value + %
+  //                     Row(
+  //                       children: [
+  //                         Text(
+  //                           // '$count [${percentage.toStringAsFixed(0)}%]',
+  //                           '${format.format(count)} [${percentage.toStringAsFixed(0)}%]',
+  //                           style: GoogleFonts.urbanist(
+  //                             fontSize: 12,
+  //                             fontWeight: FontWeight.w500,
+  //                             color: isDark ? tWhite : tBlack,
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ],
+  //                 ),
+  //               );
+  //             }).toList(),
+  //       ),
+
+  //       const SizedBox(height: 20),
+  //       const SizedBox(height: 20),
+
+  //       // Bar chart
+  //       total == 0
+  //           ? Container(
+  //             width: double.infinity,
+  //             height: 20,
+  //             color: tGrey.withOpacity(0.2),
+  //           )
+  //           : Row(
+  //             children:
+  //                 nonZeroEntries.map((entry) {
+  //                   final label = entry.key;
+  //                   final count = entry.value;
+  //                   final color = criticalAlertColors[label]!;
+
+  //                   final totalNonZero = nonZeroEntries.fold(
+  //                     0,
+  //                     (a, b) => a + b.value,
+  //                   );
+
+  //                   final rawFlex = ((count / totalNonZero) * 100);
+  //                   final flex = rawFlex < 1 ? 1 : rawFlex.toInt();
+
+  //                   return Expanded(
+  //                     flex: flex,
+  //                     child: Container(height: 20, color: color),
+  //                   );
+  //                 }).toList(),
+  //           ),
+  //     ],
+  //   );
+  // }
   Widget _buildCombinedAlertsBar(bool isDark) {
     final mode = context.watch<FleetModeProvider>().mode;
     final isEV = mode == 'EV Fleet';
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     final lowBatteryCount = alertCountModel?.lowBattery ?? 0;
     final lowFuelCount = alertCountModel?.lowFuel ?? 0;
@@ -446,237 +1337,181 @@ class _AlertsScreenState extends State<AlertsScreen> {
       criticalAlertColors['SOS Triggered'] = const Color(0xFFFA0E0E);
     }
 
-    // final totalPositiveCount = criticalAlertCounts.values
-    //     .where((count) => count > 0)
-    //     .fold(0, (a, b) => a + b);
-
     final total = criticalAlertCounts.values.fold(0, (a, b) => a + b);
 
-    // Show loading state
-    if (isLoading) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Critical Alerts Overview',
-                style: GoogleFonts.urbanist(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? tWhite : tBlack,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Opacity(
-            opacity: 0.5,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 16.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: tOrange1,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Loading...',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? tWhite : tBlack,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              top: 10.0,
-                              left: 14.0,
-                            ),
-                            child: Text(
-                              '-- [--%]',
-                              style: GoogleFonts.urbanist(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? tWhite : tBlack,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 100,
-                      child: Container(
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: tGrey.withOpacity(0.3),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
+    final nonZeroEntries =
+        criticalAlertCounts.entries.where((e) => e.value > 0).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Critical Alerts Overview',
-              style: GoogleFonts.urbanist(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: isDark ? tWhite : tBlack,
-              ),
-            ),
-          ],
+        Text(
+          'Critical Alerts Overview',
+          style: GoogleFonts.urbanist(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: isDark ? tWhite : tBlack,
+          ),
         ),
-        const SizedBox(height: 6),
 
-        // Labels and counts in a row
-        Row(
-          children:
-              criticalAlertCounts.entries.map((entry) {
-                final label = entry.key;
-                final count = entry.value;
-                final color = criticalAlertColors[label]!;
+        const SizedBox(height: 14),
 
-                final total = criticalAlertCounts.values.fold(
-                  0,
-                  (a, b) => a + b,
-                );
-                final percentage = total > 0 ? (count / total) * 100 : 0.0;
+        if (isMobile)
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children:
+                criticalAlertCounts.entries.map((entry) {
+                  final label = entry.key;
+                  final count = entry.value;
+                  final color = criticalAlertColors[label]!;
 
-                return Expanded(
-                  // ✅ THIS FIXES EVEN SPACING
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      /// 🔹 Color + Label
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment
-                                .center, // center inside each block
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.zero,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              label,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.urbanist(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? tWhite : tBlack,
+                  final percentage = total > 0 ? (count / total) * 100 : 0.0;
+
+                  return SizedBox(
+                    width: (screenWidth - 60) / 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        /// LABEL
+                        Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
 
-                      const SizedBox(height: 6),
+                            const SizedBox(width: 6),
 
-                      /// 🔹 Value + %
-                      Text(
-                        '$count [${percentage.toStringAsFixed(0)}%]',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.urbanist(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? tWhite : tBlack,
+                            Expanded(
+                              child: Text(
+                                label,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? tWhite : tBlack,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-        ),
+
+                        const SizedBox(height: 6),
+
+                        /// VALUE
+                        Text(
+                          '${format.format(count)} [${percentage.toStringAsFixed(0)}%]',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+          )
+        else
+          Row(
+            children:
+                criticalAlertCounts.entries.map((entry) {
+                  final label = entry.key;
+                  final count = entry.value;
+                  final color = criticalAlertColors[label]!;
+
+                  final percentage = total > 0 ? (count / total) * 100 : 0.0;
+
+                  return Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+
+                            const SizedBox(width: 6),
+
+                            Flexible(
+                              child: Text(
+                                label,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? tWhite : tBlack,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        Text(
+                          '${format.format(count)} [${percentage.toStringAsFixed(0)}%]',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+          ),
 
         const SizedBox(height: 20),
 
-        // Bar chart
         total == 0
             ? Container(
               width: double.infinity,
-              height: 20,
-              decoration: BoxDecoration(
-                color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.2),
-                borderRadius: BorderRadius.zero,
-              ),
+              height: isMobile ? 16 : 20,
+              color: tGrey.withOpacity(0.2),
             )
             : Row(
               children:
-                  criticalAlertCounts.entries.map((entry) {
+                  nonZeroEntries.map((entry) {
                     final label = entry.key;
                     final count = entry.value;
                     final color = criticalAlertColors[label]!;
 
-                    final total = criticalAlertCounts.values.fold(
+                    final totalNonZero = nonZeroEntries.fold(
                       0,
-                      (a, b) => a + b,
+                      (a, b) => a + b.value,
                     );
 
-                    final flex =
-                        total > 0
-                            ? ((count / total) * 100).toInt()
-                            : 1; // 👈 keep minimal width
+                    final rawFlex = ((count / totalNonZero) * 100);
+
+                    final flex = rawFlex < 1 ? 1 : rawFlex.toInt();
 
                     return Expanded(
-                      flex: flex == 0 ? 1 : flex, // 👈 prevents invisible bars
+                      flex: flex,
                       child: Container(
-                        height: 20,
+                        height: isMobile ? 16 : 20,
                         decoration: BoxDecoration(
-                          color:
-                              count > 0
-                                  ? color
-                                  : Colors.transparent, // 👈 empty if 0
-                          border: Border.all(
-                            color: color.withOpacity(
-                              0.3,
-                            ), // 👈 outline for 0 values
-                          ),
-                          borderRadius: BorderRadius.zero,
+                          color: color,
+                          borderRadius: BorderRadius.circular(5),
+                          boxShadow: [
+                            BoxShadow(
+                              blurRadius: 6,
+                              spreadRadius: 1,
+                              color: color.withOpacity(0.25),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -686,47 +1521,24 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  Widget _buildEnhancedLegendItem(
-    String label,
-    Color color,
-    int count,
-    bool isDark,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(right: 12, bottom: 6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(3),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.4),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$label [$count]',
-            style: GoogleFonts.urbanist(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: isDark ? tWhite : tBlack,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDesktopLayout(bool isDark) {
+    List<BreadcrumbItem>? breadcrumbs;
+    final hasValidImei =
+        widget.imei != null &&
+        widget.imei.isNotEmpty &&
+        widget.imei.toLowerCase() != 'imei';
+
+    if (hasValidImei) {
+      breadcrumbs = [
+        BreadcrumbItem(
+          label: "Alerts",
+          onTap: () {
+            context.go('/home/alerts/all');
+          },
+        ),
+        BreadcrumbItem(label: widget.imei, onTap: null),
+      ];
+    }
     return Stack(
       children: [
         Column(
@@ -736,7 +1548,11 @@ class _AlertsScreenState extends State<AlertsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                FleetTitleBar(isDark: isDark, title: "Alerts"),
+                FleetTitleBar(
+                  isDark: isDark,
+                  title: "Alerts",
+                  breadcrumbs: breadcrumbs,
+                ),
                 Row(
                   children: [
                     _buildFilterBySearch(isDark),
@@ -749,7 +1565,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
             const SizedBox(height: 10),
 
-            /// 🔹 MAIN CONTENT
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(10.0),
@@ -766,8 +1581,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: _cardDecoration(isDark),
+                                // padding: const EdgeInsets.all(10),
+                                // decoration: _cardDecoration(isDark),
                                 child: IntrinsicHeight(
                                   child: Row(
                                     crossAxisAlignment:
@@ -775,90 +1590,117 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                     children: [
                                       /// TOTAL (FULL HEIGHT)
                                       Expanded(
-                                        child: LargeHoverCard(
-                                          value: NumberFormat(
-                                            '#,##,###',
-                                          ).format(
-                                            int.tryParse(
-                                                  alertsModel?.totalAlerts
-                                                          ?.toString() ??
-                                                      "0",
-                                                ) ??
-                                                0,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedAlertCategory =
+                                                  null; // null means ALL
+                                              currentPage = 1;
+                                              selectedFilter = 'All';
+                                            });
+                                            fetchAlerts();
+                                          },
+                                          child: SmallHoverCard(
+                                            value: NumberFormat(
+                                              '#,##,###',
+                                            ).format(
+                                              int.tryParse(
+                                                    alertsModel?.totalAlerts
+                                                            ?.toString() ??
+                                                        "0",
+                                                  ) ??
+                                                  0,
+                                            ),
+                                            label: "Total Alerts",
+                                            labelColor: tBlue,
+                                            icon: "icons/alert.svg",
+                                            iconColor: tBlue,
+                                            bgColor: tBlue.withOpacity(0.1),
+                                            isDark: isDark,
                                           ),
-                                          label: "Total Alerts",
-                                          labelColor: tBlue,
-                                          icon: "icons/alert.svg",
-                                          iconColor: tBlue,
-                                          bgColor: tBlue.withOpacity(0.1),
-                                          isDark: isDark,
                                         ),
                                       ),
 
                                       const SizedBox(width: 10),
 
                                       /// MIDDLE (CRITICAL + NON-CRITICAL)
+                                      // Expanded(
+                                      //   child: Column(
+                                      //     children: [
                                       Expanded(
-                                        child: Column(
-                                          children: [
-                                            Expanded(
-                                              child: SmallHoverCard(
-                                                value: NumberFormat(
-                                                  '#,##,###',
-                                                ).format(
-                                                  int.tryParse(
-                                                        alertsModel
-                                                                ?.criticalAlerts
-                                                                ?.toString() ??
-                                                            "0",
-                                                      ) ??
-                                                      0,
-                                                ),
-                                                label: "Critical",
-                                                labelColor: tOrange1,
-                                                icon: "icons/alert.svg",
-                                                iconColor: tOrange1,
-                                                bgColor: tOrange1.withOpacity(
-                                                  0.1,
-                                                ),
-                                                isDark: isDark,
-                                              ),
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedAlertCategory =
+                                                  'CRITICAL';
+                                              currentPage = 1;
+                                              selectedFilter = 'All';
+                                            });
+                                            fetchAlerts();
+                                          },
+                                          child: SmallHoverCard(
+                                            value: NumberFormat(
+                                              '#,##,###',
+                                            ).format(
+                                              int.tryParse(
+                                                    alertsModel?.criticalAlerts
+                                                            ?.toString() ??
+                                                        "0",
+                                                  ) ??
+                                                  0,
                                             ),
-
-                                            const SizedBox(height: 8),
-
-                                            Expanded(
-                                              child: SmallHoverCard(
-                                                value: NumberFormat(
-                                                  '#,##,###',
-                                                ).format(
-                                                  int.tryParse(
-                                                        alertsModel
-                                                                ?.nonCriticalAlerts
-                                                                ?.toString() ??
-                                                            "0",
-                                                      ) ??
-                                                      0,
-                                                ),
-                                                label: "Non-Critical",
-                                                labelColor: tBlueSky,
-                                                icon: "icons/alert.svg",
-                                                iconColor: tBlueSky,
-                                                bgColor: tBlueSky.withOpacity(
-                                                  0.1,
-                                                ),
-                                                isDark: isDark,
-                                              ),
-                                            ),
-                                          ],
+                                            label: "Critical",
+                                            labelColor: tOrange1,
+                                            icon: "icons/alert.svg",
+                                            iconColor: tOrange1,
+                                            bgColor: tOrange1.withOpacity(0.1),
+                                            isDark: isDark,
+                                          ),
                                         ),
                                       ),
 
                                       const SizedBox(width: 10),
 
-                                      /// FAULTS (SAME HEIGHT AS TOTAL ✅)
                                       Expanded(
-                                        child: LargeHoverCard(
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedAlertCategory =
+                                                  'NON_CRITICAL';
+                                              currentPage = 1;
+                                              selectedFilter = 'All';
+                                            });
+                                            fetchAlerts();
+                                          },
+                                          child: SmallHoverCard(
+                                            value: NumberFormat(
+                                              '#,##,###',
+                                            ).format(
+                                              int.tryParse(
+                                                    alertsModel
+                                                            ?.nonCriticalAlerts
+                                                            ?.toString() ??
+                                                        "0",
+                                                  ) ??
+                                                  0,
+                                            ),
+                                            label: "Non-Critical",
+                                            labelColor: tBlueSky,
+                                            icon: "icons/alert.svg",
+                                            iconColor: tBlueSky,
+                                            bgColor: tBlueSky.withOpacity(0.1),
+                                            isDark: isDark,
+                                          ),
+                                        ),
+                                      ),
+
+                                      // ],
+                                      // ),
+                                      // ),
+                                      const SizedBox(width: 10),
+
+                                      Expanded(
+                                        child: SmallHoverCard(
                                           value:
                                               alertsModel
                                                   ?.attentionNeededVehicles
@@ -866,7 +1708,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                               "0",
                                           label: "Faults",
                                           labelColor: tRed,
-                                          icon: "icons/faults.svg",
+                                          icon: "icons/fault.svg",
                                           iconColor: tRed,
                                           bgColor: tRed.withOpacity(0.1),
                                           isDark: isDark,
@@ -879,7 +1721,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
                               const SizedBox(height: 12),
 
-                              /// 🔸 VEHICLE FAULT OVERVIEW
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: _cardDecoration(isDark),
@@ -893,7 +1734,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
                               const SizedBox(height: 12),
 
-                              /// 🔸 CRITICAL OVERVIEW (FALL / ALERT BAR)
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: _cardDecoration(isDark),
@@ -930,317 +1770,17 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
   BoxDecoration _cardDecoration(bool isDark) {
     return BoxDecoration(
-      color:
-          isDark
-              ? tBlack.withOpacity(0.8) // 👈 transparent
-              : tWhite.withOpacity(0.9),
-
-      border: Border.all(color: tWhite.withOpacity(0.08)),
-
+      color: isDark ? tBlack : tWhite,
+      borderRadius: BorderRadius.circular(10),
       boxShadow: [
         BoxShadow(
-          blurRadius: 5,
+          blurRadius: 10,
           spreadRadius: 2,
-          color:
-              isDark
-                  ? tTransparent.withOpacity(0.08)
-                  : tTransparent.withOpacity(0.1),
+          color: isDark ? tWhite.withOpacity(0.2) : tBlack.withOpacity(0.1),
         ),
       ],
     );
   }
-  // Widget _buildDesktopLayout(bool isDark) {
-  //   return Stack(
-  //     children: [
-  //       Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           /// HEADER
-  //           Row(
-  //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //             children: [
-  //               FleetTitleBar(isDark: isDark, title: "Alerts"),
-  //               Row(
-  //                 children: [
-  //                   _buildFilterBySearch(isDark),
-  //                   const SizedBox(width: 10),
-  //                   _buildDynamicDatePicker(isDark),
-  //                 ],
-  //               ),
-  //             ],
-  //           ),
-
-  //           const SizedBox(height: 10),
-
-  //           Expanded(
-  //             child: SingleChildScrollView(
-  //               child: Padding(
-  //                 padding: const EdgeInsets.all(10.0),
-  //                 child: Column(
-  //                   crossAxisAlignment: CrossAxisAlignment.start,
-  //                   children: [
-  //                     /// Top Cards Row
-  //                     IntrinsicHeight(
-  //                       child: Column(
-  //                         crossAxisAlignment: CrossAxisAlignment.stretch,
-  //                         children: [
-  //                           Expanded(
-  //                             flex: 4,
-  //                             child: Row(
-  //                               children: [
-  //                                 /// TOTAL ALERTS CARD - Click to show ALL
-  //                                 Expanded(
-  //                                   child: GestureDetector(
-  //                                     onTap: () {
-  //                                       setState(() {
-  //                                         _selectedAlertCategory =
-  //                                             null; // null means ALL
-  //                                         currentPage = 1;
-  //                                         selectedFilter = 'All';
-  //                                       });
-  //                                       fetchAlerts();
-  //                                     },
-  //                                     child: LargeHoverCard(
-  //                                       value: NumberFormat('#,##,###').format(
-  //                                         int.tryParse(
-  //                                               alertsModel?.totalAlerts
-  //                                                       ?.toString() ??
-  //                                                   "0",
-  //                                             ) ??
-  //                                             .0,
-  //                                       ),
-  //                                       label: "Total Alerts",
-  //                                       labelColor: tBlue,
-  //                                       icon: "icons/alert.svg",
-  //                                       iconColor: tBlue,
-  //                                       bgColor: tBlue.withOpacity(0.1),
-  //                                       isDark: isDark,
-  //                                     ),
-  //                                   ),
-  //                                 ),
-  //                                 const SizedBox(width: 10),
-  //                                 Expanded(
-  //                                   flex: 2,
-  //                                   child: Column(
-  //                                     children: [
-  //                                       /// CRITICAL ALERTS CARD - Click to show CRITICAL
-  //                                       Expanded(
-  //                                         child: GestureDetector(
-  //                                           onTap: () {
-  //                                             setState(() {
-  //                                               _selectedAlertCategory =
-  //                                                   'CRITICAL';
-  //                                               currentPage = 1;
-  //                                               selectedFilter = 'All';
-  //                                             });
-  //                                             fetchAlerts();
-  //                                           },
-  //                                           child: SmallHoverCard(
-  //                                             width: double.infinity,
-  //                                             height: 70,
-  //                                             value: NumberFormat(
-  //                                               '#,##,###',
-  //                                             ).format(
-  //                                               int.tryParse(
-  //                                                     alertsModel
-  //                                                             ?.criticalAlerts
-  //                                                             ?.toString() ??
-  //                                                         "0",
-  //                                                   ) ??
-  //                                                   .0,
-  //                                             ),
-  //                                             label: "Critical Alerts",
-  //                                             labelColor: tOrange1,
-  //                                             icon: "icons/alert.svg",
-  //                                             iconColor: tOrange1,
-  //                                             bgColor: tOrange1.withOpacity(
-  //                                               0.1,
-  //                                             ),
-  //                                             isDark: isDark,
-  //                                           ),
-  //                                         ),
-  //                                       ),
-  //                                       const SizedBox(height: 11),
-
-  //                                       /// NON-CRITICAL ALERTS CARD - Click to show NON_CRITICAL
-  //                                       Expanded(
-  //                                         child: GestureDetector(
-  //                                           onTap: () {
-  //                                             setState(() {
-  //                                               _selectedAlertCategory =
-  //                                                   'NON_CRITICAL';
-  //                                               currentPage = 1;
-  //                                               selectedFilter = 'All';
-  //                                             });
-  //                                             fetchAlerts();
-  //                                           },
-  //                                           child: SmallHoverCard(
-  //                                             width: double.infinity,
-  //                                             height: 70,
-  //                                             value: NumberFormat(
-  //                                               '#,##,###',
-  //                                             ).format(
-  //                                               int.tryParse(
-  //                                                     alertsModel
-  //                                                             ?.nonCriticalAlerts
-  //                                                             ?.toString() ??
-  //                                                         "0",
-  //                                                   ) ??
-  //                                                   .0,
-  //                                             ),
-  //                                             label: "Non-Critical Alerts",
-  //                                             labelColor: tBlueSky,
-  //                                             icon: "icons/alert.svg",
-  //                                             iconColor: tBlueSky,
-  //                                             bgColor: tBlueSky.withOpacity(
-  //                                               0.1,
-  //                                             ),
-  //                                             isDark: isDark,
-  //                                           ),
-  //                                         ),
-  //                                       ),
-  //                                     ],
-  //                                   ),
-  //                                 ),
-  //                                 const SizedBox(width: 10),
-
-  //                                 /// VEHICLE FAULTS CARD
-  //                                 Expanded(
-  //                                   child: LargeHoverCard(
-  //                                     value:
-  //                                         alertCountModel?.batteryFault
-  //                                             ?.toString() ??
-  //                                         "0",
-  //                                     label: "Vehicle Faults",
-  //                                     labelColor: tRed,
-  //                                     icon: "icons/vehicleFaults.svg",
-  //                                     iconColor: tRed,
-  //                                     bgColor: tRed.withOpacity(0.1),
-  //                                     isDark: isDark,
-  //                                   ),
-  //                                 ),
-  //                               ],
-  //                             ),
-  //                           ),
-  //                           const SizedBox(width: 10),
-  //                           Expanded(
-  //                             flex: 7,
-  //                             child: Container(
-  //                               decoration: BoxDecoration(
-  //                                 color: isDark ? tBlack : tWhite,
-  //                                 boxShadow: [
-  //                                   BoxShadow(
-  //                                     spreadRadius: 2,
-  //                                     blurRadius: 10,
-  //                                     color:
-  //                                         isDark
-  //                                             ? tWhite.withOpacity(0.25)
-  //                                             : tBlack.withOpacity(0.15),
-  //                                   ),
-  //                                 ],
-  //                               ),
-  //                               padding: const EdgeInsets.only(
-  //                                 left: 15,
-  //                                 right: 15,
-  //                                 top: 10,
-  //                               ),
-  //                               child: _buildFaultSection(
-  //                                 title: 'Vehicle Faults Overview',
-  //                                 faultTypes: allBatteryFaultTypes,
-  //                                 colors: allBatteryFaultColors,
-  //                                 isDark: isDark,
-  //                               ),
-  //                             ),
-  //                           ),
-  //                         ],
-  //                       ),
-  //                     ),
-
-  //                     const SizedBox(height: 20),
-
-  //                     Container(
-  //                       padding: const EdgeInsets.all(15),
-  //                       decoration: BoxDecoration(
-  //                         color: isDark ? tBlack : tWhite,
-  //                         boxShadow: [
-  //                           BoxShadow(
-  //                             spreadRadius: 2,
-  //                             blurRadius: 10,
-  //                             color:
-  //                                 isDark
-  //                                     ? tWhite.withOpacity(0.25)
-  //                                     : tBlack.withOpacity(0.15),
-  //                           ),
-  //                         ],
-  //                       ),
-  //                       child: _buildCombinedAlertsBar(isDark),
-  //                     ),
-
-  //                     const SizedBox(height: 20),
-
-  //                     Container(
-  //                       height: 600,
-  //                       decoration: BoxDecoration(
-  //                         // color: isDark ? tBlack : tWhite,
-  //                         // boxShadow: [
-  //                         //   BoxShadow(
-  //                         //     spreadRadius: 2,
-  //                         //     blurRadius: 10,
-  //                         //     color:
-  //                         //         isDark
-  //                         //             ? tWhite.withOpacity(0.25)
-  //                         //             : tBlack.withOpacity(0.15),
-  //                         //   ),
-  //                         // ],
-  //                       ),
-  //                       child: _buildAlertsTable(isDark),
-  //                     ),
-  //                   ],
-  //                 ),
-  //               ),
-  //             ),
-  //           ),
-  //         ],
-  //       ),
-  //       // if (totalPages > 1)
-  //       // Positioned(
-  //       //   bottom: 20,
-  //       //   left: 0,
-  //       //   right: 0,
-  //       //   child: Center(child: _buildPaginationControls(isDark)),
-  //       // ),
-  //       // Positioned(
-  //       //   bottom: -5,
-  //       //   left: 0,
-  //       //   right: 0,
-  //       //   child: Center(
-  //       //     child: Container(
-  //       //       padding: const EdgeInsets.symmetric(
-  //       //         horizontal: 16,
-  //       //         vertical: 10,
-  //       //       ),
-  //       //       decoration: BoxDecoration(
-  //       //         color: isDark ? tBlack : tWhite, // ✅ background
-  //       //         borderRadius: BorderRadius.circular(0),
-  //       //         boxShadow: [
-  //       //           BoxShadow(
-  //       //             blurRadius: 10,
-  //       //             spreadRadius: 2,
-  //       //             color:
-  //       //                 isDark
-  //       //                     ? tWhite.withOpacity(0.1)
-  //       //                     : tBlack.withOpacity(0.2),
-  //       //           ),
-  //       //         ],
-  //       //       ),
-  //       //       child: _buildPaginationControls(isDark),
-  //       //     ),
-  //       //   ),
-  //       // ),
-  //       if (isLoading) _buildLoadingOverlay(isDark),
-  //     ],
-  //   );
-  // }
 
   Widget _buildFilterBySearch(bool isDark) {
     return Column(
@@ -1306,6 +1846,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 },
               );
             },
+            cursorColor: isDark ? tWhite : tBlack,
           ),
         ),
         const SizedBox(height: 5),
@@ -1384,6 +1925,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
         currentPage = 1;
       });
       fetchAlerts();
+      fetchAlertCounts();
     }
   }
 
@@ -1471,7 +2013,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                         fontWeight: FontWeight.w600,
                         color:
                             selectedFilter == label
-                                ? tBlack
+                                ? tWhite
                                 : (isDark ? tWhite : tBlack),
                       ),
                     ),
@@ -1516,6 +2058,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
           height: maxHeight,
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
             // color: isDark ? tBlack : tWhite,
             // boxShadow: [
             //   BoxShadow(
@@ -1539,6 +2082,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        SvgPicture.asset(
+                          _getFilterSvg(selectedFilter),
+                          width: 150,
+                          height: 150,
+                        ),
+
                         const SizedBox(height: 16),
                         Text(
                           'No ${selectedFilter.toLowerCase()} data available',
@@ -1554,22 +2103,19 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 )
               else
                 Expanded(
-                  child: Scrollbar(
-                    controller: _verticalController,
-                    thumbVisibility: true,
-                    child: SingleChildScrollView(
-                      controller: _verticalController,
-                      scrollDirection: Axis.vertical,
-                      child: SingleChildScrollView(
-                        controller: _horizontalController,
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: maxWidth - 30),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobileOrTablet = constraints.maxWidth < 900;
+
+                      Widget dataTable = SingleChildScrollView(
+                        controller: _verticalController,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
                           child: DataTable(
                             headingRowColor: WidgetStateProperty.all(
                               isDark
                                   ? tGreen8.withOpacity(0.15)
-                                  : tGreen8.withOpacity(0.1),
+                                  : tGreen8.withOpacity(0.05),
                             ),
                             headingTextStyle: GoogleFonts.urbanist(
                               fontWeight: FontWeight.w700,
@@ -1602,31 +2148,27 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                 alerts.map((alert) {
                                   final isCritical =
                                       alert.alertCategory == "CRITICAL";
+
                                   final color =
                                       alertColors[alert.alertType] ??
-                                      (isDark ? tBlue : Colors.blueGrey);
+                                      (isDark ? tGreen8 : Colors.blueGrey);
 
                                   return DataRow(
                                     cells: [
-                                      DataCell(
-                                        Text(
-                                          alert.imei ?? "--",
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
-                                        ),
-                                      ),
+                                      DataCell(Text(alert.imei ?? "--")),
+
                                       DataCell(
                                         Text(
                                           alert.vehicleNumber == null ||
                                                   alert.vehicleNumber!.isEmpty
                                               ? "--"
                                               : alert.vehicleNumber!,
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
                                         ),
                                       ),
+
                                       DataCell(
                                         Text(
+                                          overflow: TextOverflow.ellipsis,
                                           alert.time != null
                                               ? DateFormat(
                                                 'dd MMM yyyy, hh:mm a',
@@ -1636,10 +2178,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                                 ).toLocal(),
                                               )
                                               : "--",
-                                          overflow: TextOverflow.ellipsis,
-                                          maxLines: 1,
                                         ),
                                       ),
+
                                       DataCell(
                                         Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -1656,24 +2197,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                                         ? tOrange1
                                                         : tBlueSky,
                                                 shape: BoxShape.circle,
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color:
-                                                        isCritical
-                                                            ? tOrange1
-                                                                .withOpacity(
-                                                                  0.4,
-                                                                )
-                                                            : tBlueSky
-                                                                .withOpacity(
-                                                                  0.4,
-                                                                ),
-                                                    blurRadius: 2,
-                                                    spreadRadius: 0.5,
-                                                  ),
-                                                ],
                                               ),
                                             ),
+
                                             Container(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -1696,14 +2222,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                                   fontWeight: FontWeight.w600,
                                                   fontSize: 11,
                                                 ),
-                                                overflow: TextOverflow.ellipsis,
-                                                maxLines: 1,
                                               ),
                                             ),
                                           ],
                                         ),
                                       ),
-                                      // DataCell(Text(alert.data ?? "--")),
+
                                       DataCell(
                                         _buildFormattedAlertData(
                                           alert.data,
@@ -1715,10 +2239,171 @@ class _AlertsScreenState extends State<AlertsScreen> {
                                 }).toList(),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+
+                      if (isMobileOrTablet) {
+                        return Scrollbar(
+                          controller: _horizontalController,
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: _horizontalController,
+                            scrollDirection: Axis.horizontal,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minWidth: 1000),
+                              child: dataTable,
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Scrollbar(
+                        controller: _verticalController,
+                        thumbVisibility: true,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: dataTable,
+                        ),
+                      );
+                    },
                   ),
                 ),
+
+              // Expanded(
+              //   child: Scrollbar(
+              //     controller: _verticalController,
+              //     thumbVisibility: true,
+              //     child: SingleChildScrollView(
+              //       controller: _horizontalController,
+              //       scrollDirection: Axis.horizontal,
+              //       child: SizedBox(
+              //         width: maxWidth, // important fix
+              //         child: SingleChildScrollView(
+              //           controller: _verticalController,
+              //           child: DataTable(
+              //             headingRowColor: WidgetStateProperty.all(
+              //               isDark
+              //                   ? tBlue.withOpacity(0.15)
+              //                   : tBlue.withOpacity(0.05),
+              //             ),
+              //             headingTextStyle: GoogleFonts.urbanist(
+              //               fontWeight: FontWeight.w700,
+              //               color: isDark ? tWhite : tBlack,
+              //               fontSize: 13,
+              //             ),
+              //             dataTextStyle: GoogleFonts.urbanist(
+              //               color: isDark ? tWhite : tBlack,
+              //               fontWeight: FontWeight.w400,
+              //               fontSize: 12,
+              //             ),
+              //             columnSpacing: 20,
+              //             horizontalMargin: 10,
+              //             border: TableBorder.all(
+              //               color:
+              //                   isDark
+              //                       ? tWhite.withOpacity(0.1)
+              //                       : tBlack.withOpacity(0.1),
+              //               width: 0.4,
+              //             ),
+              //             dividerThickness: 0.01,
+              //             columns: const [
+              //               DataColumn(label: Text('IMEI Number')),
+              //               DataColumn(label: Text('Vehicle ID')),
+              //               DataColumn(label: Text('Alert Time')),
+              //               DataColumn(label: Text('Alert Type')),
+              //               DataColumn(label: Text('Alert Data')),
+              //             ],
+              //             rows:
+              //                 alerts.map((alert) {
+              //                   final isCritical =
+              //                       alert.alertCategory == "CRITICAL";
+              //                   final color =
+              //                       alertColors[alert.alertType] ??
+              //                       (isDark ? tBlue : Colors.blueGrey);
+
+              //                   return DataRow(
+              //                     cells: [
+              //                       DataCell(Text(alert.imei ?? "--")),
+              //                       DataCell(
+              //                         Text(
+              //                           alert.vehicleNumber == null ||
+              //                                   alert.vehicleNumber!.isEmpty
+              //                               ? "--"
+              //                               : alert.vehicleNumber!,
+              //                         ),
+              //                       ),
+              //                       DataCell(
+              //                         Text(
+              //                           alert.time != null
+              //                               ? DateFormat(
+              //                                 'dd MMM yyyy, hh:mm a',
+              //                               ).format(
+              //                                 DateTime.parse(
+              //                                   alert.time!,
+              //                                 ).toLocal(),
+              //                               )
+              //                               : "--",
+              //                         ),
+              //                       ),
+              //                       DataCell(
+              //                         Row(
+              //                           mainAxisSize: MainAxisSize.min,
+              //                           children: [
+              //                             Container(
+              //                               width: 8,
+              //                               height: 8,
+              //                               margin: const EdgeInsets.only(
+              //                                 right: 4,
+              //                               ),
+              //                               decoration: BoxDecoration(
+              //                                 color:
+              //                                     isCritical
+              //                                         ? tOrange1
+              //                                         : tBlueSky,
+              //                                 shape: BoxShape.circle,
+              //                               ),
+              //                             ),
+              //                             Container(
+              //                               padding:
+              //                                   const EdgeInsets.symmetric(
+              //                                     vertical: 2,
+              //                                     horizontal: 6,
+              //                                   ),
+              //                               decoration: BoxDecoration(
+              //                                 color: color.withOpacity(0.1),
+              //                                 borderRadius:
+              //                                     BorderRadius.circular(3),
+              //                                 border: Border.all(
+              //                                   color: color.withOpacity(0.6),
+              //                                   width: 0.5,
+              //                                 ),
+              //                               ),
+              //                               child: Text(
+              //                                 alert.alertType ?? "--",
+              //                                 style: GoogleFonts.urbanist(
+              //                                   color: color,
+              //                                   fontWeight: FontWeight.w600,
+              //                                   fontSize: 11,
+              //                                 ),
+              //                               ),
+              //                             ),
+              //                           ],
+              //                         ),
+              //                       ),
+              //                       DataCell(
+              //                         _buildFormattedAlertData(
+              //                           alert.data,
+              //                           isDark,
+              //                         ),
+              //                       ),
+              //                     ],
+              //                   );
+              //                 }).toList(),
+              //           ),
+              //         ),
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         );
@@ -1751,6 +2436,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
               ),
             ),
             Text(
+              overflow: TextOverflow.ellipsis,
               "Data: $valuePart",
               style: GoogleFonts.urbanist(
                 fontSize: 12,
@@ -2105,82 +2791,428 @@ class _AlertsScreenState extends State<AlertsScreen> {
     required Map<String, Color> colors,
     required bool isDark,
   }) {
+    final mode = context.watch<FleetModeProvider>().mode;
+    final isEV = mode == 'EV Fleet';
     final batteryFaultCount = alertCountModel?.batteryFault ?? 0;
+    final totalAlerts = alertsModel?.totalAlerts ?? 0;
 
-    final hasValue = batteryFaultCount > 0;
+    double percentage =
+        batteryFaultCount == 0
+            ? 0
+            : (batteryFaultCount / batteryFaultCount) * 100;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        /// 🔹 HEADING (STATIC)
-        Text(
-          title,
-          style: GoogleFonts.urbanist(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: isDark ? tWhite : tBlack,
+    if (isEV) {
+      if (batteryFaultCount > 0) {
+        percentage = 100.0;
+      }
+    } else {
+      percentage = 0.0;
+    }
+
+    final faultColor = tGrey;
+
+    // Show loading state
+    if (isLoading) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.urbanist(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+            ],
           ),
-        ),
+          const SizedBox(height: 12),
+          Opacity(
+            opacity: 0.5,
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: faultColor,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'Battery Fault',
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? tWhite : tBlack,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: 10.0,
+                              left: 14.0,
+                            ),
+                            child: Text(
+                              '-- [--%]',
+                              style: GoogleFonts.urbanist(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? tWhite : tBlack,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color:
+                        isDark
+                            ? tGrey.withOpacity(0.3)
+                            : tGrey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Container(
+                    width: 0, // Empty during loading
+                    height: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
-        const SizedBox(height: 10),
+    if (!isEV) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.urbanist(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: faultColor,
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Battery Fault',
+                            style: GoogleFonts.urbanist(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? tWhite : tBlack,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10.0, left: 14.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '0 [0%]',
+                            style: GoogleFonts.urbanist(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? tWhite : tBlack,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            height: 20,
+            decoration: BoxDecoration(
+              color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+        ],
+      );
+    }
 
-        /// 🔹 LABEL (STATIC)
+    // EV Mode
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: tGrey,
-                borderRadius: BorderRadius.zero,
-              ),
-            ),
-            const SizedBox(width: 6),
             Text(
-              'Fault',
+              title,
               style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isDark ? tWhite : tBlack,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              '$batteryFaultCount',
-              style: GoogleFonts.urbanist(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
                 color: isDark ? tWhite : tBlack,
               ),
             ),
           ],
         ),
-
         const SizedBox(height: 12),
-
-        /// 🔹 BAR (STATIC LOGIC)
-        Container(
-          width: double.infinity,
-          height: 20,
-          decoration: BoxDecoration(
-            color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.2),
-            borderRadius: BorderRadius.zero,
+        if (batteryFaultCount == 0) ...[
+          Text(
+            // title,
+            ' Fault',
+            style: GoogleFonts.urbanist(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isDark ? tWhite : tBlack,
+            ),
           ),
-          child:
-              hasValue
-                  ? Container(
-                    width: double.infinity,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: tGrey, // or use specific fault color if needed
-                      borderRadius: BorderRadius.zero,
+          SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            height: 20,
+            decoration: BoxDecoration(
+              color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+        ] else ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: faultColor,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            ' Fault',
+                            style: GoogleFonts.urbanist(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? tWhite : tBlack,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  )
-                  : null, // 👈 empty → grey bar only
-        ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5.0, left: 14.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '0[0%]',
+                            style: GoogleFonts.urbanist(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? tWhite : tBlack,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Full width bar (100% filled)
+          Container(
+            width: double.infinity,
+            height: 20,
+            decoration: BoxDecoration(
+              color: isDark ? tGrey.withOpacity(0.3) : tGrey.withOpacity(0.1),
+            ),
+            child: Container(
+              width: double.infinity,
+              height: 20,
+              decoration: BoxDecoration(
+                color: faultColor,
+                borderRadius: BorderRadius.circular(5),
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 6,
+                    spreadRadius: 2,
+                    color: faultColor.withOpacity(0.3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
+
+  // Widget _buildBatteryFaultBar(
+  //   double faultCount,
+  //   Color faultColor,
+  //   bool isDark,
+  // ) {
+  //   double totalAlerts = alertsModel?.totalAlerts?.toDouble() ?? 100.0;
+  //   double percentage =
+  //       totalAlerts > 0 ? (faultCount / totalAlerts).clamp(0.0, 1.0) : 0.0;
+
+  //   return Container(
+  //     width: double.infinity,
+  //     height: 26,
+  //     decoration: BoxDecoration(color: tTransparent),
+  //     child: TweenAnimationBuilder<double>(
+  //       tween: Tween<double>(begin: 0, end: percentage),
+  //       duration: const Duration(milliseconds: 800),
+  //       curve: Curves.easeInOut,
+  //       builder: (context, value, child) {
+  //         return Row(
+  //           children: [
+  //             Expanded(
+  //               flex: (value * 1000).toInt().clamp(1, 1000),
+  //               child: Container(
+  //                 decoration: BoxDecoration(
+  //                   color: faultColor,
+  //                   boxShadow: [
+  //                     BoxShadow(
+  //                       color: faultColor.withOpacity(0.4),
+  //                       blurRadius: 4,
+  //                       spreadRadius: 1,
+  //                     ),
+  //                   ],
+  //                 ),
+  //                 child: Tooltip(
+  //                   message:
+  //                       "Battery Fault: ${(percentage * 100).toStringAsFixed(1)}%",
+  //                   child: const SizedBox.expand(),
+  //                 ),
+  //               ),
+  //             ),
+  //             // Add empty space for the remaining percentage
+  //             Expanded(
+  //               flex: ((1 - value) * 1000).toInt().clamp(0, 1000),
+  //               child: Container(
+  //                 decoration: BoxDecoration(
+  //                   color:
+  //                       isDark
+  //                           ? tGrey.withOpacity(0.3)
+  //                           : tGrey.withOpacity(0.1),
+  //                 ),
+  //                 child: Tooltip(
+  //                   message:
+  //                       "No Fault: ${((1 - value) * 100).toStringAsFixed(1)}%",
+  //                   child: const SizedBox.expand(),
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
+
+  // Widget _buildFaultLegendWithCount(
+  //   String label,
+  //   Color color,
+  //   double count,
+  //   bool isDark,
+  // ) {
+  //   return Container(
+  //     margin: const EdgeInsets.only(right: 12, bottom: 6),
+  //     child: Row(
+  //       mainAxisSize: MainAxisSize.min,
+  //       children: [
+  //         Container(
+  //           width: 12,
+  //           height: 12,
+  //           decoration: BoxDecoration(
+  //             color: color,
+  //             borderRadius: BorderRadius.circular(3),
+  //             boxShadow: [
+  //               BoxShadow(
+  //                 color: color.withOpacity(0.4),
+  //                 blurRadius: 4,
+  //                 spreadRadius: 1,
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //         const SizedBox(width: 6),
+  //         Text(
+  //           '$label [${count.toInt()}]',
+  //           style: GoogleFonts.urbanist(
+  //             fontSize: 11,
+  //             fontWeight: FontWeight.w500,
+  //             color: isDark ? tWhite : tBlack,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildAnimatedAlertsBar(
     Map<String, double> data,
@@ -2236,8 +3268,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
   Widget _buildPaginationControls(bool isDark) {
     const int visiblePageCount = 5;
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1100;
+
     int startPage =
         ((currentPage - 1) ~/ visiblePageCount) * visiblePageCount + 1;
+
     int endPage = (startPage + visiblePageCount - 1).clamp(1, totalPages);
 
     final pageButtons = <Widget>[];
@@ -2248,25 +3286,45 @@ class _AlertsScreenState extends State<AlertsScreen> {
       pageButtons.add(
         GestureDetector(
           onTap: () {
+            if (pageNum == currentPage) return;
+
             if (!mounted) return;
+
             setState(() => currentPage = pageNum);
+
             fetchAlerts();
           },
+
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            margin: EdgeInsets.symmetric(horizontal: isMobile ? 2 : 4),
+
+            padding: EdgeInsets.symmetric(
+              horizontal:
+                  isMobile
+                      ? 8
+                      : isTablet
+                      ? 9
+                      : 10,
+
+              vertical: isMobile ? 5 : 6,
+            ),
+
             decoration: BoxDecoration(
-              color: isSelected ? tBlue : Colors.transparent,
+              color: isSelected ? tGreen8 : Colors.transparent,
+
               borderRadius: BorderRadius.circular(6),
+
               border: Border.all(
                 color:
                     isSelected
-                        ? tBlue
+                        ? tGreen8
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
+
             child: Text(
               '$pageNum',
+
               style: GoogleFonts.urbanist(
                 color:
                     isSelected
@@ -2274,8 +3332,15 @@ class _AlertsScreenState extends State<AlertsScreen> {
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),
+
                 fontWeight: FontWeight.w600,
-                fontSize: 13,
+
+                fontSize:
+                    isMobile
+                        ? 11
+                        : isTablet
+                        ? 12
+                        : 13,
               ),
             ),
           ),
@@ -2285,10 +3350,144 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
     final controller = TextEditingController();
 
+    // ---------------- MOBILE + TABLET ----------------
+
+    if (isMobile || isTablet) {
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: isMobile ? 4 : 6,
+          horizontal: isMobile ? 4 : 6,
+        ),
+
+        child: Column(
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+
+                children: [
+                  IconButton(
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+
+                    icon: Icon(
+                      Icons.chevron_left,
+                      color: isDark ? tWhite : tBlack,
+                      size: isMobile ? 20 : 21,
+                    ),
+
+                    onPressed: () {
+                      if (currentPage > 1) {
+                        setState(() => currentPage--);
+
+                        fetchAlerts();
+                      }
+                    },
+                  ),
+
+                  const SizedBox(width: 2),
+
+                  Row(children: pageButtons),
+
+                  const SizedBox(width: 2),
+
+                  IconButton(
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+
+                    icon: Icon(
+                      Icons.chevron_right,
+                      color: isDark ? tWhite : tBlack,
+                      size: isMobile ? 20 : 21,
+                    ),
+
+                    onPressed: () {
+                      if (currentPage < totalPages) {
+                        setState(() => currentPage++);
+
+                        fetchAlerts();
+                      }
+                    },
+                  ),
+
+                  SizedBox(
+                    width: isMobile ? 50 : 58,
+                    height: 30,
+
+                    child: TextField(
+                      controller: controller,
+
+                      style: GoogleFonts.urbanist(
+                        fontSize: isMobile ? 11 : 12,
+                        color: isDark ? tWhite : tBlack,
+                      ),
+
+                      keyboardType: TextInputType.number,
+
+                      decoration: InputDecoration(
+                        hintText: 'Page',
+
+                        hintStyle: GoogleFonts.urbanist(
+                          fontSize: isMobile ? 10 : 11,
+                          color: isDark ? Colors.white54 : Colors.black54,
+                        ),
+
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(
+                            color: isDark ? tWhite : tBlack,
+                            width: 0.8,
+                          ),
+                        ),
+                      ),
+
+                      onSubmitted: (value) {
+                        final page = int.tryParse(value);
+
+                        if (page != null &&
+                            page >= 1 &&
+                            page <= totalPages &&
+                            mounted) {
+                          setState(() => currentPage = page);
+
+                          fetchAlerts();
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              '$startPage–$endPage of $totalPages',
+
+              style: GoogleFonts.urbanist(
+                fontSize: isMobile ? 11 : 12,
+                color: isDark ? tWhite : tBlack,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ---------------- DESKTOP ----------------
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
+
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
+
         children: [
           IconButton(
             icon: Icon(
@@ -2296,10 +3495,13 @@ class _AlertsScreenState extends State<AlertsScreen> {
               color: isDark ? tWhite : tBlack,
               size: 22,
             ),
+
             onPressed: () {
-              if (!mounted || currentPage <= 1) return;
-              setState(() => currentPage--);
-              fetchAlerts();
+              if (currentPage > 1) {
+                setState(() => currentPage--);
+
+                fetchAlerts();
+              }
             },
           ),
 
@@ -2311,10 +3513,13 @@ class _AlertsScreenState extends State<AlertsScreen> {
               color: isDark ? tWhite : tBlack,
               size: 22,
             ),
+
             onPressed: () {
-              if (!mounted || currentPage >= totalPages) return;
-              setState(() => currentPage++);
-              fetchAlerts();
+              if (currentPage < totalPages) {
+                setState(() => currentPage++);
+
+                fetchAlerts();
+              }
             },
           ),
 
@@ -2323,23 +3528,30 @@ class _AlertsScreenState extends State<AlertsScreen> {
           SizedBox(
             width: 70,
             height: 32,
+
             child: TextField(
               controller: controller,
+
               style: GoogleFonts.urbanist(
                 fontSize: 13,
                 color: isDark ? tWhite : tBlack,
               ),
+
               keyboardType: TextInputType.number,
+
               decoration: InputDecoration(
                 hintText: 'Page',
+
                 hintStyle: GoogleFonts.urbanist(
                   fontSize: 12,
                   color: isDark ? Colors.white54 : Colors.black54,
                 ),
+
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 4,
                 ),
+
                 border: OutlineInputBorder(
                   borderSide: BorderSide(
                     color: isDark ? tWhite : tBlack,
@@ -2347,13 +3559,16 @@ class _AlertsScreenState extends State<AlertsScreen> {
                   ),
                 ),
               ),
+
               onSubmitted: (value) {
                 final page = int.tryParse(value);
+
                 if (page != null &&
                     page >= 1 &&
                     page <= totalPages &&
                     mounted) {
                   setState(() => currentPage = page);
+
                   fetchAlerts();
                 }
               },
@@ -2364,6 +3579,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
           Text(
             '$startPage–$endPage of $totalPages',
+
             style: GoogleFonts.urbanist(
               fontSize: 13,
               color: isDark ? tWhite : tBlack,
@@ -2373,6 +3589,171 @@ class _AlertsScreenState extends State<AlertsScreen> {
       ),
     );
   }
+
+  // Widget _buildPaginationControls(bool isDark) {
+  //   const int visiblePageCount = 5;
+
+  //   int startPage =
+  //       ((currentPage - 1) ~/ visiblePageCount) * visiblePageCount + 1;
+  //   int endPage = (startPage + visiblePageCount - 1).clamp(1, totalPages);
+
+  //   final pageButtons = <Widget>[];
+
+  //   for (int pageNum = startPage; pageNum <= endPage; pageNum++) {
+  //     final isSelected = pageNum == currentPage;
+
+  //     pageButtons.add(
+  //       GestureDetector(
+  //         onTap: () {
+  //           if (!mounted) return;
+  //           setState(() => currentPage = pageNum);
+  //           fetchAlerts();
+  //         },
+  //         child: Container(
+  //           margin: const EdgeInsets.symmetric(horizontal: 4),
+  //           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  //           decoration: BoxDecoration(
+  //             color: isSelected ? tBlue : Colors.transparent,
+  //             borderRadius: BorderRadius.circular(6),
+  //             border: Border.all(
+  //               color:
+  //                   isSelected
+  //                       ? tBlue
+  //                       : (isDark ? Colors.white54 : Colors.black54),
+  //             ),
+  //           ),
+  //           child: Text(
+  //             '$pageNum',
+  //             style: GoogleFonts.urbanist(
+  //               color:
+  //                   isSelected
+  //                       ? tWhite
+  //                       : (isDark
+  //                           ? tWhite.withOpacity(0.8)
+  //                           : tBlack.withOpacity(0.8)),
+  //               fontWeight: FontWeight.w600,
+  //               fontSize: 13,
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //     );
+  //   }
+
+  //   final controller = TextEditingController();
+
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(vertical: 10),
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.center,
+  //       children: [
+  //         IconButton(
+  //           icon: Icon(
+  //             Icons.chevron_left,
+  //             color: isDark ? tWhite : tBlack,
+  //             size: 22,
+  //           ),
+  //           onPressed: () {
+  //             if (!mounted || currentPage <= 1) return;
+  //             setState(() => currentPage--);
+  //             fetchAlerts();
+  //           },
+  //         ),
+
+  //         Row(children: pageButtons),
+
+  //         IconButton(
+  //           icon: Icon(
+  //             Icons.chevron_right,
+  //             color: isDark ? tWhite : tBlack,
+  //             size: 22,
+  //           ),
+  //           onPressed: () {
+  //             if (!mounted || currentPage >= totalPages) return;
+  //             setState(() => currentPage++);
+  //             fetchAlerts();
+  //           },
+  //         ),
+
+  //         const SizedBox(width: 16),
+
+  //         SizedBox(
+  //           width: 70,
+  //           height: 32,
+  //           child: TextField(
+  //             controller: controller,
+  //             style: GoogleFonts.urbanist(
+  //               fontSize: 13,
+  //               color: isDark ? tWhite : tBlack,
+  //             ),
+  //             keyboardType: TextInputType.number,
+  //             decoration: InputDecoration(
+  //               hintText: 'Page',
+  //               hintStyle: GoogleFonts.urbanist(
+  //                 fontSize: 12,
+  //                 color: isDark ? Colors.white54 : Colors.black54,
+  //               ),
+  //               contentPadding: const EdgeInsets.symmetric(
+  //                 horizontal: 8,
+  //                 vertical: 4,
+  //               ),
+  //               border: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 0.8,
+  //                 ),
+  //               ),
+  //               enabledBorder: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 0.8,
+  //                 ),
+  //               ),
+
+  //               focusedBorder: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color: isDark ? tWhite : tBlack,
+  //                   width: 1.2, // slightly thicker when focused
+  //                 ),
+  //               ),
+
+  //               disabledBorder: OutlineInputBorder(
+  //                 borderSide: BorderSide(
+  //                   color:
+  //                       isDark
+  //                           ? tWhite.withOpacity(0.4)
+  //                           : tBlack.withOpacity(0.4),
+  //                   width: 0.8,
+  //                 ),
+  //               ),
+  //             ),
+  //             onSubmitted: (value) {
+  //               final page = int.tryParse(value);
+  //               if (page != null &&
+  //                   page >= 1 &&
+  //                   page <= totalPages &&
+  //                   mounted) {
+  //                 setState(() => currentPage = page);
+  //                 fetchAlerts();
+  //               }
+  //             },
+  //             cursorColor: isDark ? tWhite : tBlack,
+  //           ),
+  //         ),
+
+  //         const SizedBox(width: 10),
+
+  //         Text(
+  //           '$startPage–$endPage of $totalPages',
+  //           style: GoogleFonts.urbanist(
+  //             fontSize: 13,
+  //             color: isDark ? tWhite : tBlack,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildLoadingOverlay(bool isDark) {
     return Positioned.fill(

@@ -4,9 +4,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:svg_flutter/svg_flutter.dart';
 // import '../../../models/dashboardDetailsModel.dart';
 import '../../../models/tripGraphModel.dart' as tripGraphModel;
-import '../../../models/tripsDashboardModel.dart';
 import '../../../utils/appColors.dart';
 
 class TripsChart extends StatefulWidget {
@@ -35,6 +35,7 @@ class _TripsChartState extends State<TripsChart> {
   }
 
   final NumberFormat format = NumberFormat('#,##,###');
+  final NumberFormat Decimalformat = NumberFormat('#,##,###0.0');
 
   double _parseNum(dynamic value) {
     if (value == null) return 0;
@@ -100,6 +101,41 @@ class _TripsChartState extends State<TripsChart> {
 
   double get maxHours => chartData.map((e) => e['hours'] as double).reduce(max);
 
+  double get chartMaxValue {
+    if (chartData.isEmpty) return 100;
+
+    final maxTrips = chartData
+        .map((e) => (e['trips'] as num).toDouble())
+        .reduce(max);
+
+    final maxDistance = chartData
+        .map((e) => (e['distance'] as num).toDouble())
+        .reduce(max);
+
+    final maxHours = chartData
+        .map((e) => (e['hours'] as num).toDouble())
+        .reduce(max);
+
+    final maxValue = max(maxTrips, max(maxDistance, maxHours));
+
+    return _roundUpMax(maxValue);
+  }
+
+  double _roundUpMax(double value) {
+    if (value <= 10) return 10;
+    if (value <= 50) return 50;
+    if (value <= 100) return 100;
+    if (value <= 500) return 500;
+    if (value <= 1000) return 1000;
+    if (value <= 5000) return 5000;
+    if (value <= 10000) return 10000;
+
+    final magnitude = pow(10, value.toInt().toString().length - 1);
+    return ((value / magnitude).ceil() * magnitude).toDouble();
+  }
+
+  double get chartInterval => chartMaxValue / 5;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -111,18 +147,29 @@ class _TripsChartState extends State<TripsChart> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Trips',
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isDark ? tWhite : tBlack,
-              ),
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'icons/bar_chart.svg',
+                  height: 16,
+                  width: 16,
+                  color: isDark ? tWhite : tBlack,
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'Trips',
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? tWhite : tBlack,
+                  ),
+                ),
+              ],
             ),
             Container(
               decoration: BoxDecoration(
                 color: tGrey.withOpacity(0.1),
-                // borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
               ),
               padding: const EdgeInsets.all(5),
               child: Row(
@@ -157,10 +204,8 @@ class _TripsChartState extends State<TripsChart> {
                               chartData[value.toInt()]["label"],
                               style: GoogleFonts.urbanist(
                                 fontSize: 11,
-                                color:
-                                    isDark
-                                        ? Colors.white70
-                                        : Colors.black.withOpacity(0.7),
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : tBlack,
                               ),
                             );
                           }
@@ -168,8 +213,30 @@ class _TripsChartState extends State<TripsChart> {
                         },
                       ),
                     ),
+                    // leftTitles: AxisTitles(
+                    //   sideTitles: SideTitles(showTitles: true),
+                    // ),
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 35,
+                        interval: 20,
+                        getTitlesWidget: (value, meta) {
+                          final actualValue = (value / 100) * chartMaxValue;
+
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              NumberFormat.compact().format(actualValue),
+                              style: GoogleFonts.urbanist(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? tWhite : tBlack,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     topTitles: AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -200,7 +267,7 @@ class _TripsChartState extends State<TripsChart> {
                         final legendValues = [
                           format.format(data["trips"]),
                           "${format.format(data["distance"])} km",
-                          "${format.format(data["hours"])} h",
+                          "${Decimalformat.format(data["hours"])} h",
                         ];
                         final spans = <TextSpan>[
                           TextSpan(
@@ -286,36 +353,77 @@ class _TripsChartState extends State<TripsChart> {
                           showingTooltipIndicators:
                               touchedIndex == i ? [0, 1, 2] : [],
                           barRods: [
+                            // BarChartRodData(
+                            //   toY:
+                            //       maxTrips == 0
+                            //           ? 0
+                            //           : (item["trips"] / maxTrips) * 100,
+                            //   color: tBlue.withOpacity(0.9),
+                            //   width: 8,
+                            //   borderRadius: BorderRadius.circular(0),
+                            // ),
                             BarChartRodData(
                               toY:
                                   maxTrips == 0
                                       ? 0
                                       : (item["trips"] / maxTrips) * 100,
-                              color: tBlue.withOpacity(0.9),
                               width: 8,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tBlue.withOpacity(0), tBlue],
+                              ),
                             ),
+                            // BarChartRodData(
+                            //   toY:
+                            //       maxDistance == 0
+                            //           ? 0
+                            //           // : (item["distance"] / maxDistance) * 100,
+                            //           : (log(item["distance"] + 1) /
+                            //                   log(maxDistance + 1)) *
+                            //               100,
+
+                            //   color: tGreen.withOpacity(0.9),
+                            //   width: 8,
+                            //   borderRadius: BorderRadius.circular(0),
+                            // ),
                             BarChartRodData(
                               toY:
                                   maxDistance == 0
                                       ? 0
-                                      // : (item["distance"] / maxDistance) * 100,
                                       : (log(item["distance"] + 1) /
                                               log(maxDistance + 1)) *
                                           100,
-
-                              color: tGreen.withOpacity(0.9),
                               width: 8,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tGreen.withOpacity(0), tGreen],
+                              ),
                             ),
+                            // BarChartRodData(
+                            //   toY:
+                            //       maxHours == 0
+                            //           ? 0
+                            //           : (item["hours"] / maxHours) * 100,
+                            //   color: tPink.withOpacity(0.9),
+                            //   width: 8,
+                            //   borderRadius: BorderRadius.circular(0),
+                            // ),
                             BarChartRodData(
                               toY:
                                   maxHours == 0
                                       ? 0
                                       : (item["hours"] / maxHours) * 100,
-                              color: tPink.withOpacity(0.9),
                               width: 8,
-                              borderRadius: BorderRadius.circular(0),
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tPink.withOpacity(0), tPink],
+                              ),
                             ),
                           ],
                         );
@@ -371,7 +479,7 @@ class _TripsChartState extends State<TripsChart> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? (isDark ? tWhite : tBlack) : Colors.transparent,
-          // borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(5),
         ),
         child: Text(
           label,

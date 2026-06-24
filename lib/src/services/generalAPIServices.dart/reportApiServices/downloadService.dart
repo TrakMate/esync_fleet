@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:excel/excel.dart';
 import 'package:file_saver/file_saver.dart';
@@ -70,13 +69,143 @@ class DownloadService {
       _progressController.stream;
 
   // Original method for downloading from URL
+  // static Future<void> downloadFile({
+  //   required BuildContext context,
+
+  //   required String url,
+  //   required String fileName,
+  //   required String format,
+  //   required String contentType,
+  //   required Function(String) onSuccess,
+  //   required Function(String) onError,
+  // }) async {
+  //   String downloadId = DateTime.now().millisecondsSinceEpoch.toString();
+
+  //   DownloadProgress progress = DownloadProgress(
+  //     id: downloadId,
+  //     fileName: fileName,
+  //     status: DownloadStatus.starting,
+  //     progress: 0,
+  //     url: url,
+  //     startTime: DateTime.now(),
+  //     format: format,
+  //   );
+
+  //   try {
+  //     _activeDownloads[downloadId] = progress;
+  //     _progressController.add(progress);
+
+  //     CustomToast.show(
+  //       context: context,
+  //       message: "Generating Report...",
+  //       type: ToastType.loading,
+  //     );
+
+  //     final prefs = await SharedPreferences.getInstance();
+  //     final token = prefs.getString('accessToken');
+
+  //     if (token == null) {
+  //       throw Exception("Authentication required - Please login again");
+  //     }
+
+  //     final uri = Uri.parse(url);
+
+  //     final response = await http.get(
+  //       uri,
+  //       headers: {
+  //         "Authorization": "Bearer $token",
+  //         "Accept": "application/json",
+  //       },
+  //     );
+
+  //     if (response.statusCode != 200) {
+  //       throw Exception("Download failed: HTTP ${response.statusCode}");
+  //     }
+
+  //     final jsonData = json.decode(response.body);
+
+  //     late dynamic contentToDownload;
+  //     bool isBinary = false;
+
+  //     switch (format.toLowerCase()) {
+  //       case 'csv':
+  //         contentToDownload = _convertJsonToCsv(jsonData);
+  //         break;
+  //       case 'json':
+  //         contentToDownload = _convertJsonToJson(jsonData);
+  //         break;
+  //       case 'xml':
+  //         contentToDownload = _convertJsonToXml(jsonData);
+  //         break;
+  //       case 'xlsx':
+  //         contentToDownload = _convertJsonToXlsx(jsonData);
+  //         isBinary = true;
+  //         break;
+  //       case 'logs':
+  //         contentToDownload = _convertJsonToLogs(jsonData);
+  //         break;
+  //       default:
+  //         contentToDownload = json.encode(jsonData);
+  //     }
+
+  //     Uint8List bytes;
+
+  //     if (isBinary) {
+  //       bytes = Uint8List.fromList(contentToDownload);
+  //     } else {
+  //       bytes = Uint8List.fromList(utf8.encode(contentToDownload));
+  //     }
+
+  //     await FileSaver.instance.saveFile(
+  //       name: fileName.split('.').first,
+  //       bytes: bytes,
+  //       ext: format,
+  //       mimeType: MimeType.other,
+  //     );
+
+  //     progress = progress.copyWith(
+  //       status: DownloadStatus.completed,
+  //       progress: 100,
+  //       endTime: DateTime.now(),
+  //     );
+
+  //     _activeDownloads[downloadId] = progress;
+  //     _progressController.add(progress);
+
+  //     CustomToast.show(
+  //       context: context,
+  //       message: "Download complete",
+  //       type: ToastType.loading,
+  //     );
+
+  //     onSuccess("File downloaded: $fileName");
+  //   } catch (e) {
+  //     progress = progress.copyWith(
+  //       status: DownloadStatus.failed,
+  //       error: e.toString(),
+  //       endTime: DateTime.now(),
+  //     );
+
+  //     _activeDownloads[downloadId] = progress;
+  //     _progressController.add(progress);
+
+  //     CustomToast.show(
+  //       context: context,
+  //       message: "Failed to generate report",
+  //       type: ToastType.error,
+  //     );
+
+  //     onError(e.toString());
+  //   }
+  // }
+
   static Future<void> downloadFile({
     required BuildContext context,
-
     required String url,
     required String fileName,
     required String format,
     required String contentType,
+    dynamic jsonData, // Add this optional parameter
     required Function(String) onSuccess,
     required Function(String) onError,
   }) async {
@@ -102,61 +231,90 @@ class DownloadService {
         type: ToastType.loading,
       );
 
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('accessToken');
+      Uint8List bytes;
+      bool isBinary = false;
+      late dynamic contentToDownload;
 
-      if (token == null) {
-        throw Exception("Authentication required - Please login again");
+      // If jsonData is provided, use it; otherwise fetch from URL
+      if (jsonData != null) {
+        // Use the pre-fetched data
+        switch (format.toLowerCase()) {
+          case 'csv':
+            contentToDownload = _convertJsonToCsv(jsonData);
+            break;
+          case 'json':
+            contentToDownload = _convertJsonToJson(jsonData);
+            break;
+          case 'xml':
+            contentToDownload = _convertJsonToXml(jsonData);
+            break;
+          case 'xlsx':
+            contentToDownload = _convertJsonToXlsx(jsonData);
+            isBinary = true;
+            break;
+          case 'logs':
+            contentToDownload = _convertJsonToLogs(jsonData);
+            break;
+          default:
+            contentToDownload = json.encode(jsonData);
+        }
+      } else {
+        // Fallback to fetching from URL (original code)
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('accessToken');
+
+        if (token == null) {
+          throw Exception("Authentication required - Please login again");
+        }
+
+        final uri = Uri.parse(url);
+        final response = await http.get(
+          uri,
+          headers: {
+            "Authorization": "Bearer $token",
+            "Accept": "application/json",
+          },
+        );
+
+        if (response.statusCode != 200) {
+          throw Exception("Download failed: HTTP ${response.statusCode}");
+        }
+
+        final fetchedJsonData = json.decode(response.body);
+
+        switch (format.toLowerCase()) {
+          case 'csv':
+            contentToDownload = _convertJsonToCsv(fetchedJsonData);
+            break;
+          case 'json':
+            contentToDownload = _convertJsonToJson(fetchedJsonData);
+            break;
+          case 'xml':
+            contentToDownload = _convertJsonToXml(fetchedJsonData);
+            break;
+          case 'xlsx':
+            contentToDownload = _convertJsonToXlsx(fetchedJsonData);
+            isBinary = true;
+            break;
+          case 'logs':
+            contentToDownload = _convertJsonToLogs(fetchedJsonData);
+            break;
+          default:
+            contentToDownload = json.encode(fetchedJsonData);
+        }
       }
 
-      final uri = Uri.parse(url);
-
-      final response = await http.get(
-        uri,
-        headers: {
-          "Authorization": "Bearer $token",
-          "Accept": "application/json",
-        },
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception("Download failed: HTTP ${response.statusCode}");
+      if (isBinary) {
+        if (contentToDownload is List<int>) {
+          bytes = Uint8List.fromList(contentToDownload);
+        } else if (contentToDownload is Uint8List) {
+          bytes = contentToDownload;
+        } else {
+          throw Exception("Invalid binary data format");
+        }
+      } else {
+        bytes = Uint8List.fromList(utf8.encode(contentToDownload));
       }
-
-      // final jsonData = json.decode(response.body);
-      final bytes = response.bodyBytes;
-
-      // late dynamic contentToDownload;
-      // bool isBinary = false;
-
-      // switch (format.toLowerCase()) {
-      //   case 'csv':
-      //     contentToDownload = _convertJsonToCsv(jsonData);
-      //     break;
-      //   case 'json':
-      //     contentToDownload = _convertJsonToJson(jsonData);
-      //     break;
-      //   case 'xml':
-      //     contentToDownload = _convertJsonToXml(jsonData);
-      //     break;
-      //   case 'xlsx':
-      //     contentToDownload = _convertJsonToXlsx(jsonData);
-      //     isBinary = true;
-      //     break;
-      //   case 'logs':
-      //     contentToDownload = _convertJsonToLogs(jsonData);
-      //     break;
-      //   default:
-      //     contentToDownload = json.encode(jsonData);
-      // }
-
-      // Uint8List bytes;
-
-      // if (isBinary) {
-      //   bytes = Uint8List.fromList(contentToDownload);
-      // } else {
-      //   bytes = Uint8List.fromList(utf8.encode(contentToDownload));
-      // }
 
       await FileSaver.instance.saveFile(
         name: fileName.split('.').first,
@@ -177,7 +335,7 @@ class DownloadService {
       CustomToast.show(
         context: context,
         message: "Download complete",
-        type: ToastType.loading,
+        type: ToastType.success, // Change from loading to success
       );
 
       onSuccess("File downloaded: $fileName");
@@ -190,12 +348,6 @@ class DownloadService {
 
       _activeDownloads[downloadId] = progress;
       _progressController.add(progress);
-
-      CustomToast.show(
-        context: context,
-        message: "Failed to generate report",
-        type: ToastType.error,
-      );
 
       onError(e.toString());
     }
@@ -333,80 +485,126 @@ class DownloadService {
   // static List<int> _convertJsonToXlsx(dynamic jsonData) {
   //   try {
   //     var excel = Excel.createExcel();
-  //     Sheet sheetObject = excel['Trip Report'];
 
-  //     if (jsonData is Map && jsonData.containsKey('entities')) {
-  //       final entities = jsonData['entities'] as List;
+  //     final defaultSheet = excel.getDefaultSheet();
+  //     if (defaultSheet != null) {
+  //       excel.rename(defaultSheet, "Report");
+  //     }
 
-  //       if (entities.isEmpty) return [];
+  //     final sheet = excel["Report"];
 
-  //       final headers = (entities.first as Map).keys.toList();
+  //     if (jsonData == null ||
+  //         jsonData is! Map ||
+  //         !jsonData.containsKey('entities')) {
+  //       throw Exception("Invalid JSON structure");
+  //     }
 
-  //       for (int i = 0; i < headers.length; i++) {
-  //         sheetObject.updateCell(
-  //           CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
-  //           TextCellValue(headers[i]),
+  //     final List entities = jsonData['entities'];
+
+  //     if (entities.isEmpty) {
+  //       throw Exception("No data available");
+  //     }
+
+  //     final headers = <String>{};
+  //     for (var item in entities) {
+  //       headers.addAll((item as Map).keys.map((e) => e.toString()));
+  //     }
+
+  //     final headerList = headers.toList();
+
+  //     // Headers
+  //     for (int col = 0; col < headerList.length; col++) {
+  //       sheet.updateCell(
+  //         CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
+  //         TextCellValue(headerList[col]),
+  //       );
+  //     }
+
+  //     // Data
+  //     for (int row = 0; row < entities.length; row++) {
+  //       final rowData = entities[row] as Map;
+
+  //       for (int col = 0; col < headerList.length; col++) {
+  //         final key = headerList[col];
+  //         final value = rowData[key];
+
+  //         sheet.updateCell(
+  //           CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row + 1),
+  //           TextCellValue(value?.toString() ?? ''),
   //         );
-  //       }
-
-  //       for (int row = 0; row < entities.length; row++) {
-  //         final entity = entities[row] as Map;
-
-  //         for (int col = 0; col < headers.length; col++) {
-  //           sheetObject.updateCell(
-  //             CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row + 1),
-  //             TextCellValue(entity[headers[col]]?.toString() ?? ''),
-  //           );
-  //         }
   //       }
   //     }
 
-  //     return excel.save() ?? [];
+  //     final fileBytes = excel.save();
+
+  //     if (fileBytes == null || fileBytes.isEmpty) {
+  //       throw Exception("Excel file generation failed");
+  //     }
+
+  //     return fileBytes;
   //   } catch (e) {
-  //     return [];
+  //     print("Excel conversion error: $e");
+  //     rethrow;
   //   }
   // }
-
   static List<int> _convertJsonToXlsx(dynamic jsonData) {
     try {
       var excel = Excel.createExcel();
 
-      String defaultSheet = excel.getDefaultSheet()!;
+      final sheetName = "Report";
 
-      excel.rename(defaultSheet, "Report");
+      final sheet = excel[sheetName];
 
-      Sheet sheetObject = excel["Report"];
-
-      if (jsonData is Map && jsonData.containsKey('entities')) {
-        final entities = jsonData['entities'] as List;
-
-        if (entities.isEmpty) return [];
-
-        final headers = (entities.first as Map).keys.toList();
-
-        // Headers
-        for (int i = 0; i < headers.length; i++) {
-          sheetObject.updateCell(
-            CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
-            TextCellValue(headers[i]),
-          );
-        }
-
-        // Data
-        for (int row = 0; row < entities.length; row++) {
-          final entity = entities[row] as Map;
-
-          for (int col = 0; col < headers.length; col++) {
-            sheetObject.updateCell(
-              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row + 1),
-              TextCellValue(entity[headers[col]]?.toString() ?? ''),
-            );
-          }
-        }
+      excel.setDefaultSheet(sheetName);
+      excel.delete('Sheet1'); // Remove default sheet if it exists
+      if (jsonData == null ||
+          jsonData is! Map ||
+          !jsonData.containsKey('entities')) {
+        throw Exception("Invalid JSON structure");
       }
 
-      return excel.save() ?? [];
+      final List entities = jsonData['entities'];
+
+      if (entities.isEmpty) {
+        final emptyBytes = excel.encode();
+        return emptyBytes ?? [];
+      }
+
+      final headers = <String>{};
+      for (var item in entities) {
+        headers.addAll((item as Map).keys.map((e) => e.toString()));
+      }
+
+      final headerList = headers.toList();
+
+      List<TextCellValue> headerCells = [];
+      for (int col = 0; col < headerList.length; col++) {
+        headerCells.add(TextCellValue(headerList[col]));
+      }
+      sheet.appendRow(headerCells);
+
+      for (int row = 0; row < entities.length; row++) {
+        final rowData = entities[row] as Map;
+        List<TextCellValue> rowCells = [];
+
+        for (int col = 0; col < headerList.length; col++) {
+          final key = headerList[col];
+          final value = rowData[key];
+          rowCells.add(TextCellValue(value?.toString() ?? ''));
+        }
+        sheet.appendRow(rowCells);
+      }
+
+      final fileBytes = excel.encode();
+
+      if (fileBytes == null || fileBytes.isEmpty) {
+        throw Exception("Excel file generation failed");
+      }
+
+      return fileBytes;
     } catch (e) {
+      print("Excel conversion error: $e");
+      // Return empty list instead of rethrowing
       return [];
     }
   }

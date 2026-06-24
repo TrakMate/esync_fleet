@@ -1,7 +1,9 @@
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/devicesModel.dart';
 import '../../ui/screens/deviceControlWidget.dart';
+import '../../ui/screens/deviceInformationScreen.dart';
 import '../../ui/screens/fleetModeSelectionScreen.dart';
 import '../../ui/screens/landingScreen.dart';
 import '../../ui/screens/loadingScreen.dart';
@@ -17,6 +19,23 @@ import '../../ui/screens/settingsScreen.dart';
 class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: '/loading',
+    redirect: (context, state) async {
+      final prefs = await SharedPreferences.getInstance();
+
+      final token = prefs.getString('accessToken');
+
+      final isLoggedIn = token != null && token.isNotEmpty;
+
+      final isAuthRoute =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/loading';
+
+      if (!isLoggedIn && !isAuthRoute) {
+        return '/landing';
+      }
+
+      return null;
+    },
     routes: [
       /// ------------------------------
       /// AUTH & LOADING ROUTES
@@ -65,8 +84,12 @@ class AppRouter {
             builder: (context, state) {
               final status = state.uri.queryParameters['status'];
               final soc = state.uri.queryParameters['SOC'];
-
-              return DevicesScreen(filterStatus: status, soc: soc);
+              final vehicleFilter = state.uri.queryParameters['vehicleFilter'];
+              return DevicesScreen(
+                filterStatus: status,
+                soc: soc,
+                vehicleFilter: vehicleFilter,
+              );
             },
             routes: [
               /// DEVICE DETAIL ROOT
@@ -86,23 +109,53 @@ class AppRouter {
 
                 routes: [
                   /// SUB-TABS
+                  // GoRoute(
+                  //   path: 'overview',
+                  //   name: 'Overview',
+                  //   builder: (context, state) {
+                  //     final device = state.extra as DeviceEntity?;
+
+                  //     return DeviceControlWidget(
+                  //       device:
+                  //           device ??
+                  //           DeviceEntity(imei: state.pathParameters['imei']!),
+                  //       initialTab: 0,
+                  //     );
+                  //   },
+                  // ),
                   GoRoute(
                     path: 'overview',
-                    name: 'deviceOverview',
+                    name: 'Overview',
                     builder: (context, state) {
-                      final device = state.extra as DeviceEntity?;
+                      DeviceEntity? device;
+
+                      if (state.extra is DeviceEntity) {
+                        device = state.extra as DeviceEntity;
+                      } else if (state.extra is Map<String, dynamic>) {
+                        device = DeviceEntity.fromJson(
+                          state.extra as Map<String, dynamic>,
+                        );
+                      }
 
                       return DeviceControlWidget(
                         device:
                             device ??
-                            DeviceEntity(imei: state.pathParameters['imei']!),
+                            DeviceEntity(imei: state.pathParameters['imei']),
                         initialTab: 0,
                       );
                     },
                   ),
                   GoRoute(
-                    path: 'diagnostics',
-                    name: 'deviceDiagnostics',
+                    path: '/home/devices/:imei/information',
+                    builder: (context, state) {
+                      return DeviceInformationScreen(
+                        device: state.extra as DeviceEntity,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'goLive',
+                    name: 'deviceGoLive',
                     builder: (context, state) {
                       final device = state.extra as DeviceEntity?;
 
@@ -115,8 +168,8 @@ class AppRouter {
                     },
                   ),
                   GoRoute(
-                    path: 'controller',
-                    name: 'deviceController',
+                    path: 'information',
+                    name: 'Information',
                     builder: (context, state) {
                       final device = state.extra as DeviceEntity?;
 
@@ -125,6 +178,20 @@ class AppRouter {
                             device ??
                             DeviceEntity(imei: state.pathParameters['imei']!),
                         initialTab: 2,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'deviceControl',
+                    name: 'deviceControl',
+                    builder: (context, state) {
+                      final device = state.extra as DeviceEntity?;
+
+                      return DeviceControlWidget(
+                        device:
+                            device ??
+                            DeviceEntity(imei: state.pathParameters['imei']!),
+                        initialTab: 3,
                       );
                     },
                   ),
@@ -154,7 +221,7 @@ class AppRouter {
             name: 'trips',
             builder: (context, state) {
               final filter = state.uri.queryParameters['filter'];
-              final inputImei = state.uri.queryParameters['inputImei'];
+              final inputImei = state.uri.queryParameters['Imei'];
 
               return TripsScreen(
                 initialFilter: filter ?? "All Trips",
@@ -167,6 +234,7 @@ class AppRouter {
             name: 'reports',
             builder: (context, state) => const ReportsScreen(),
           ),
+
           // GoRoute(
           //   path: '/home/alerts',
           //   name: 'alerts',
@@ -175,7 +243,12 @@ class AppRouter {
           GoRoute(
             path: '/home/alerts',
             name: 'alerts',
-            builder: (context, state) => const AlertsScreen(type: 'all'),
+            builder: (context, state) {
+              final type = state.uri.queryParameters['type'] ?? 'all';
+              final imei = state.uri.queryParameters['imei'];
+
+              return AlertsScreen(type: type, imei: imei ?? '');
+            },
           ),
 
           GoRoute(
@@ -183,9 +256,25 @@ class AppRouter {
             name: 'alertsType',
             builder: (context, state) {
               final type = state.pathParameters['type'] ?? 'all';
-              return AlertsScreen(type: type);
+              final imei = state.uri.queryParameters['imei'];
+
+              return AlertsScreen(type: type, imei: imei ?? '');
             },
           ),
+          // GoRoute(
+          //   path: '/home/alerts',
+          //   name: 'alerts',
+          //   builder: (context, state) => const AlertsScreen(type: 'all'),
+          // ),
+
+          // GoRoute(
+          //   path: '/home/alerts/:type',
+          //   name: 'alertsType',
+          //   builder: (context, state) {
+          //     final type = state.pathParameters['type'] ?? 'all';
+          //     return AlertsScreen(type: type);
+          //   },
+          // ),
           // GoRoute(
           //   path: '/home/settings',
           //   name: 'settings',
@@ -243,6 +332,20 @@ class AppRouter {
                 builder:
                     (context, state) =>
                         const SettingsScreen(initialTab: 'commands'),
+              ),
+              GoRoute(
+                path: 'organisation',
+                name: 'settingsOrganisation',
+                builder:
+                    (context, state) =>
+                        const SettingsScreen(initialTab: 'organisation'),
+              ),
+              GoRoute(
+                path: 'canConfig',
+                name: 'settingsCanConfig',
+                builder:
+                    (context, state) =>
+                        const SettingsScreen(initialTab: 'canConfig'),
               ),
             ],
           ),

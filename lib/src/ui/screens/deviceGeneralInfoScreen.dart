@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:esync_fleet/src/ui/widgets/charts/deviceAlertChart.dart'
+    show DeviceAlertsChart;
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
@@ -26,19 +27,16 @@ import '../../models/tripMAPModel.dart';
 import '../../provider/fleetModeProvider.dart';
 import '../../services/generalAPIServices.dart/deviceAPIServices/deviceGeneralInfoAPIService.dart';
 import '../../services/generalAPIServices.dart/deviceDetailsAPIService.dart';
-import '../../services/generalAPIServices.dart/tripsAPIService.dart';
 import '../../services/getAddressService.dart';
 import '../../utils/appColors.dart';
 import '../../utils/appLogger.dart';
 import '../../utils/appResponsive.dart';
 import '../components/largeHoverCard.dart';
 import '../components/smallHoverCard.dart';
-import '../widgets/charts/deviceAlertChart.dart';
 import '../widgets/charts/deviceTripChart.dart';
 import '../widgets/charts/distanceSpeedchart.dart';
 import '../widgets/charts/doughnutChart.dart';
 import '../widgets/charts/speedDistanceChart.dart';
-import '../../models/tripRoutePlayBackModel.dart' as TripPlaybackModel;
 
 class DeviceGeneralInfoScreen extends StatefulWidget {
   final DeviceEntity device;
@@ -61,29 +59,11 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
 
   final ScrollController _alertHorizontalCtrl = ScrollController();
   final ScrollController _alertVerticalCtrl = ScrollController();
-
+  final ScrollController _chartScrollController = ScrollController();
   late Color statusColor;
   DeviceDetailsModel? deviceDetailsModel;
   final DeviceDetailsApiService _deviceDetailsApiService =
       DeviceDetailsApiService();
-
-  final TripsApiService _api = TripsApiService();
-
-  bool _isRouteLoading = false;
-  dynamic selectedTrip;
-
-  List<LatLng> _convertPlaybackDataToLatLng(List<TripPlaybackModel.Data> data) {
-    return data
-        .where(
-          (e) =>
-              e.lat != null &&
-              e.lng != null &&
-              e.lat!.isNotEmpty &&
-              e.lng!.isNotEmpty,
-        )
-        .map((e) => LatLng(double.parse(e.lat!), double.parse(e.lng!)))
-        .toList();
-  }
 
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
@@ -174,6 +154,21 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
   int totalPages = 1;
   int? selectedIndex;
   LatLng? selectedPoint;
+
+  final Map<String, Future<String>> _addressCache = {};
+
+  Future<String> getCachedAddress(double? lat, double? lng) {
+    if (lat == null || lng == null) {
+      return Future.value('--');
+    }
+
+    final key = '$lat,$lng';
+
+    return _addressCache.putIfAbsent(
+      key,
+      () => getAddressFromLatLngWeb(lat, lng),
+    );
+  }
 
   Future<void> fetchAlerts() async {
     if (!mounted) return;
@@ -444,6 +439,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     _overviewTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       fetchDeviceOverview();
       fetchImeiDistSpeedSoc();
+      fetchTripMap();
     });
   }
 
@@ -460,13 +456,796 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return ResponsiveLayout(
-      mobile: const Center(child: Text("Mobile / Tablet layout coming soon")),
-      tablet: const Center(child: Text("Mobile / Tablet layout coming soon")),
+      // mobile: const Center(child: Text("Mobile / Tablet layout coming soon")),
+      mobile: _buildMobileLayout(),
+      tablet: _buildTabletLayout(),
       desktop: _buildDesktopLayout(context),
     );
   }
 
-  Widget _buildDesktopLayout(BuildContext context) {
+  Widget _buildMobileLayout() {
+    final mode = context.watch<FleetModeProvider>().mode;
+
+    final device = widget.device;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final summary = tripsModel?.summary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(10),
+          child: FutureBuilder<String>(
+            future: getCachedAddress(
+              deviceDetailsModel?.lat,
+              deviceDetailsModel?.long,
+            ),
+            builder: (context, snapshot) {
+              final address =
+                  snapshot.connectionState == ConnectionState.done &&
+                          snapshot.hasData
+                      ? snapshot.data!
+                      : 'Fetching location...';
+
+              final displayStatus =
+                  mode == 'EV Fleet'
+                      ? (deviceDetailsModel?.status ??
+                          device.status ??
+                          '') // Use regular status for EV
+                      : (deviceDetailsModel?.lstatus ?? device.status ?? '');
+              final displayTime =
+                  mode == 'EV Fleet'
+                      ? (deviceDetailsModel?.batteryTime ??
+                          device.batteryLogDate ??
+                          '') // Use regular status for EV
+                      : (deviceDetailsModel?.locationTime ??
+                          device.locationLogDate ??
+                          '');
+
+              return buildDeviceCard(
+                isDark: isDark,
+                imei: deviceDetailsModel?.imei ?? device.imei ?? '',
+                vehicleNumber: deviceDetailsModel?.vehicleNumber ?? '',
+                status: displayStatus,
+                fuel:
+                    mode == 'EV Fleet'
+                        ? device.soc ?? ''
+                        : (device.tafe?.fuellevel?.toString() ?? ''),
+                odo: device.odometer ?? '',
+                trips: (device.totalTrips ?? 0).toString(),
+                alerts: (device.totalAlerts ?? 0).toString(),
+                location: deviceDetailsModel?.address ?? '',
+                lastUpdated: displayTime,
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  // ===== Doughnut Charts =====
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: isDark ? tBlack : tWhite,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          spreadRadius: 2,
+                          blurRadius: 10,
+                          color:
+                              isDark
+                                  ? tWhite.withOpacity(0.15)
+                                  : tBlack.withOpacity(0.08),
+                        ),
+                      ],
+                    ),
+
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          mode == 'EV Fleet'
+                              ? SingleDoughnutChart(
+                                currentValue: toDouble(
+                                  deviceOverviewModel?.voltage,
+                                ),
+
+                                avgValue: toDouble(
+                                  deviceOverviewModel?.avgvoltage,
+                                ),
+
+                                title: "Voltage",
+                                unit: "V",
+                                primaryColor: tBlue,
+                                isDark: isDark,
+                              )
+                              : SingleDoughnutChart(
+                                currentValue: toDouble(
+                                  deviceOverviewModel?.vehvoltage,
+                                ),
+
+                                avgValue: toDouble(
+                                  deviceOverviewModel?.avgvoltage,
+                                ),
+
+                                title: "Voltage",
+                                unit: "V",
+                                primaryColor: tBlue,
+                                isDark: isDark,
+                              ),
+                          SizedBox(width: 10),
+
+                          SingleDoughnutChart(
+                            currentValue: toDouble(deviceOverviewModel?.speed),
+
+                            avgValue:
+                                toDouble(deviceOverviewModel?.avgspeed) * 0.9,
+
+                            title: "Speed",
+                            unit: "km/h",
+                            primaryColor: tGreen,
+                            isDark: isDark,
+                          ),
+                          SizedBox(width: 10),
+
+                          SingleDoughnutChart(
+                            currentValue:
+                                mode == 'EV Fleet'
+                                    ? toDouble(deviceOverviewModel?.soc)
+                                    : toDouble(device.tafe?.fuellevel),
+
+                            avgValue:
+                                mode == 'EV Fleet'
+                                    ? toDouble(deviceOverviewModel?.avgsoc) *
+                                        0.9
+                                    : toDouble(device.tafe?.fuellevel) * 0.9,
+
+                            title: mode == 'EV Fleet' ? "SOC" : "Fuel",
+
+                            unit: "%",
+                            primaryColor: tBlueSky,
+                            isDark: isDark,
+                          ),
+                          SizedBox(width: 10),
+
+                          SingleDoughnutChart(
+                            currentValue: toDouble(
+                              deviceOverviewModel?.batteryBackUp,
+                            ),
+
+                            avgValue:
+                                toDouble(deviceOverviewModel?.batteryBackUp) *
+                                0.9,
+
+                            title: "Battery BackUp",
+                            unit: "%",
+                            primaryColor: tOrange,
+                            isDark: isDark,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Container(
+                  //   padding: const EdgeInsets.all(10),
+                  //   decoration: BoxDecoration(
+                  //     color: isDark ? tBlack : tWhite,
+                  //     borderRadius: BorderRadius.zero,
+                  //     boxShadow: [
+                  //       BoxShadow(
+                  //         spreadRadius: 2,
+                  //         blurRadius: 10,
+                  //         color:
+                  //             isDark
+                  //                 ? tWhite.withOpacity(0.15)
+                  //                 : tBlack.withOpacity(0.08),
+                  //       ),
+                  //     ],
+                  //   ),
+                  //   child: SingleChildScrollView(
+                  //     scrollDirection: Axis.horizontal,
+                  //     child: Row(
+                  //       children: [
+                  //         mode == 'EV Fleet'
+                  //             ? SizedBox(
+                  //               width:
+                  //                   MediaQuery.of(context).size.width < 600
+                  //                       ? MediaQuery.of(context).size.width /
+                  //                               2.5 -
+                  //                           25
+                  //                       : 180,
+                  //               child: SingleDoughnutChart(
+                  //                 currentValue: toDouble(
+                  //                   deviceOverviewModel?.voltage,
+                  //                 ),
+                  //                 avgValue:
+                  //                     toDouble(deviceOverviewModel?.voltage) *
+                  //                     0.9,
+                  //                 title: "Voltage",
+                  //                 unit: "V",
+                  //                 primaryColor: tBlue,
+                  //                 isDark: isDark,
+                  //               ),
+                  //             )
+                  //             : SizedBox(
+                  //               width:
+                  //                   MediaQuery.of(context).size.width < 600
+                  //                       ? MediaQuery.of(context).size.width /
+                  //                               2.5 -
+                  //                           25
+                  //                       : 180,
+                  //               child: SingleDoughnutChart(
+                  //                 currentValue: toDouble(
+                  //                   deviceOverviewModel?.vehvoltage,
+                  //                 ),
+                  //                 avgValue:
+                  //                     toDouble(
+                  //                       deviceOverviewModel?.vehvoltage,
+                  //                     ) *
+                  //                     0.9,
+                  //                 title: "Voltage",
+                  //                 unit: "V",
+                  //                 primaryColor: tBlue,
+                  //                 isDark: isDark,
+                  //               ),
+                  //             ),
+                  //         const SizedBox(width: 10),
+                  //         SizedBox(
+                  //           width:
+                  //               MediaQuery.of(context).size.width < 600
+                  //                   ? MediaQuery.of(context).size.width / 2.5 -
+                  //                       25
+                  //                   : 180,
+                  //           child: SingleDoughnutChart(
+                  //             currentValue: toDouble(
+                  //               deviceOverviewModel?.speed,
+                  //             ),
+                  //             avgValue:
+                  //                 toDouble(deviceOverviewModel?.speed) * 0.9,
+                  //             title: "Speed",
+                  //             unit: "km/h",
+                  //             primaryColor: tGreen,
+                  //             isDark: isDark,
+                  //           ),
+                  //         ),
+
+                  //         const SizedBox(width: 10),
+
+                  //         SizedBox(
+                  //           width:
+                  //               MediaQuery.of(context).size.width < 600
+                  //                   ? MediaQuery.of(context).size.width / 2.5 -
+                  //                       25
+                  //                   : 180,
+                  //           child: SingleDoughnutChart(
+                  //             currentValue:
+                  //                 mode == 'EV Fleet'
+                  //                     ? toDouble(deviceOverviewModel?.soc)
+                  //                     : toDouble(device.tafe?.fuellevel),
+                  //             avgValue:
+                  //                 mode == 'EV Fleet'
+                  //                     ? toDouble(deviceOverviewModel?.soc) * 0.9
+                  //                     : toDouble(device.tafe?.fuellevel) * 0.9,
+                  //             title: mode == 'EV Fleet' ? "SOC" : "Fuel",
+                  //             unit: "%",
+                  //             primaryColor: tBlueSky,
+                  //             isDark: isDark,
+                  //           ),
+                  //         ),
+
+                  //         const SizedBox(width: 10),
+
+                  //         SizedBox(
+                  //           width:
+                  //               MediaQuery.of(context).size.width < 600
+                  //                   ? MediaQuery.of(context).size.width / 2.5 -
+                  //                       25
+                  //                   : 180,
+                  //           child: SingleDoughnutChart(
+                  //             currentValue: toDouble(
+                  //               deviceOverviewModel?.intvoltage,
+                  //             ),
+                  //             avgValue:
+                  //                 toDouble(deviceOverviewModel?.intvoltage) *
+                  //                 0.9,
+                  //             title: "Int Voltage",
+                  //             unit: "V",
+                  //             primaryColor: tOrange,
+                  //             isDark: isDark,
+                  //           ),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
+                  // ),
+                  const SizedBox(height: 10),
+
+                  // ===== Info Cards =====
+                  Column(
+                    children: [
+                      _buildInfoCard(
+                        isDark,
+                        "Odometer",
+                        format.format(
+                          toDouble(deviceOverviewModel?.odometer) ??
+                              (device.odometer ?? '0'),
+                        ),
+                        tBlueGradient2,
+                        'icons/odo.svg',
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      _buildInfoCard(
+                        isDark,
+                        "Operation Hrs",
+                        format.format(
+                          toDouble(summary?.totalOperationalDuration ?? 0) ?? 0,
+                        ),
+                        tRedGradient2,
+                        'icons/time.svg',
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  SizedBox(height: 235, child: _buildDeviceStatus(isDark)),
+                  const SizedBox(height: 10),
+
+                  // ===== Alerts Overview =====
+                  Text(
+                    'Alerts Overview',
+                    style: GoogleFonts.urbanist(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? tWhite : tBlack,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SmallHoverCard(
+                              height: 85,
+                              value: format.format(0),
+                              label: "Faults",
+                              labelColor: tRed,
+                              icon: "icons/fault.svg",
+                              iconColor: tRed,
+                              bgColor: tRed.withOpacity(0.1),
+                              isDark: isDark,
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                context.go(
+                                  '/home/alerts?imei=${widget.device.imei}',
+                                );
+                              },
+                              child: SmallHoverCard(
+                                height: 85,
+                                value: format.format(
+                                  alertsModel?.totalAlerts ?? 0,
+                                ),
+                                label: "Alerts",
+                                labelColor: tRed,
+                                icon: "icons/alert.svg",
+                                iconColor: tRed,
+                                bgColor: tRed.withOpacity(0.1),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                context.go(
+                                  '/home/alerts?imei=${widget.device.imei}&type=CRITICAL',
+                                );
+                              },
+                              child: SmallHoverCard(
+                                height: 85,
+                                value: format.format(
+                                  alertsModel?.criticalAlerts ?? 0,
+                                ),
+                                label: "Critical",
+                                labelColor: tOrange1,
+                                icon: "icons/alert.svg",
+                                iconColor: tOrange1,
+                                bgColor: tOrange1.withOpacity(0.1),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                context.go(
+                                  '/home/alerts?imei=${widget.device.imei}&type=NON_CRITICAL',
+                                );
+                              },
+                              child: SmallHoverCard(
+                                height: 85,
+                                value: format.format(
+                                  alertsModel?.nonCriticalAlerts ?? 0,
+                                ),
+                                label: "Non-Critical",
+                                labelColor: tBlueSky,
+                                icon: "icons/alert.svg",
+                                iconColor: tBlueSky,
+                                bgColor: tBlueSky.withOpacity(0.1),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        height: 325,
+                        child: Container(
+                          decoration: BoxDecoration(color: tTransparent),
+                          child: buildAlertsTable(isDark),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Text(
+                    'Trips Overview',
+                    style: GoogleFonts.urbanist(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? tWhite : tBlack,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                context.go(
+                                  '/home/trips?Imei=${widget.device.imei}',
+                                );
+                              },
+                              child: SmallHoverCard(
+                                value: format.format(summary?.totalTrips ?? 0),
+                                label: "Trips",
+                                labelColor: tGreen,
+                                icon: "icons/distance.svg",
+                                iconColor: tGreen,
+                                bgColor: tGreen.withOpacity(0.1),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                context.go(
+                                  '/home/trips?Imei=${widget.device.imei}&filter=Completed',
+                                );
+                              },
+                              child: SmallHoverCard(
+                                width: double.infinity,
+                                height: 85,
+                                value: format.format(
+                                  summary?.completedTrips ?? 0,
+                                ),
+                                label: "Completed Trips",
+                                labelColor: tBlue,
+                                icon: "icons/completed.svg",
+                                iconColor: tBlue,
+                                bgColor: tBlue.withOpacity(0.1),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: SmallHoverCard(
+                              width: double.infinity,
+                              height: 85,
+                              value: format.format(
+                                toDouble(summary?.avgTripsPerDay ?? 0) ?? 0,
+                              ),
+                              label: "Avg. Trips",
+                              labelColor: tOrange1,
+                              icon: "icons/distance.svg",
+                              iconColor: tOrange1,
+                              bgColor: tOrange1.withOpacity(0.1),
+                              isDark: isDark,
+                              enableHover: false,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SmallHoverCard(
+                              width: double.infinity,
+                              height: 85,
+                              value: format.format(
+                                toDouble(
+                                      summary?.avgOperationalHoursPerImei ?? 0,
+                                    ) ??
+                                    0,
+                              ),
+                              label: "Avg.Oper. Hours(hrs)",
+                              labelColor: tRed,
+                              icon: "icons/consumedhours.svg",
+                              iconColor: tRed,
+                              bgColor: tRed.withOpacity(0.1),
+                              isDark: isDark,
+                              enableHover: false,
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: SmallHoverCard(
+                              width: double.infinity,
+                              height: 85,
+                              value: format.format(
+                                toDouble(summary?.avgDistancePerImeiKm ?? 0) ??
+                                    0,
+                              ),
+                              label: "Avg.Dist. Travelled(km)",
+                              labelColor: tBlueSky,
+                              icon: "icons/distance.svg",
+                              iconColor: tBlueSky,
+                              bgColor: tBlueSky.withOpacity(0.1),
+                              isDark: isDark,
+                              enableHover: false,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        height: 325,
+                        child: Container(
+                          decoration: BoxDecoration(color: tTransparent),
+                          child: _buildTripsTable(isDark),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+                  // ===== Trip Map =====
+                  // SizedBox(
+                  //   height: 300,
+                  //   child: buildVehicleMap(isDark: isDark, zoom: 10),
+                  // ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Trip Map',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        height: 300,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.15)
+                                        : tBlack.withOpacity(0.15),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: buildVehicleMap(isDark: isDark, zoom: 10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 330,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.25)
+                                        : tBlack.withOpacity(0.15),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(15),
+                          child: DeviceTripsChart(
+                            weeklyData: weeklytrip,
+                            monthlyData: monthlytrip,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        height: 330,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.25)
+                                        : tBlack.withOpacity(0.15),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(15),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Vehicle Status',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  color: isDark ? tWhite : tBlack,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              _buildStatusBarChart(isDark),
+
+                              const SizedBox(height: 10),
+
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _LegendItem(
+                                      color: tGreen.withOpacity(0.9),
+                                      label: "Moving",
+                                    ),
+
+                                    const SizedBox(width: 12),
+
+                                    _LegendItem(
+                                      color: tOrange1.withOpacity(0.9),
+                                      label: "Idle",
+                                    ),
+
+                                    const SizedBox(width: 12),
+
+                                    _LegendItem(
+                                      color: tRed.withOpacity(0.9),
+                                      label: "Stopped",
+                                    ),
+
+                                    const SizedBox(width: 12),
+
+                                    _LegendItem(
+                                      color: tBlue.withOpacity(0.9),
+                                      label: "Halted",
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 10),
+
+                      SizedBox(
+                        height: 330,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.25)
+                                        : tBlack.withOpacity(0.15),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(15),
+                          child: ClipRect(
+                            child: SizedBox.expand(
+                              child: DeviceAlertsChart(
+                                alertsGraph: weeklyalert,
+                                alertGraphforMonth: monthlyalert,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout() {
     final mode = context.watch<FleetModeProvider>().mode;
 
     final device = widget.device;
@@ -478,43 +1257,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.all(10),
-          // child: buildDeviceCard(
-          //   isDark: isDark,
-          //   imei: device.imei ?? '12265679827872127',
-          //   vehicleNumber: device.vehicleNumber ?? 'VGFDG4251271677',
-          //   status: device.status ?? '',
-          //   fuel: device.soc ?? '',
-          //   odo: device.odometer ?? '',
-          //   trips: (device.totalTrips ?? '').toString(),
-          //   alerts: (device.totalAlerts ?? '').toString(),
-          //   location: device.location ?? '',
-          // ),
-          // child: FutureBuilder<String>(
-          //   future: getAddressFromLocationStringWeb(device.location ?? ''),
-          //   builder: (context, snapshot) {
-          //     final address =
-          //         snapshot.connectionState == ConnectionState.done &&
-          //                 snapshot.hasData
-          //             ? snapshot.data!
-          //             : 'Fetching location...';
-
-          //     return buildDeviceCard(
-          //       isDark: isDark,
-          //       imei: device.imei ?? '',
-          //       vehicleNumber: device.vehicleNumber ?? '',
-          //       status: device.status ?? '',
-          //       fuel:
-          //           mode == 'EV Fleet'
-          //               ? device.soc ?? ''
-          //               : (device.tafe?.fuellevel?.toString() ?? ''),
-          //       odo: device.odometer ?? '',
-          //       trips: (device.totalTrips ?? 0).toString(),
-          //       alerts: (device.totalAlerts ?? 0).toString(),
-          //       location: address,
-          //       lastUpdated: device.locationLogDate ?? '',
-          //     );
-          //   },
-          // ),
           child: FutureBuilder<String>(
             future: getAddressFromLocationStringWeb(
               deviceDetailsModel?.lat != null &&
@@ -529,11 +1271,26 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                       ? snapshot.data!
                       : 'Fetching location...';
 
+              final displayStatus =
+                  mode == 'EV Fleet'
+                      ? (deviceDetailsModel?.status ??
+                          device.status ??
+                          '') // Use regular status for EV
+                      : (deviceDetailsModel?.lstatus ?? device.status ?? '');
+              final displayTime =
+                  mode == 'EV Fleet'
+                      ? (deviceDetailsModel?.batteryTime ??
+                          device.batteryLogDate ??
+                          '') // Use regular status for EV
+                      : (deviceDetailsModel?.locationTime ??
+                          device.locationLogDate ??
+                          '');
+
               return buildDeviceCard(
                 isDark: isDark,
-                imei: deviceDetailsModel?.imei ?? '',
+                imei: deviceDetailsModel?.imei ?? device.imei ?? '',
                 vehicleNumber: deviceDetailsModel?.vehicleNumber ?? '',
-                status: deviceDetailsModel?.status ?? '',
+                status: displayStatus,
                 fuel:
                     mode == 'EV Fleet'
                         ? device.soc ?? ''
@@ -541,8 +1298,8 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                 odo: device.odometer ?? '',
                 trips: (device.totalTrips ?? 0).toString(),
                 alerts: (device.totalAlerts ?? 0).toString(),
-                location: address,
-                lastUpdated: deviceDetailsModel?.batteryTime ?? '',
+                location: deviceDetailsModel?.address ?? '',
+                lastUpdated: displayTime,
               );
             },
           ),
@@ -570,6 +1327,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                 height: 225,
                                 decoration: BoxDecoration(
                                   color: isDark ? tBlack : tWhite,
+                                  borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
                                       spreadRadius: 2,
@@ -591,11 +1349,9 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                           currentValue: toDouble(
                                             deviceOverviewModel?.voltage,
                                           ),
-                                          avgValue:
-                                              toDouble(
-                                                deviceOverviewModel?.voltage,
-                                              ) *
-                                              0.65,
+                                          avgValue: toDouble(
+                                            deviceOverviewModel?.avgvoltage,
+                                          ),
                                           title: "Voltage",
                                           unit: "V",
                                           primaryColor: tBlue,
@@ -605,11 +1361,9 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                           currentValue: toDouble(
                                             deviceOverviewModel?.vehvoltage,
                                           ),
-                                          avgValue:
-                                              toDouble(
-                                                deviceOverviewModel?.vehvoltage,
-                                              ) *
-                                              0.65,
+                                          avgValue: toDouble(
+                                            deviceOverviewModel?.avgvoltage,
+                                          ),
                                           title: "Voltage",
                                           unit: "V",
                                           primaryColor: tBlue,
@@ -620,8 +1374,10 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                         deviceOverviewModel?.speed,
                                       ),
                                       avgValue:
-                                          toDouble(deviceOverviewModel?.speed) *
-                                          0.65,
+                                          toDouble(
+                                            deviceOverviewModel?.avgspeed,
+                                          ) *
+                                          0.9,
                                       title: "Speed",
                                       unit: "km/h",
                                       primaryColor: tGreen,
@@ -635,9 +1391,9 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                           ),
                                           avgValue:
                                               toDouble(
-                                                deviceOverviewModel?.soc,
+                                                deviceOverviewModel?.avgsoc,
                                               ) *
-                                              0.65,
+                                              0.9,
                                           title: "SOC",
                                           unit: "%",
                                           primaryColor: tBlueSky,
@@ -649,12 +1405,27 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                           ),
                                           avgValue:
                                               toDouble(device.tafe?.fuellevel) *
-                                              0.65,
+                                              0.9,
                                           title: "Fuel",
                                           unit: "%",
                                           primaryColor: tBlueSky,
                                           isDark: isDark,
                                         ),
+
+                                    SingleDoughnutChart(
+                                      currentValue: toDouble(
+                                        deviceOverviewModel?.batteryBackUp,
+                                      ),
+                                      avgValue:
+                                          toDouble(
+                                            deviceOverviewModel?.batteryBackUp,
+                                          ) *
+                                          0.9,
+                                      title: "Battery BackUp",
+                                      unit: "%",
+                                      primaryColor: tOrange,
+                                      isDark: isDark,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -669,21 +1440,27 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                     isDark,
                                     "Odometer (km)",
                                     format.format(
-                                      toDouble(deviceOverviewModel?.odometer),
+                                      toDouble(deviceOverviewModel?.odometer) ??
+                                          0,
                                     ),
                                     tBlueGradient2,
+                                    'icons/odo.svg',
                                   ),
                                   const SizedBox(height: 10),
 
                                   _buildInfoCard(
                                     isDark,
                                     "Operation Hours (hrs)",
+                                    // "${summary?.totalOperationalDuration ?? 0}",
                                     format.format(
                                       toDouble(
-                                        summary?.totalOperationalDuration ?? 0,
-                                      ),
+                                            summary?.totalOperationalDuration ??
+                                                0,
+                                          ) ??
+                                          0,
                                     ),
                                     tRedGradient2,
+                                    'icons/time.svg',
                                   ),
                                 ],
                               ),
@@ -695,7 +1472,793 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                       const SizedBox(width: 10),
 
                       // Right panel (placeholder for map, chart, etc.)
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  Row(
+                    children: [
                       Expanded(flex: 5, child: _buildDeviceStatus(isDark)),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 4,
+                        child: Container(
+                          height: 600,
+                          decoration: BoxDecoration(
+                            color: tTransparent,
+                            // color: isDark ? tBlack : tWhite,
+                            // boxShadow: [
+                            //   BoxShadow(
+                            //     spreadRadius: 2,
+                            //     blurRadius: 10,
+                            //     color:
+                            //         isDark
+                            //             ? tWhite.withOpacity(0.25)
+                            //             : tBlack.withOpacity(0.15),
+                            //   ),
+                            // ],
+                          ),
+                          // padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Alerts Overview',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? tWhite : tBlack,
+                                ),
+                              ),
+                              SizedBox(height: 10),
+
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  /// LEFT → FAULTS (LARGE CARD)
+                                  Expanded(
+                                    flex: 2,
+                                    child: Column(
+                                      children: [
+                                        SmallHoverCard(
+                                          height: 85,
+                                          value: format.format(0),
+                                          label: "Faults",
+                                          labelColor: tRed,
+                                          icon: "icons/fault.svg",
+                                          iconColor: tRed,
+                                          bgColor: tRed.withOpacity(0.1),
+                                          isDark: isDark,
+                                        ),
+                                        SizedBox(height: 10),
+                                        GestureDetector(
+                                          onTap: () {
+                                            context.go(
+                                              '/home/alerts?imei=${widget.device.imei}',
+                                            );
+                                          },
+                                          child: SmallHoverCard(
+                                            width: double.infinity,
+                                            height: 85,
+                                            value: format.format(
+                                              alertsModel?.totalAlerts ?? 0,
+                                            ),
+                                            label: "Alerts",
+                                            labelColor: tRed,
+                                            icon: "icons/alert.svg",
+                                            iconColor: tRed,
+                                            bgColor: tRed.withOpacity(0.1),
+                                            isDark: isDark,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 10),
+
+                                  /// RIGHT → ALERTS + (CRITICAL & NON-CRITICAL)
+                                  Expanded(
+                                    flex: 2,
+                                    child: Column(
+                                      children: [
+                                        /// TOP → ALERTS
+                                        GestureDetector(
+                                          onTap: () {
+                                            context.go(
+                                              '/home/alerts?imei=${widget.device.imei}&type=CRITICAL',
+                                            );
+                                          },
+                                          child: SmallHoverCard(
+                                            height: 85,
+                                            value: format.format(
+                                              alertsModel?.criticalAlerts ?? 0,
+                                            ),
+                                            label: "Critical",
+                                            labelColor: tOrange1,
+                                            icon: "icons/alert.svg",
+                                            iconColor: tOrange1,
+                                            bgColor: tOrange1.withOpacity(0.1),
+                                            isDark: isDark,
+                                          ),
+                                        ),
+                                        SizedBox(height: 10),
+                                        GestureDetector(
+                                          onTap: () {
+                                            context.go(
+                                              '/home/alerts?imei=${widget.device.imei}&type=NON_CRITICAL',
+                                            );
+                                          },
+                                          child: SmallHoverCard(
+                                            height: 85,
+                                            value: format.format(
+                                              alertsModel?.nonCriticalAlerts ??
+                                                  0,
+                                            ),
+                                            label: "Non-Critical",
+                                            labelColor: tBlueSky,
+                                            icon: "icons/alert.svg",
+                                            iconColor: tBlueSky,
+                                            bgColor: tBlueSky.withOpacity(0.1),
+                                            isDark: isDark,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              SizedBox(height: 10),
+                              Text(
+                                'Recent Alerts',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? tWhite : tBlack,
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              Expanded(
+                                child: Container(
+                                  height: 250,
+                                  decoration: BoxDecoration(
+                                    color: tTransparent,
+                                  ),
+                                  child: buildAlertsTable(isDark),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 6,
+                        child: Container(
+                          height: 600,
+                          decoration: BoxDecoration(color: tTransparent),
+                          // padding: EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Trips Overview',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? tWhite : tBlack,
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {
+                                      context.go(
+                                        '/home/trips?Imei=${widget.device.imei}',
+                                      );
+                                    },
+                                    child: SizedBox(
+                                      height: 180, // match stacked cards height
+                                      child: LargeHoverCard(
+                                        width: 120,
+                                        value: format.format(
+                                          summary?.totalTrips ?? 0,
+                                        ),
+                                        label: "Trips",
+                                        labelColor: tGreen,
+                                        icon: "icons/distance.svg",
+                                        iconColor: tGreen,
+                                        bgColor: tGreen.withOpacity(0.1),
+                                        isDark: isDark,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 7),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Column(
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () {
+                                            context.go(
+                                              '/home/trips?Imei=${widget.device.imei}&filter=Completed',
+                                            );
+                                          },
+                                          child: SmallHoverCard(
+                                            width: double.infinity,
+                                            height: 85,
+                                            value: format.format(
+                                              summary?.completedTrips ?? 0,
+                                            ),
+                                            label: "Completed",
+                                            labelColor: tBlue,
+                                            icon: "icons/completed.svg",
+                                            iconColor: tBlue,
+                                            bgColor: tBlue.withOpacity(0.1),
+                                            isDark: isDark,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        SmallHoverCard(
+                                          width: double.infinity,
+                                          height: 85,
+                                          value: format.format(
+                                            toDouble(
+                                                  summary?.avgTripsPerDay ?? 0,
+                                                ) ??
+                                                0,
+                                          ),
+                                          label: "Avg. Trips",
+                                          labelColor: tOrange1,
+                                          icon: "icons/distance.svg",
+                                          iconColor: tOrange1,
+                                          bgColor: tOrange1.withOpacity(0.1),
+                                          isDark: isDark,
+                                          enableHover: false,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 7),
+
+                                  Expanded(
+                                    flex: 2,
+                                    child: Column(
+                                      children: [
+                                        SmallHoverCard(
+                                          width: double.infinity,
+                                          height: 85,
+                                          value: format.format(
+                                            toDouble(
+                                                  summary?.avgDistancePerImeiKm ??
+                                                      0,
+                                                ) ??
+                                                0,
+                                          ),
+                                          label: "Avg.Dist(km)",
+                                          labelColor: tBlueSky,
+                                          icon: "icons/distance.svg",
+                                          iconColor: tBlueSky,
+                                          bgColor: tBlueSky.withOpacity(0.1),
+                                          isDark: isDark,
+                                          enableHover: false,
+                                        ),
+                                        const SizedBox(height: 10),
+                                        SmallHoverCard(
+                                          width: double.infinity,
+                                          height: 85,
+                                          value: format.format(
+                                            toDouble(
+                                                  summary?.avgOperationalHoursPerImei ??
+                                                      0,
+                                                ) ??
+                                                0,
+                                          ),
+                                          label: "Avg.Hours",
+                                          labelColor: tRed,
+                                          icon: "icons/consumedhours.svg",
+                                          iconColor: tRed,
+                                          bgColor: tRed.withOpacity(0.1),
+                                          isDark: isDark,
+                                          enableHover: false,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              SizedBox(height: 10),
+                              Text(
+                                'Recent Trips',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? tWhite : tBlack,
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: tTransparent,
+                                  ),
+                                  child: _buildTripsTable(
+                                    isDark,
+                                  ), // <-- NO SingleChildScrollView here
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // const SizedBox(width: 10),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 600,
+
+                          decoration: BoxDecoration(
+                            color: tTransparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+
+                          // padding: const EdgeInsets.all(2),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Trip Map',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? tWhite : tBlack,
+                                ),
+                              ),
+                              SizedBox(height: 10),
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        spreadRadius: 2,
+                                        blurRadius: 10,
+                                        color:
+                                            isDark
+                                                ? tWhite.withOpacity(0.15)
+                                                : tBlack.withOpacity(0.15),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: buildVehicleMap(
+                                      isDark: isDark,
+                                      zoom: 10,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 4,
+                        child: Container(
+                          height: 330,
+                          decoration: BoxDecoration(
+                            color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.25)
+                                        : tBlack.withOpacity(0.15),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(15),
+                          child: DeviceTripsChart(
+                            weeklyData: weeklytrip,
+                            monthlyData: monthlytrip,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        flex: 4,
+                        child: Container(
+                          height: 330,
+                          decoration: BoxDecoration(
+                            color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.25)
+                                        : tBlack.withOpacity(0.15),
+                              ),
+                            ],
+                          ),
+                          padding: const EdgeInsets.all(15),
+                          child: DeviceAlertsChart(
+                            alertsGraph: weeklyalert,
+                            alertGraphforMonth: monthlyalert,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Container(
+                          height: 330,
+                          decoration: BoxDecoration(
+                            color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.25)
+                                        : tBlack.withOpacity(0.15),
+                              ),
+                            ],
+                          ),
+                          padding: EdgeInsets.all(15),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Vehicle Status',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  color: isDark ? tWhite : tBlack,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 15),
+                              _buildStatusBarChart(isDark),
+                              const SizedBox(height: 10),
+                              // Legend
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _LegendItem(
+                                    color: tGreen.withOpacity(0.9),
+                                    label: "Moving",
+                                  ),
+                                  SizedBox(width: 6),
+                                  _LegendItem(
+                                    color: tOrange1.withOpacity(0.9),
+                                    label: "Idle",
+                                  ),
+                                  SizedBox(width: 6),
+                                  _LegendItem(
+                                    color: tRed.withOpacity(0.9),
+                                    label: "Stopped",
+                                  ),
+                                  SizedBox(width: 6),
+                                  _LegendItem(
+                                    color: tBlue.withOpacity(0.9),
+                                    label: "Halted",
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout(BuildContext context) {
+    final mode = context.watch<FleetModeProvider>().mode;
+
+    final device = widget.device;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final summary = tripsModel?.summary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(10),
+
+          child: FutureBuilder<String>(
+            future: getAddressFromLocationStringWeb(
+              deviceDetailsModel?.lat != null &&
+                      deviceDetailsModel?.long != null
+                  ? '${deviceDetailsModel!.lat},${deviceDetailsModel!.long}'
+                  : "",
+            ),
+            builder: (context, snapshot) {
+              final address =
+                  snapshot.connectionState == ConnectionState.done &&
+                          snapshot.hasData
+                      ? snapshot.data!
+                      : 'Fetching location...';
+
+              final displayStatus =
+                  mode == 'EV Fleet'
+                      ? (deviceDetailsModel?.status ??
+                          device.status ??
+                          '') // Use regular status for EV
+                      : (deviceDetailsModel?.lstatus ?? device.status ?? '');
+              final displayTime =
+                  mode == 'EV Fleet'
+                      ? (deviceDetailsModel?.batteryTime ??
+                          device.batteryLogDate ??
+                          '') // Use regular status for EV
+                      : (deviceDetailsModel?.locationTime ??
+                          device.locationLogDate ??
+                          '');
+
+              return buildDeviceCard(
+                isDark: isDark,
+                imei: deviceDetailsModel?.imei ?? device.imei ?? '',
+                vehicleNumber: deviceDetailsModel?.vehicleNumber ?? '',
+                status: displayStatus,
+                fuel:
+                    mode == 'EV Fleet'
+                        ? device.soc ?? ''
+                        : (device.tafe?.fuellevel?.toString() ?? ''),
+                odo: device.odometer ?? '',
+                trips: (device.totalTrips ?? 0).toString(),
+                alerts: (device.totalAlerts ?? 0).toString(),
+                location: deviceDetailsModel?.address ?? '',
+                lastUpdated: displayTime,
+              );
+            },
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Padding(
+              // padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.only(left: 10, right: 10, top: 10),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      // Left panel
+                      Expanded(
+                        flex: 5,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // 🔹 Left section (Title + Doughnut Charts)
+                            Expanded(
+                              flex: 4,
+                              child: Container(
+                                height: 225,
+                                decoration: BoxDecoration(
+                                  color: isDark ? tBlack : tWhite,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      spreadRadius: 2,
+                                      blurRadius: 10,
+                                      color:
+                                          isDark
+                                              ? tWhite.withOpacity(0.25)
+                                              : tBlack.withOpacity(0.15),
+                                    ),
+                                  ],
+                                ),
+                                padding: const EdgeInsets.all(10),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return Scrollbar(
+                                      controller: _chartScrollController,
+                                      thumbVisibility: true,
+                                      trackVisibility: true,
+                                      thickness:
+                                          4, // Default is usually around 8
+                                      radius: const Radius.circular(4),
+                                      child: SingleChildScrollView(
+                                        controller: _chartScrollController,
+                                        scrollDirection: Axis.horizontal,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            minWidth: constraints.maxWidth,
+                                          ),
+                                          child: IntrinsicWidth(
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.spaceEvenly,
+                                              children: [
+                                                mode == 'EV Fleet'
+                                                    ? SingleDoughnutChart(
+                                                      currentValue: toDouble(
+                                                        deviceOverviewModel
+                                                            ?.voltage,
+                                                      ),
+                                                      avgValue: toDouble(
+                                                        deviceOverviewModel
+                                                            ?.avgvoltage,
+                                                      ),
+                                                      title: "Voltage",
+                                                      unit: "V",
+                                                      primaryColor: tBlue,
+                                                      isDark: isDark,
+                                                    )
+                                                    : SingleDoughnutChart(
+                                                      currentValue: toDouble(
+                                                        deviceOverviewModel
+                                                            ?.vehvoltage,
+                                                      ),
+                                                      avgValue: toDouble(
+                                                        deviceOverviewModel
+                                                            ?.avgvoltage,
+                                                      ),
+                                                      title: "Voltage",
+                                                      unit: "V",
+                                                      primaryColor: tBlue,
+                                                      isDark: isDark,
+                                                    ),
+
+                                                const SizedBox(width: 20),
+                                                SingleDoughnutChart(
+                                                  currentValue: toDouble(
+                                                    deviceOverviewModel?.speed,
+                                                  ),
+                                                  avgValue: toDouble(
+                                                    deviceOverviewModel
+                                                        ?.avgspeed,
+                                                  ),
+                                                  title: "Speed",
+                                                  unit: "km/h",
+                                                  primaryColor: tGreen,
+                                                  isDark: isDark,
+                                                ),
+
+                                                const SizedBox(width: 20),
+                                                mode == 'EV Fleet'
+                                                    ? SingleDoughnutChart(
+                                                      currentValue: toDouble(
+                                                        deviceOverviewModel
+                                                            ?.soc,
+                                                      ),
+                                                      avgValue: toDouble(
+                                                        deviceOverviewModel
+                                                            ?.avgsoc,
+                                                      ),
+                                                      title: "SOC",
+                                                      unit: "%",
+                                                      primaryColor: tBlueSky,
+                                                      isDark: isDark,
+                                                    )
+                                                    : SingleDoughnutChart(
+                                                      currentValue: toDouble(
+                                                        device.tafe?.fuellevel,
+                                                      ),
+                                                      avgValue:
+                                                          toDouble(
+                                                            device
+                                                                .tafe
+                                                                ?.fuellevel,
+                                                          ) *
+                                                          0.9,
+                                                      title: "Fuel",
+                                                      unit: "%",
+                                                      primaryColor: tBlueSky,
+                                                      isDark: isDark,
+                                                    ),
+
+                                                const SizedBox(width: 20),
+                                                SingleDoughnutChart(
+                                                  currentValue: toDouble(
+                                                    deviceOverviewModel
+                                                        ?.batteryBackUp,
+                                                  ),
+                                                  avgValue:
+                                                      toDouble(
+                                                        deviceOverviewModel
+                                                            ?.batteryBackUp,
+                                                      ) *
+                                                      0.9,
+                                                  title: "Battery BackUp",
+                                                  unit: "%",
+                                                  primaryColor: tOrange,
+                                                  isDark: isDark,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _buildInfoCard(
+                                    isDark,
+                                    "Odometer (km)",
+                                    format.format(
+                                      toDouble(deviceOverviewModel?.odometer) ??
+                                          0,
+                                    ),
+                                    tBlueGradient2,
+                                    'icons/odo.svg',
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  _buildInfoCard(
+                                    isDark,
+                                    "Operation Hours (hrs)",
+                                    // "${summary?.totalOperationalDuration ?? 0}",
+                                    format.format(
+                                      toDouble(
+                                            summary?.totalOperationalDuration ??
+                                                0,
+                                          ) ??
+                                          0,
+                                    ),
+                                    tRedGradient2,
+                                    'icons/consumedhours.svg',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      // Right panel (placeholder for map, chart, etc.)
+                      Expanded(flex: 4, child: _buildDeviceStatus(isDark)),
                     ],
                   ),
 
@@ -737,7 +2300,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  /// LEFT → FAULTS (LARGE CARD)
                                   Expanded(
                                     flex: 1,
                                     child: GestureDetector(
@@ -747,12 +2309,10 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                         );
                                       },
                                       child: LargeHoverCard(
-                                        value: NumberFormat(
-                                          '#,##,###',
-                                        ).format(0),
+                                        value: format.format(0),
                                         label: "Faults",
                                         labelColor: tRed,
-                                        icon: "icons/faults.svg",
+                                        icon: "icons/fault.svg",
                                         iconColor: tRed,
                                         bgColor: tRed.withOpacity(0.1),
                                         isDark: isDark,
@@ -777,9 +2337,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                           child: SmallHoverCard(
                                             width: double.infinity,
                                             height: 85,
-                                            value: NumberFormat(
-                                              '#,##,###',
-                                            ).format(
+                                            value: format.format(
                                               alertsModel?.totalAlerts ?? 0,
                                             ),
                                             label: "Alerts",
@@ -797,45 +2355,56 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                         Row(
                                           children: [
                                             Expanded(
-                                              child: SmallHoverCard(
-                                                height: 85,
-                                                value: NumberFormat(
-                                                  '#,##,###',
-                                                ).format(
-                                                  alertsModel?.criticalAlerts ??
-                                                      0,
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  context.go(
+                                                    '/home/alerts?imei=${widget.device.imei}&type=CRITICAL',
+                                                  );
+                                                },
+                                                child: SmallHoverCard(
+                                                  height: 85,
+                                                  value: format.format(
+                                                    alertsModel
+                                                            ?.criticalAlerts ??
+                                                        0,
+                                                  ),
+                                                  label: "Critical",
+                                                  labelColor: tOrange1,
+                                                  icon: "icons/alert.svg",
+                                                  iconColor: tOrange1,
+                                                  bgColor: tOrange1.withOpacity(
+                                                    0.1,
+                                                  ),
+                                                  isDark: isDark,
                                                 ),
-                                                label: "Critical",
-                                                labelColor: tOrange1,
-                                                icon: "icons/alert.svg",
-                                                iconColor: tOrange1,
-                                                bgColor: tOrange1.withOpacity(
-                                                  0.1,
-                                                ),
-                                                isDark: isDark,
                                               ),
                                             ),
 
                                             const SizedBox(width: 10),
 
                                             Expanded(
-                                              child: SmallHoverCard(
-                                                height: 85,
-                                                value: NumberFormat(
-                                                  '#,##,###',
-                                                ).format(
-                                                  alertsModel
-                                                          ?.nonCriticalAlerts ??
-                                                      0,
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  context.go(
+                                                    '/home/alerts?imei=${widget.device.imei}&type=NON_CRITICAL',
+                                                  );
+                                                },
+                                                child: SmallHoverCard(
+                                                  height: 85,
+                                                  value: format.format(
+                                                    alertsModel
+                                                            ?.nonCriticalAlerts ??
+                                                        0,
+                                                  ),
+                                                  label: "Non-Critical",
+                                                  labelColor: tBlueSky,
+                                                  icon: "icons/alert.svg",
+                                                  iconColor: tBlueSky,
+                                                  bgColor: tBlueSky.withOpacity(
+                                                    0.1,
+                                                  ),
+                                                  isDark: isDark,
                                                 ),
-                                                label: "Non-Critical",
-                                                labelColor: tBlueSky,
-                                                icon: "icons/alert.svg",
-                                                iconColor: tBlueSky,
-                                                bgColor: tBlueSky.withOpacity(
-                                                  0.1,
-                                                ),
-                                                isDark: isDark,
                                               ),
                                             ),
                                           ],
@@ -893,13 +2462,13 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                   GestureDetector(
                                     onTap: () {
                                       context.go(
-                                        '/home/trips?inputImei=${widget.device.imei}',
+                                        '/home/trips?Imei=${widget.device.imei}',
                                       );
                                     },
                                     child: LargeHoverCard(
-                                      value: NumberFormat(
-                                        '#,##,###',
-                                      ).format(summary?.totalTrips ?? 0),
+                                      value: format.format(
+                                        summary?.totalTrips ?? 0,
+                                      ),
                                       label: "Trips",
                                       labelColor: tGreen,
                                       icon: "icons/distance.svg",
@@ -913,33 +2482,43 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                     flex: 2,
                                     child: Column(
                                       children: [
-                                        SmallHoverCard(
-                                          width: double.infinity,
-                                          height: 85,
-                                          value: NumberFormat(
-                                            '#,##,###',
-                                          ).format(
-                                            summary?.completedTrips ?? 0,
+                                        GestureDetector(
+                                          onTap: () {
+                                            context.go(
+                                              '/home/trips?Imei=${widget.device.imei}&filter=Completed',
+                                            );
+                                          },
+                                          child: SmallHoverCard(
+                                            width: double.infinity,
+                                            height: 85,
+                                            value: format.format(
+                                              summary?.completedTrips ?? 0,
+                                            ),
+                                            label: "Completed Trips",
+                                            labelColor: tBlue,
+                                            icon: "icons/completed.svg",
+                                            iconColor: tBlue,
+                                            bgColor: tBlue.withOpacity(0.1),
+                                            isDark: isDark,
                                           ),
-                                          label: "Completed Trips",
-                                          labelColor: tBlue,
-                                          icon: "icons/completed.svg",
-                                          iconColor: tBlue,
-                                          bgColor: tBlue.withOpacity(0.1),
-                                          isDark: isDark,
                                         ),
                                         const SizedBox(height: 10),
                                         SmallHoverCard(
                                           width: double.infinity,
                                           height: 85,
-                                          value:
-                                              "${summary?.avgTripsPerDay ?? 0}",
+                                          value: format.format(
+                                            toDouble(
+                                                  summary?.avgTripsPerDay ?? 0,
+                                                ) ??
+                                                0,
+                                          ),
                                           label: "Avg. Trips",
                                           labelColor: tOrange1,
                                           icon: "icons/distance.svg",
                                           iconColor: tOrange1,
                                           bgColor: tOrange1.withOpacity(0.1),
                                           isDark: isDark,
+                                          enableHover: false,
                                         ),
                                       ],
                                     ),
@@ -953,27 +2532,39 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                         SmallHoverCard(
                                           width: double.infinity,
                                           height: 85,
-                                          value:
-                                              "${summary?.avgDistancePerImeiKm ?? 0}",
-                                          label: "Avg.Dist. Travelled(km)",
+                                          value: format.format(
+                                            toDouble(
+                                                  summary?.avgDistancePerImeiKm ??
+                                                      0,
+                                                ) ??
+                                                0,
+                                          ),
+                                          label: "Avg Dist.Travelled(km)",
                                           labelColor: tBlueSky,
                                           icon: "icons/distance.svg",
                                           iconColor: tBlueSky,
                                           bgColor: tBlueSky.withOpacity(0.1),
                                           isDark: isDark,
+                                          enableHover: false,
                                         ),
                                         const SizedBox(height: 10),
                                         SmallHoverCard(
                                           width: double.infinity,
                                           height: 85,
-                                          value:
-                                              "${summary?.avgOperationalHoursPerImei ?? 0}",
+                                          value: format.format(
+                                            toDouble(
+                                                  summary?.avgOperationalHoursPerImei ??
+                                                      0,
+                                                ) ??
+                                                0,
+                                          ),
                                           label: "Avg.Oper. Hours(hrs)",
                                           labelColor: tRed,
                                           icon: "icons/consumedhours.svg",
                                           iconColor: tRed,
                                           bgColor: tRed.withOpacity(0.1),
                                           isDark: isDark,
+                                          enableHover: false,
                                         ),
                                       ],
                                     ),
@@ -1022,7 +2613,10 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                           //     ),
                           //   ],
                           // ),
-                          decoration: BoxDecoration(color: tTransparent),
+                          decoration: BoxDecoration(
+                            color: tTransparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
 
                           // padding: const EdgeInsets.all(2),
                           child: Column(
@@ -1038,9 +2632,27 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                               ),
                               SizedBox(height: 10),
                               Expanded(
-                                child: buildVehicleMap(
-                                  isDark: isDark,
-                                  zoom: 10,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        spreadRadius: 2,
+                                        blurRadius: 10,
+                                        color:
+                                            isDark
+                                                ? tWhite.withOpacity(0.15)
+                                                : tBlack.withOpacity(0.15),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: buildVehicleMap(
+                                      isDark: isDark,
+                                      zoom: 10,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -1057,6 +2669,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                         child: Container(
                           height: 330,
                           decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
                             color: isDark ? tBlack : tWhite,
                             boxShadow: [
                               BoxShadow(
@@ -1083,6 +2696,8 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                           height: 330,
                           decoration: BoxDecoration(
                             color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
+
                             boxShadow: [
                               BoxShadow(
                                 spreadRadius: 2,
@@ -1145,6 +2760,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                           height: 330,
                           decoration: BoxDecoration(
                             color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
                                 spreadRadius: 2,
@@ -1179,60 +2795,142 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     String title,
     String value,
     Gradient cardColor,
+    String iconPath,
   ) {
     return Container(
-      width: double.infinity, // fits 2 per row
+      height: 110,
       decoration: BoxDecoration(
-        color: tTransparent,
+        gradient: cardColor,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            spreadRadius: 2,
-            blurRadius: 10,
-            color: isDark ? tWhite.withOpacity(0.25) : tBlack.withOpacity(0.15),
+            color: isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.10),
+            blurRadius: 12,
+            spreadRadius: 1,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          /// Header
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: isDark ? tBlack : tWhite,
-              // border: Border.all(width: 0.5, color: isDark ? tWhite : tBlack),
-            ),
-            child: Text(
-              title,
-              style: GoogleFonts.urbanist(
-                fontSize: 12,
-                color: isDark ? tWhite : tBlack,
-                fontWeight: FontWeight.bold,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            /// Centered Asset Icon
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: tWhite.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
               ),
-              textAlign: TextAlign.center,
+              child: Center(
+                child: SvgPicture.asset(
+                  iconPath,
+                  height: 25,
+                  width: 25,
+                  colorFilter: const ColorFilter.mode(tWhite, BlendMode.srcIn),
+                ),
+              ),
             ),
-          ),
 
-          /// Gradient Value Box
-          Container(
-            height: 78,
-            width: double.infinity,
-            decoration: BoxDecoration(gradient: cardColor),
-            alignment: Alignment.center,
-            child: Text(
-              value,
-              style: GoogleFonts.urbanist(
-                fontSize: 33,
-                color: tWhite,
-                fontWeight: FontWeight.bold,
+            const SizedBox(width: 14),
+
+            /// Title + Value
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.urbanist(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: tWhite.withOpacity(0.9),
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: GoogleFonts.urbanist(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: tWhite,
+                    ),
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  // Widget _buildInfoCard(
+  //   bool isDark,
+  //   String title,
+  //   String value,
+  //   Gradient cardColor,
+  // ) {
+  //   return Container(
+  //     width: double.infinity, // fits 2 per row
+  //     decoration: BoxDecoration(
+  //       color: tTransparent,
+  //       boxShadow: [
+  //         BoxShadow(
+  //           spreadRadius: 2,
+  //           blurRadius: 10,
+  //           color: isDark ? tWhite.withOpacity(0.25) : tBlack.withOpacity(0.15),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.stretch,
+  //       children: [
+  //         /// Header
+  //         Container(
+  //           padding: const EdgeInsets.symmetric(vertical: 6),
+  //           decoration: BoxDecoration(
+  //             color: isDark ? tBlack : tWhite,
+  //             // border: Border.all(width: 0.5, color: isDark ? tWhite : tBlack),
+  //           ),
+  //           child: Text(
+  //             title,
+  //             style: GoogleFonts.urbanist(
+  //               fontSize: 12,
+  //               color: isDark ? tWhite : tBlack,
+  //               fontWeight: FontWeight.bold,
+  //             ),
+  //             textAlign: TextAlign.center,
+  //           ),
+  //         ),
+
+  //         /// Gradient Value Box
+  //         Container(
+  //           height: 78,
+  //           width: double.infinity,
+  //           decoration: BoxDecoration(gradient: cardColor),
+  //           alignment: Alignment.center,
+  //           child: Text(
+  //             value,
+  //             style: GoogleFonts.urbanist(
+  //               fontSize: 33,
+  //               color: tWhite,
+  //               fontWeight: FontWeight.bold,
+  //             ),
+  //             textAlign: TextAlign.center,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget buildDeviceCard({
     required bool isDark,
@@ -1276,13 +2974,46 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
         statusColor = tBlack;
     }
 
+    String getTruckIcon(String status) {
+      switch (status.toLowerCase()) {
+        case 'moving':
+          return 'icons/indicationIcons/moving1.svg';
+
+        case 'stopped':
+          return 'icons/indicationIcons/stopped1.svg';
+
+        case 'idle':
+          return 'icons/indicationIcons/idle1.svg';
+
+        case 'disconnected':
+          return 'icons/indicationIcons/disconnected1.svg';
+
+        case 'non coverage':
+        case 'non_coverage':
+          return 'icons/indicationIcons/noncoverage1.svg';
+
+        case 'charging':
+          return 'icons/indicationIcons/charging1.svg';
+
+        case 'discharging':
+          return 'icons/indicationIcons/moving1.svg';
+
+        default:
+          return 'icons/indicationIcons/stopped1.svg';
+      }
+    }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+
     return Container(
       width: double.infinity,
-      height: 90,
+      // height: 90,
       decoration: BoxDecoration(
         // color: tGrey.withOpacity(0.1),
         color: isDark ? tBlack : tWhite,
-        // borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             spreadRadius: 2,
@@ -1291,41 +3022,31 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // SvgPicture.asset('icons/truck1.svg', width: 80, height: 80),
-          Image.asset(
-            'images/Hero_Lectro_Bike.png',
-            width: 100,
-            height: 100,
-            fit: BoxFit.contain,
-          ),
-          SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // ===== Top Row =====
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // ==== Left Side (IMEI + Vehicle + Status) ====
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // IMEI + Vehicle ID Container
-                          Flexible(
-                            child: Container(
-                              width: 350,
-                              // constraints: const BoxConstraints(
-                              //   minWidth: 200,
-                              //   maxWidth: 400,
-                              // ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child:
+          isMobile
+              ? Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      /// TRUCK IMAGE
+                      SvgPicture.asset(
+                        getTruckIcon(status),
+                        height: 65,
+                        width: 65,
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      /// RIGHT CONTENT
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            /// IMEI + VEHICLE
+                            Container(
+                              width: double.infinity,
                               decoration: BoxDecoration(
                                 border: Border.all(
                                   color: statusColor,
@@ -1333,11 +3054,281 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                 ),
                                 borderRadius: BorderRadius.circular(5),
                               ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  /// IMEI
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient: SweepGradient(
+                                        colors: [
+                                          statusColor,
+                                          statusColor.withOpacity(0.6),
+                                        ],
+                                      ),
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(5),
+                                        topRight: Radius.circular(5),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      imei,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.urbanist(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: tWhite,
+                                      ),
+                                    ),
+                                  ),
+
+                                  /// VEHICLE
+                                  Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Text(
+                                      vehicleNumber,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.urbanist(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? tWhite : tBlack,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            /// STATUS
+                            Row(
+                              // mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: SweepGradient(
+                                      colors: [
+                                        statusColor,
+                                        statusColor.withOpacity(0.6),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    status,
+                                    style: GoogleFonts.urbanist(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: tWhite,
+                                    ),
+                                  ),
+                                ),
+
+                                // const SizedBox(width: 8),
+                                const Spacer(),
+
+                                SvgPicture.asset(
+                                  'icons/immobilize_ON.svg',
+                                  width: 18,
+                                  height: 18,
+                                  color: isDark ? tRed : tGreen,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  Divider(color: statusColor, thickness: 0.3),
+
+                  const SizedBox(height: 2),
+
+                  /// ===================== ROW 4 =====================
+                  /// LOCATION
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: isMobile ? 32 : 36,
+                        height: isMobile ? 30 : 36,
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'icons/geofence.svg',
+                            width: isMobile ? 14 : 16,
+                            height: isMobile ? 14 : 16,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 6),
+
+                      Expanded(
+                        child: Text(
+                          location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 11,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  Row(
+                    children: [
+                      Text(
+                        'LastSync :',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 10,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: Text(
+                          lastUpdated,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+              : Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // SvgPicture.asset('icons/truck1.svg', width: 80, height: 80),
+                  // Image.asset(
+                  //   'images/truck1.png',
+                  //   width: isMobile ? 85 : 100,
+                  //   height: isMobile ? 85 : 100,
+                  //   fit: BoxFit.contain,
+                  // ),
+                  SvgPicture.asset(getTruckIcon(status), height: 85, width: 85),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // ==== Left Side (IMEI + Vehicle + Status) ====
+                            Expanded(
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  // IMEI Box
+                                  // IMEI + Vehicle ID Container
+                                  Flexible(
+                                    child: Container(
+                                      width: 350,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: statusColor,
+                                          width: 1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(5),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          // IMEI Box
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              gradient: SweepGradient(
+                                                colors: [
+                                                  statusColor,
+                                                  statusColor.withOpacity(0.6),
+                                                ],
+                                              ),
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                    topLeft: Radius.circular(5),
+                                                    bottomLeft: Radius.circular(
+                                                      5,
+                                                    ),
+                                                  ),
+                                            ),
+                                            child: Text(
+                                              imei,
+                                              style: GoogleFonts.urbanist(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                // color: isDark ? tWhite : tBlack,
+                                                color: tWhite,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+
+                                          // Vehicle ID Text
+                                          Expanded(
+                                            child: Center(
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                    ),
+                                                child: Text(
+                                                  vehicleNumber,
+                                                  style: GoogleFonts.urbanist(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color:
+                                                        isDark
+                                                            ? tWhite
+                                                            : tBlack,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 10),
+
+                                  // Moving Status Container
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -1350,210 +3341,128 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                           statusColor.withOpacity(0.6),
                                         ],
                                       ),
-                                      borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(5),
-                                        bottomLeft: Radius.circular(5),
-                                      ),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      imei,
+                                      status,
                                       style: GoogleFonts.urbanist(
                                         fontSize: 13,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w600,
                                         // color: isDark ? tWhite : tBlack,
                                         color: tWhite,
                                       ),
                                       textAlign: TextAlign.center,
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
 
-                                  // Vehicle ID Text
-                                  Expanded(
+                            // ==== Right Side ====
+                            SvgPicture.asset(
+                              'icons/immobilize_ON.svg',
+                              width: 25,
+                              height: 25,
+                              color: isDark ? tRed : tGreen,
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 2),
+                        Divider(
+                          // color:
+                          //     isDark
+                          //         ? tWhite.withOpacity(0.4)
+                          //         : tBlack.withOpacity(0.4),
+                          color: statusColor,
+                          thickness: 0.3,
+                        ),
+                        const SizedBox(height: 2),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: isMobile ? 32 : 36,
+                                    height: isMobile ? 30 : 36,
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(13),
+                                    ),
+
                                     child: Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                        ),
-                                        child: Text(
-                                          vehicleNumber,
-                                          style: GoogleFonts.urbanist(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: isDark ? tWhite : tBlack,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                      child: SvgPicture.asset(
+                                        'icons/geofence.svg',
+                                        width: isMobile ? 14 : 16,
+                                        height: isMobile ? 14 : 16,
+                                        color: statusColor,
                                       ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 6),
+
+                                  Expanded(
+                                    child: Text(
+                                      location,
+                                      style: GoogleFonts.urbanist(
+                                        fontSize: 13,
+                                        color: isDark ? tWhite : tBlack,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
 
-                          const SizedBox(width: 10),
+                            Row(
+                              children: [
+                                Text(
+                                  'LastSync :',
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w400,
+                                    color: isDark ? tWhite : tBlack,
+                                  ),
+                                ),
 
-                          // Moving Status Container
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: SweepGradient(
-                                colors: [
-                                  statusColor,
-                                  statusColor.withOpacity(0.6),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              status,
-                              style: GoogleFonts.urbanist(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                // color: isDark ? tWhite : tBlack,
-                                color: tWhite,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                                const SizedBox(width: 5),
 
-                    // ==== Right Side ====
-                    SvgPicture.asset(
-                      'icons/immobilize_ON.svg',
-                      width: 25,
-                      height: 25,
-                      color: isDark ? tRed : tGreen,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 2),
-                Divider(
-                  // color:
-                  //     isDark
-                  //         ? tWhite.withOpacity(0.4)
-                  //         : tBlack.withOpacity(0.4),
-                  color: statusColor,
-                  thickness: 0.3,
-                ),
-                const SizedBox(height: 2),
-
-                // ===== Bottom Row (Location) =====
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: SvgPicture.asset(
-                              'icons/geofence.svg',
-                              color: statusColor,
-                              fit: BoxFit.contain,
+                                Text(
+                                  lastUpdated,
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? tWhite : tBlack,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              location,
-                              style: GoogleFonts.urbanist(
-                                fontSize: 13,
-                                color: isDark ? tWhite : tBlack,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Row(
-                    //   children: [
-                    //     Text(
-                    //       'LastSync :',
-                    //       style: GoogleFonts.urbanist(
-                    //         fontSize: 12,
-                    //         fontWeight: FontWeight.w400,
-                    //         color: isDark ? tWhite : tBlack,
-                    //       ),
-                    //     ),
-                    //     const SizedBox(width: 5),
-                    //     Text(
-                    //       lastUpdated,
-                    //       style: GoogleFonts.urbanist(
-                    //         fontSize: 12,
-                    //         fontWeight: FontWeight.w600,
-                    //         color: isDark ? tWhite : tBlack,
-                    //       ),
-                    //     ),
-                    //   ],
-                    // ),
-                    Row(
-                      children: [
-                        Text(
-                          'LastSync :',
-                          style: GoogleFonts.urbanist(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                            color: isDark ? tWhite : tBlack,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          lastUpdated,
-                          style: GoogleFonts.urbanist(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? tWhite : tBlack,
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+                  ),
+                ],
+              ),
     );
   }
 
-  // Widget _buildDeviceStatus(bool isDark) {
-  //   return Container(
-  //     height: 225,
-  //     decoration: BoxDecoration(
-  //       color: isDark ? tBlack : tWhite,
-  //       boxShadow: [
-  //         BoxShadow(
-  //           spreadRadius: 2,
-  //           blurRadius: 10,
-  //           color: isDark ? tWhite.withOpacity(0.25) : tBlack.withOpacity(0.15),
-  //         ),
-  //       ],
-  //     ),
-  //     padding: EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-  //     child: SpeedDistanceChart(),
-  //   );
-  // }
-
   Widget _buildDeviceStatus(bool isDark) {
     final mode = context.watch<FleetModeProvider>().mode;
-    final data = distSpeedSocModel?.data ?? [];
-
+    final model = distSpeedSocModel;
+    final data = distSpeedSocModel?.twelveHours ?? [];
     return Container(
       height: 225,
       decoration: BoxDecoration(
         color: isDark ? tBlack : tWhite,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             spreadRadius: 2,
@@ -1570,12 +3479,14 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                   : SpeedDistanceChart(
                     key: ValueKey(selectedDate.toString()),
                     SpeedDistanceSocData: data,
+                    SpeedDistanceSocModel: model,
                   ))
               : (data.isEmpty
                   ? const Center(child: Text("No speed / distance data"))
                   : Distancespeedchart(
                     key: ValueKey(selectedDate.toString()),
                     SpeedDistanceSocData: data,
+                    SpeedDistanceSocModel: model,
                   )),
     );
   }
@@ -1598,6 +3509,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
         child: Center(child: Text("No vehicle status data")),
       );
     }
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final labels = hourlyStatusBreakdown.keys.toList();
 
     final label = labels[0];
@@ -1612,8 +3524,25 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
               gridData: FlGridData(show: false),
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
-                leftTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 35,
+                    interval: 30,
+                    getTitlesWidget: (value, meta) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          '${value.toInt()}',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 topTitles: const AxisTitles(
                   sideTitles: SideTitles(showTitles: false),
@@ -1624,37 +3553,89 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                 bottomTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
+                    // reservedSize: 45,
                     reservedSize: 45,
+                    interval: 1,
                     getTitlesWidget: (value, meta) {
                       int index = value.toInt();
                       if (index < 0 || index >= labels.length) {
                         return const SizedBox();
                       }
+                      // if (isMobile && index.isOdd) {
+                      //   return const SizedBox();
+                      // }
+                      final label = labels[index];
+                      final parts = label.split(" - ");
 
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              parts.first,
-                              style: GoogleFonts.urbanist(
-                                fontSize: 8,
-                                color: isDark ? tWhite : tBlack,
-                                fontWeight: FontWeight.w500,
+                      String topTime = parts.first;
+                      String bottomTime = parts.length > 1 ? parts.last : '';
+                      String formatMobile(String text) {
+                        final split = text.split(' ');
+                        if (split.length >= 2) {
+                          return '${split[0]}\n${split[1]}';
+                        }
+                        return text;
+                      }
+
+                      return isMobile
+                          ? Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: SizedBox(
+                              width: 32,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    formatMobile(topTime),
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.urbanist(
+                                      fontSize: 6,
+                                      height: 1.2,
+                                      color: isDark ? tWhite : tBlack,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 2),
+
+                                  Text(
+                                    formatMobile(bottomTime),
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.urbanist(
+                                      fontSize: 6,
+                                      height: 1.2,
+                                      color: isDark ? tWhite : tBlack,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              parts.length > 1 ? parts.last : '',
-                              style: GoogleFonts.urbanist(
-                                fontSize: 8,
-                                color: isDark ? tWhite : tBlack,
-                                fontWeight: FontWeight.w500,
-                              ),
+                          )
+                          : Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  parts.first,
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: 10,
+                                    color: isDark ? tWhite : tBlack,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  parts.length > 1 ? parts.last : '',
+                                  style: GoogleFonts.urbanist(
+                                    fontSize: 10,
+                                    color: isDark ? tWhite : tBlack,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      );
+                          );
                     },
                   ),
                 ),
@@ -1735,45 +3716,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                 ),
               ),
 
-              // barGroups: List.generate(labels.length, (index) {
-              //   final label = labels[index];
-              //   final data = hourlyStatusBreakdown[label]!;
-
-              //   final totalMins = data.values.fold<double>(
-              //     0,
-              //     (sum, v) => sum + v,
-              //   );
-
-              //   if (totalMins == 0) {
-              //     return BarChartGroupData(
-              //       x: index,
-              //       barRods: [BarChartRodData(toY: 0, width: 15)],
-              //     );
-              //   }
-
-              //   double startY = 0.0;
-
-              //   final rods =
-              //       data.entries.map((e) {
-              //         final color = statusColors[e.key]!.withOpacity(0.9);
-              //         final endY = startY + (e.value / totalMins) * 60;
-              //         final item = BarChartRodStackItem(startY, endY, color);
-              //         startY = endY;
-              //         return item;
-              //       }).toList();
-
-              //   return BarChartGroupData(
-              //     x: index,
-              //     barRods: [
-              //       BarChartRodData(
-              //         toY: 60,
-              //         rodStackItems: rods,
-              //         width: 15,
-              //         borderRadius: BorderRadius.circular(0),
-              //       ),
-              //     ],
-              //   );
-              // }
               barGroups: List.generate(labels.length, (index) {
                 final label = labels[index];
                 final data = hourlyStatusBreakdown[label]!;
@@ -1784,27 +3726,55 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                   barRods: [
                     BarChartRodData(
                       toY: data['moving'] ?? 0,
-                      color: statusColors['moving'],
-                      width: 6,
-                      borderRadius: BorderRadius.circular(0),
+                      width: 8,
+                      borderRadius: BorderRadius.circular(2),
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          statusColors['moving']!.withOpacity(0),
+                          statusColors['moving']!,
+                        ],
+                      ),
                     ),
                     BarChartRodData(
                       toY: data['idle'] ?? 0,
-                      color: statusColors['idle'],
-                      width: 6,
-                      borderRadius: BorderRadius.circular(0),
+                      width: 8,
+                      borderRadius: BorderRadius.circular(2),
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          statusColors['idle']!.withOpacity(0),
+                          statusColors['idle']!,
+                        ],
+                      ),
                     ),
                     BarChartRodData(
                       toY: data['halted'] ?? 0,
-                      color: statusColors['halted'],
-                      width: 6,
-                      borderRadius: BorderRadius.circular(0),
+                      width: 8,
+                      borderRadius: BorderRadius.circular(2),
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          statusColors['halted']!.withOpacity(0),
+                          statusColors['halted']!,
+                        ],
+                      ),
                     ),
                     BarChartRodData(
                       toY: data['stopped'] ?? 0,
-                      color: statusColors['stopped'],
-                      width: 6,
-                      borderRadius: BorderRadius.circular(0),
+                      width: 8,
+                      borderRadius: BorderRadius.circular(2),
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          statusColors['stopped']!.withOpacity(0),
+                          statusColors['stopped']!,
+                        ],
+                      ),
                     ),
                   ],
                 );
@@ -1882,7 +3852,8 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
       child: FlutterMap(
         options: MapOptions(
           initialCenter: startPoint,
-          initialZoom: zoom,
+          // initialZoom: zoom,
+          initialZoom: polylinePoints.length < 5 ? 18 : 13,
           maxZoom: 18,
           minZoom: 3,
           onTap: (tapPosition, latLng) {
@@ -1903,7 +3874,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
               Polyline(
                 points: polylinePoints,
                 strokeWidth: 4,
-                color: tBlue.withOpacity(0.6),
+                color: tGreen8.withOpacity(0.6),
               ),
             ],
           ),
@@ -2044,7 +4015,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     if (minDistance < 80) {
       setState(() {
         selectedPoint = nearest;
-        selectedIndex = index; // ✅ store index
+        selectedIndex = index;
       });
     } else {
       setState(() {
@@ -2056,6 +4027,11 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
 
   Widget _buildTripsTable(bool isDark) {
     final trips = tripsModel?.trips?.entities ?? [];
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+
+    final isTablet = screenWidth >= 600 && screenWidth < 1100;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2063,18 +4039,13 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
         final maxWidth = constraints.maxWidth;
 
         Color getStatusColor(String status) {
-          return status == "Completed" ? tBlue : tGreen;
+          return status == "Completed" ? tGreen8 : tBlueSky;
         }
 
         String formatDate(String? iso) {
           if (iso == null || iso.isEmpty) return "-";
-
-          final utc = DateTime.parse(iso).toUtc();
-          final ist = utc.add(
-            const Duration(hours: 5, minutes: 30),
-          ); // convert to IST
-
-          return DateFormat('dd MMM yyyy, hh:mm a').format(ist);
+          final dt = DateTime.parse(iso);
+          return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
         }
 
         String resolveTripStatus(int? status) {
@@ -2090,6 +4061,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
                 blurRadius: 10,
@@ -2103,7 +4075,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
               Expanded(
                 child: Scrollbar(
                   controller: _tripHorizontalCtrl,
-                  thumbVisibility: true,
+                  thumbVisibility: false,
                   radius: const Radius.circular(6),
                   thickness: 4,
                   child: SingleChildScrollView(
@@ -2113,145 +4085,93 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                       constraints: BoxConstraints(minWidth: maxWidth),
                       child: Scrollbar(
                         controller: _tripVerticalCtrl,
-                        thumbVisibility: true,
+                        thumbVisibility: false,
                         child: SingleChildScrollView(
                           controller: _tripVerticalCtrl,
                           scrollDirection: Axis.vertical,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              isDark
-                                  ? tGreen8.withOpacity(0.15)
-                                  : tGreen8.withOpacity(0.1),
-                            ),
-                            headingTextStyle: GoogleFonts.urbanist(
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? tWhite : tBlack,
-                              fontSize: 13,
-                            ),
-                            dataTextStyle: GoogleFonts.urbanist(
-                              color: isDark ? tWhite : tBlack,
-                              fontWeight: FontWeight.w400,
-                              fontSize: 12,
-                            ),
-                            columnSpacing: 30,
-                            border: TableBorder.all(
-                              color:
-                                  isDark
-                                      ? tWhite.withOpacity(0.1)
-                                      : tBlack.withOpacity(0.1),
-                              width: 0.4,
-                            ),
-                            dividerThickness: 0.01,
-                            columns: const [
-                              DataColumn(label: Text("Start Date")),
-                              DataColumn(label: Text("End Date")),
-                              DataColumn(label: Text("Duration")),
-                              DataColumn(label: Text("Distance")),
-                              DataColumn(label: Text("Trip Status")),
-                            ],
-                            rows:
-                                trips.map((trip) {
-                                  final status = resolveTripStatus(
-                                    trip.tripStatus,
-                                  );
-                                  // return DataRow(
-                                  //   cells: [
-                                  //     DataCell(
-                                  //       Text(formatDate(trip.tripStartTime)),
-                                  //     ),
-                                  //     DataCell(
-                                  //       Text(formatDate(trip.tripEndTime)),
-                                  //     ),
-                                  //     DataCell(Text("${trip.totalTime} mins")),
-                                  //     DataCell(
-                                  //       Text(
-                                  //         "${trip.totalDistance?.toStringAsFixed(2)} kms",
-                                  //       ),
-                                  //     ),
-
-                                  //     // Status badge
-                                  //     DataCell(
-                                  //       Container(
-                                  //         padding: const EdgeInsets.symmetric(
-                                  //           vertical: 4,
-                                  //           horizontal: 12,
-                                  //         ),
-                                  //         decoration: BoxDecoration(
-                                  //           color: getStatusColor(
-                                  //             status,
-                                  //           ).withOpacity(0.15),
-                                  //           borderRadius: BorderRadius.circular(
-                                  //             6,
-                                  //           ),
-                                  //         ),
-                                  //         child: Text(
-                                  //           status,
-                                  //           style: GoogleFonts.urbanist(
-                                  //             color: getStatusColor(status),
-                                  //             fontWeight: FontWeight.bold,
-                                  //           ),
-                                  //         ),
-                                  //       ),
-                                  //     ),
-                                  //   ],
-                                  // );
-                                  return DataRow(
-                                    color:
-                                        WidgetStateProperty.resolveWith<Color?>(
-                                          (states) {
-                                            if (selectedTrip?.id == trip.id) {
-                                              return tGreen8.withOpacity(0.05);
-                                            }
-                                            return null;
-                                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: DataTable(
+                              headingRowColor: WidgetStateProperty.all(
+                                isDark
+                                    ? tGreen8.withOpacity(0.15)
+                                    : tGreen8.withOpacity(0.05),
+                              ),
+                              headingTextStyle: GoogleFonts.urbanist(
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? tWhite : tBlack,
+                                fontSize: isMobile ? 11 : 13,
+                              ),
+                              dataTextStyle: GoogleFonts.urbanist(
+                                color: isDark ? tWhite : tBlack,
+                                fontWeight: FontWeight.w400,
+                                fontSize: isMobile ? 10 : 12,
+                              ),
+                              columnSpacing: isMobile ? 20 : 30,
+                              border: TableBorder.all(
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.1)
+                                        : tBlack.withOpacity(0.1),
+                                width: 0.4,
+                              ),
+                              dividerThickness: 0.01,
+                              columns: const [
+                                DataColumn(label: Text("Start Date")),
+                                DataColumn(label: Text("End Date")),
+                                DataColumn(label: Text("Duration")),
+                                DataColumn(label: Text("Distance")),
+                                DataColumn(label: Text("Trip Status")),
+                              ],
+                              rows:
+                                  trips.map((trip) {
+                                    final status = resolveTripStatus(
+                                      trip.tripStatus,
+                                    );
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(
+                                          Text(formatDate(trip.tripStartTime)),
                                         ),
-
-                                    cells: [
-                                      DataCell(
-                                        Text(formatDate(trip.tripStartTime)),
-                                      ),
-                                      DataCell(
-                                        Text(formatDate(trip.tripEndTime)),
-                                      ),
-                                      DataCell(
-                                        Text("${trip.totalTime ?? '--'} mins"),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          trip.totalDistance != null
-                                              ? "${trip.totalDistance!.toStringAsFixed(2)} kms"
-                                              : "--",
+                                        DataCell(
+                                          Text(formatDate(trip.tripEndTime)),
                                         ),
-                                      ),
-
-                                      /// STATUS BADGE
-                                      DataCell(
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                            horizontal: 12,
+                                        DataCell(
+                                          Text("${trip.totalTime} mins"),
+                                        ),
+                                        DataCell(
+                                          Text(
+                                            "${trip.totalDistance?.toStringAsFixed(2)} kms",
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: getStatusColor(
+                                        ),
+
+                                        // Status badge
+                                        DataCell(
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                              horizontal: 12,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: getStatusColor(
+                                                status,
+                                              ).withOpacity(0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
                                               status,
-                                            ).withOpacity(0.15),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            status,
-                                            style: GoogleFonts.urbanist(
-                                              color: getStatusColor(status),
-                                              fontWeight: FontWeight.bold,
+                                              style: GoogleFonts.urbanist(
+                                                color: getStatusColor(status),
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                        onTap: () => _handleTripClick(trip),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
+                                      ],
+                                    );
+                                  }).toList(),
+                            ),
                           ),
                         ),
                       ),
@@ -2262,75 +4182,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
 
               // No pagination required unless you need it later
             ],
-          ),
-        );
-      },
-    );
-  }
-
-  String resolveTripStatus(dynamic status) {
-    switch (status) {
-      case 0:
-        return "Ongoing";
-      case 1:
-        return "Completed";
-      default:
-        return "Unknown";
-    }
-  }
-
-  Future<void> _handleTripClick(dynamic trip) async {
-    final status = resolveTripStatus(trip.tripStatus).toLowerCase();
-
-    if (status != "completed") return;
-
-    setState(() {
-      selectedTrip = trip;
-      _isRouteLoading = true;
-    });
-
-    final result = await _api.fetchTripRoutePlayback(trip.id!);
-
-    if (!mounted || result == null) {
-      setState(() => _isRouteLoading = false);
-      return;
-    }
-
-    final playbackData = result.data ?? [];
-    final points = _convertPlaybackDataToLatLng(playbackData);
-
-    setState(() {
-      _isRouteLoading = false;
-    });
-
-    _showTripPopup(context, trip, points, playbackData);
-  }
-
-  void _showTripPopup(
-    BuildContext context,
-    dynamic trip,
-    List<LatLng> points,
-    List<TripPlaybackModel.Data> _playbackData,
-  ) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.all(20),
-          backgroundColor: Colors.transparent,
-          child: Container(
-            height: 620,
-            width: 940,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: TripPlaybackWidget(
-              trip: trip,
-              routePoints: points,
-              playbackData: _playbackData,
-            ),
           ),
         );
       },
@@ -2349,6 +4200,12 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
       return tGrey;
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final isMobile = screenWidth < 600;
+
+    final isTablet = screenWidth >= 600 && screenWidth < 1100;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxHeight = constraints.maxHeight;
@@ -2360,6 +4217,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
                 blurRadius: 10,
@@ -2372,7 +4230,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
               Expanded(
                 child: Scrollbar(
                   controller: _alertHorizontalCtrl,
-                  thumbVisibility: true,
+                  thumbVisibility: false,
                   radius: const Radius.circular(6),
                   thickness: 4,
                   child: SingleChildScrollView(
@@ -2382,83 +4240,88 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                       constraints: BoxConstraints(minWidth: maxWidth),
                       child: Scrollbar(
                         controller: _alertVerticalCtrl,
-                        thumbVisibility: true,
+                        thumbVisibility: false,
                         child: SingleChildScrollView(
                           controller: _alertVerticalCtrl,
                           scrollDirection: Axis.vertical,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              isDark
-                                  ? tGreen8.withOpacity(0.15)
-                                  : tGreen8.withOpacity(0.1),
-                            ),
-                            headingTextStyle: GoogleFonts.urbanist(
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? tWhite : tBlack,
-                              fontSize: 13,
-                            ),
-                            dataTextStyle: GoogleFonts.urbanist(
-                              color: isDark ? tWhite : tBlack,
-                              fontWeight: FontWeight.w400,
-                              fontSize: 12,
-                            ),
-                            columnSpacing: 40,
-                            border: TableBorder.all(
-                              color:
-                                  isDark
-                                      ? tWhite.withOpacity(0.1)
-                                      : tBlack.withOpacity(0.1),
-                              width: 0.4,
-                            ),
-                            dividerThickness: 0.01,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: DataTable(
+                              headingRowColor: WidgetStateProperty.all(
+                                isDark
+                                    ? tGreen8.withOpacity(0.15)
+                                    : tGreen8.withOpacity(0.05),
+                              ),
+                              headingTextStyle: GoogleFonts.urbanist(
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? tWhite : tBlack,
+                                fontSize: isMobile ? 11 : 13,
+                              ),
+                              dataTextStyle: GoogleFonts.urbanist(
+                                color: isDark ? tWhite : tBlack,
+                                fontWeight: FontWeight.w400,
+                                fontSize: isMobile ? 10 : 12,
+                              ),
+                              columnSpacing: isMobile ? 20 : 40,
+                              border: TableBorder.all(
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.1)
+                                        : tBlack.withOpacity(0.1),
+                                width: 0.4,
+                              ),
+                              dividerThickness: 0.01,
 
-                            /// TWO COLUMNS ONLY
-                            columns: const [
-                              DataColumn(label: Text("Date & Time")),
-                              DataColumn(label: Text("Alert")),
-                            ],
+                              /// TWO COLUMNS ONLY
+                              columns: const [
+                                DataColumn(label: Text("Date & Time")),
+                                DataColumn(label: Text("Alert")),
+                              ],
 
-                            rows:
-                                alerts.map((alert) {
-                                  final color = getAlertColor(alert.alertType!);
-                                  String formatDate(String? iso) {
-                                    if (iso == null || iso.isEmpty) return "-";
-                                    final dt = DateTime.parse(iso);
-                                    return DateFormat(
-                                      'dd MMM yyyy, hh:mm a',
-                                    ).format(dt);
-                                  }
+                              rows:
+                                  alerts.map((alert) {
+                                    final color = getAlertColor(
+                                      alert.alertType!,
+                                    );
+                                    String formatDate(String? iso) {
+                                      if (iso == null || iso.isEmpty)
+                                        return "-";
+                                      final dt = DateTime.parse(iso);
+                                      return DateFormat(
+                                        'dd MMM yyyy, hh:mm a',
+                                      ).format(dt);
+                                    }
 
-                                  return DataRow(
-                                    cells: [
-                                      // Date/Time
-                                      DataCell(Text(formatDate(alert.time))),
+                                    return DataRow(
+                                      cells: [
+                                        // Date/Time
+                                        DataCell(Text(formatDate(alert.time))),
 
-                                      // Alert Badge
-                                      DataCell(
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                            horizontal: 12,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: color.withOpacity(0.18),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
+                                        // Alert Badge
+                                        DataCell(
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                              horizontal: 12,
                                             ),
-                                          ),
-                                          child: Text(
-                                            alert.alertType ?? '--',
-                                            style: GoogleFonts.urbanist(
-                                              color: color,
-                                              fontWeight: FontWeight.w700,
+                                            decoration: BoxDecoration(
+                                              color: color.withOpacity(0.18),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              alert.alertType ?? '--',
+                                              style: GoogleFonts.urbanist(
+                                                color: color,
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
+                                      ],
+                                    );
+                                  }).toList(),
+                            ),
                           ),
                         ),
                       ),
@@ -2602,462 +4465,4 @@ class CrosshairPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class TripPlaybackWidget extends StatefulWidget {
-  final dynamic trip;
-  final List<LatLng> routePoints;
-  final List<TripPlaybackModel.Data> playbackData;
-  final bool isDark;
-
-  const TripPlaybackWidget({
-    super.key,
-    required this.trip,
-    required this.routePoints,
-    required this.playbackData,
-    this.isDark = false,
-  });
-
-  @override
-  State<TripPlaybackWidget> createState() => _TripPlaybackWidgetState();
-}
-
-class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
-  final MapController _mapController = MapController();
-
-  List<LatLng> completedPath = [];
-  List<LatLng> remainingPath = [];
-
-  LatLng? _movingMarker;
-  int _playIndex = 0;
-  bool _isPlaying = false;
-  Timer? _playTimer;
-  bool _isMapReady = false;
-  List<LatLng> _routePoints = [];
-  double _currentZoom = 17.0;
-  Entities? selectedTrip;
-
-  TripPlaybackModel.Data? _currentPlaybackData;
-
-  double _zoom = 16;
-  final int _tickMs = 750;
-
-  @override
-  void initState() {
-    super.initState();
-
-    if (widget.routePoints.isNotEmpty) {
-      completedPath = [widget.routePoints.first];
-      remainingPath = List.from(widget.routePoints);
-      _movingMarker = widget.routePoints.first;
-    }
-
-    if (widget.playbackData.isNotEmpty) {
-      _currentPlaybackData = widget.playbackData.first;
-    }
-  }
-
-  void _togglePlayback() {
-    if (_isPlaying) {
-      _stopPlayback();
-    } else {
-      _startPlayback();
-    }
-  }
-
-  void _startPlayback() {
-    _playTimer?.cancel();
-
-    setState(() => _isPlaying = true);
-
-    _playTimer = Timer.periodic(Duration(milliseconds: _tickMs), (_) {
-      if (_playIndex < widget.routePoints.length - 1) {
-        setState(() {
-          _playIndex++;
-
-          _movingMarker = widget.routePoints[_playIndex];
-          _currentPlaybackData = widget.playbackData[_playIndex];
-
-          completedPath = widget.routePoints.sublist(0, _playIndex + 1);
-          remainingPath = widget.routePoints.sublist(_playIndex);
-
-          _mapController.move(_movingMarker!, _zoom);
-        });
-      } else {
-        _stopPlayback();
-      }
-    });
-  }
-
-  void _stopPlayback() {
-    _playTimer?.cancel();
-    setState(() => _isPlaying = false);
-  }
-
-  double _calculateBearing(LatLng from, LatLng to) {
-    final lat1 = from.latitude * pi / 180;
-    final lon1 = from.longitude * pi / 180;
-    final lat2 = to.latitude * pi / 180;
-    final lon2 = to.longitude * pi / 180;
-
-    final dLon = lon2 - lon1;
-
-    final y = sin(dLon) * cos(lat2);
-    final x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon);
-
-    double brng = atan2(y, x);
-    return (brng * 180 / pi + 360) % 360;
-  }
-
-  @override
-  void dispose() {
-    _playTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-
-    return Container(
-      height: double.infinity,
-      margin: const EdgeInsets.all(3),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: isDark ? tWhite.withOpacity(0.05) : tWhite,
-        boxShadow: [
-          BoxShadow(
-            color:
-                isDark
-                    ? Colors.black.withOpacity(0.4)
-                    : Colors.grey.withOpacity(0.2),
-            blurRadius: 10,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row (Title + Close)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "#${widget.trip.id ?? '--'}",
-                //"#${trip['tripNumber']}",
-                style: GoogleFonts.urbanist(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? tWhite : tBlack,
-                ),
-              ),
-              IconButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // ✅ closes popup
-                },
-                icon: Icon(
-                  CupertinoIcons.xmark_circle_fill,
-                  color: isDark ? tRed : Colors.redAccent,
-                  size: 22,
-                ),
-                tooltip: "Close",
-              ),
-            ],
-          ),
-
-          Divider(
-            color: isDark ? tWhite.withOpacity(0.2) : tBlack.withOpacity(0.1),
-            thickness: 0.5,
-          ),
-
-          // const SizedBox(height: 8),
-
-          // Buttons Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _buildStyledDetailButton(
-                () {},
-                "Download Trip",
-                CupertinoIcons.cloud_download,
-                isDark,
-              ),
-              const SizedBox(width: 10),
-              _buildStyledDetailButton(
-                () => _togglePlayback(),
-                _isPlaying ? "Stop Playback" : "Route Playback",
-                CupertinoIcons.play_arrow_solid,
-                isDark,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 5),
-
-          // Map placeholder
-          Expanded(
-            flex: 5,
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color:
-                    isDark ? tWhite.withOpacity(0.1) : tBlack.withOpacity(0.1),
-              ),
-              padding: const EdgeInsets.all(2),
-              child: Stack(
-                children: [
-                  FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter:
-                          widget.routePoints.isNotEmpty
-                              ? widget.routePoints.first
-                              : LatLng(0, 0),
-                      initialZoom: 13,
-
-                      onMapReady: () {
-                        if (widget.routePoints.length < 2) return;
-
-                        Future.delayed(const Duration(milliseconds: 200), () {
-                          _mapController.fitCamera(
-                            CameraFit.bounds(
-                              bounds: LatLngBounds.fromPoints(
-                                widget.routePoints,
-                              ),
-                              padding: const EdgeInsets.all(80),
-                              maxZoom: 16,
-                            ),
-                          );
-                        });
-                      },
-                    ),
-
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            isDark
-                                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        subdomains: const ['a', 'b', 'c'],
-                        userAgentPackageName: 'com.example.app',
-                      ),
-
-                      // Route polyline
-                      PolylineLayer(
-                        polylines: [
-                          if (completedPath.length > 1)
-                            Polyline(
-                              points: completedPath,
-                              strokeWidth: 6,
-                              color: tGreen8.withOpacity(0.6),
-                            ),
-
-                          if (remainingPath.length > 1)
-                            Polyline(
-                              points: remainingPath,
-                              strokeWidth: 6,
-                              color: tBlue,
-                            ),
-                        ],
-                      ),
-
-                      MarkerLayer(
-                        markers: [
-                          if (widget.routePoints.isNotEmpty)
-                            Marker(
-                              point: widget.routePoints.first,
-                              width: 20,
-                              height: 20,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.green.withOpacity(0.9),
-                                      blurRadius: 15,
-                                      spreadRadius: 4,
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: Colors.green,
-                                    width: 3,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.circle,
-                                  size: 10,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ),
-
-                          /// 🔴 END
-                          if (widget.routePoints.length > 1)
-                            Marker(
-                              point: widget.routePoints.last,
-                              width: 20,
-                              height: 20,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withOpacity(0.9),
-                                      blurRadius: 15,
-                                      spreadRadius: 4,
-                                    ),
-                                  ],
-                                  border: Border.all(
-                                    color: Colors.red,
-                                    width: 3,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.circle,
-                                  size: 10,
-                                  color: Colors.red,
-                                ),
-                              ),
-                            ),
-
-                          /// 🚗 MOVING
-                          if (_movingMarker != null)
-                            Marker(
-                              point: _movingMarker!,
-                              width: 40,
-                              height: 40,
-                              child: const Icon(
-                                Icons.navigation,
-                                color: Colors.blue,
-                                size: 28,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  // SPEED & ODOMETER OVERLAY
-                  if (_currentPlaybackData != null)
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              isDark
-                                  ? tBlack.withOpacity(0.7)
-                                  : tWhite.withOpacity(0.9),
-                          // borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: tBlack.withOpacity(0.25),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _mapInfoRow(
-                              "Speed",
-                              _currentPlaybackData!.speed ?? '0',
-                              isDark,
-                            ),
-                            const SizedBox(height: 4),
-                            _mapInfoRow(
-                              "Odo",
-                              _currentPlaybackData!.odo ?? '0',
-                              isDark,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Playback progress / info
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Playback: ${_playIndex + 1}/${widget.playbackData.length}",
-                style: GoogleFonts.urbanist(fontSize: 13),
-              ),
-              Text(
-                widget.trip.startAddress ?? '', // trip['source'] ?? '',
-                style: GoogleFonts.urbanist(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStyledDetailButton(
-    VoidCallback onPressed,
-    String text,
-    IconData icon,
-    bool isDark,
-  ) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16, color: tGreen8),
-      label: Text(
-        text,
-        style: GoogleFonts.urbanist(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: tGreen8,
-        ),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isDark ? tBlack : tWhite,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: tGreen8, width: 1),
-        ),
-        elevation: 0,
-      ),
-    );
-  }
-
-  Widget _mapInfoRow(String label, String value, bool isDark) {
-    return Row(
-      children: [
-        Text(
-          "$label: ",
-          style: GoogleFonts.urbanist(
-            fontSize: 11,
-            color: isDark ? Colors.white70 : Colors.black54,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.urbanist(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isDark ? tWhite : tBlack,
-          ),
-        ),
-      ],
-    );
-  }
 }

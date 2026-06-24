@@ -3,7 +3,8 @@ import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import 'package:intl/intl.dart';
+import 'package:svg_flutter/svg_flutter.dart';
 import '../../../models/imeiGraphModel.dart';
 import '../../../utils/appColors.dart';
 
@@ -25,6 +26,9 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
   String _viewMode = "weekly";
   int? touchedIndex;
   double? touchedY;
+
+  final NumberFormat format = NumberFormat('#,##,###');
+  final NumberFormat decimalFormat = NumberFormat('#,##,###0.0');
 
   List<Map<String, dynamic>> _buildChartData() {
     if (_viewMode == "weekly") {
@@ -80,6 +84,8 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final chartData = _buildChartData();
+    final maxY = _getMaxY(chartData);
+    final interval = maxY / 5;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,17 +94,30 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              "Alerts",
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isDark ? tWhite : tBlack,
-              ),
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'icons/bar_chart.svg',
+                  height: 16,
+                  width: 16,
+                  color: isDark ? tWhite : tBlack,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  "Alerts",
+                  style: GoogleFonts.urbanist(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? tWhite : tBlack,
+                  ),
+                ),
+              ],
             ),
             Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(color: tGrey.withOpacity(0.1)),
+              decoration: BoxDecoration(
+                color: tGrey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Row(
                 children: [
                   _buildToggleButton("Weekly"),
@@ -110,7 +129,6 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
         ),
         const SizedBox(height: 10),
 
-        // 🔹 Chart
         SizedBox(
           height: 220,
           child: Stack(
@@ -118,7 +136,7 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
               BarChart(
                 BarChartData(
                   minY: 0,
-                  maxY: _getMaxY(chartData),
+                  maxY: maxY,
                   gridData: FlGridData(show: false),
                   borderData: FlBorderData(show: false),
                   alignment: BarChartAlignment.spaceAround,
@@ -142,7 +160,26 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
                       ),
                     ),
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 35,
+                        interval: interval,
+                        getTitlesWidget: (value, meta) {
+                          final actualValue =
+                              ((value) * _getMaxY(chartData)).round();
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              NumberFormat.compact().format(actualValue),
+                              style: GoogleFonts.urbanist(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : tBlack,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     topTitles: AxisTitles(
                       sideTitles: SideTitles(showTitles: false),
@@ -167,8 +204,8 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
                         final colors = [tOrange1, tBlueSky];
                         final labels = ["Critical", "Non-Critical"];
                         final values = [
-                          data["critical"].toString(),
-                          data["nonCritical"].toString(),
+                          format.format(data["critical"]),
+                          format.format(data["nonCritical"]),
                         ];
 
                         final spans = <TextSpan>[
@@ -249,18 +286,28 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
                         return BarChartGroupData(
                           x: i,
                           barsSpace: 6,
+                          showingTooltipIndicators:
+                              touchedIndex == i ? [0, 1] : [],
                           barRods: [
                             BarChartRodData(
                               toY: (item["critical"] as num).toDouble(),
-                              color: tOrange1.withOpacity(0.9),
-                              width: 10,
-                              borderRadius: BorderRadius.circular(0),
+                              width: 8,
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tOrange1.withOpacity(0), tOrange1],
+                              ),
                             ),
                             BarChartRodData(
                               toY: (item["nonCritical"] as num).toDouble(),
-                              color: tBlueSky.withOpacity(0.9),
-                              width: 10,
-                              borderRadius: BorderRadius.circular(0),
+                              width: 8,
+                              borderRadius: BorderRadius.circular(2),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [tBlueSky.withOpacity(0), tBlueSky],
+                              ),
                             ),
                           ],
                         );
@@ -340,8 +387,11 @@ class _DeviceAlertsChartState extends State<DeviceAlertsChart> {
     return GestureDetector(
       onTap: () => _updateView(label.toLowerCase()),
       child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(5),
+          color: isSelected ? (isDark ? tWhite : tBlack) : Colors.transparent,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        color: isSelected ? (isDark ? tWhite : tBlack) : Colors.transparent,
         child: Text(
           label,
           style: GoogleFonts.urbanist(
@@ -385,11 +435,11 @@ class CrosshairPainter extends CustomPainter {
     const dashArray = [5, 4];
     // final spacing = size.width / (chartDataLength + 1);
     // final xPos = spacing * (xIndex + 1);
-    final xPos = size.width * ((xIndex + 0.5) / chartDataLength);
+    final double spacing = size.width / (chartDataLength + 1);
 
-    // final yPos = size.height * (1 - (yValue / 100).clamp(0, 1));
-    final safeY = max(yValue, 1);
-    final double yPos = size.height * (1 - (safeY / maxY).clamp(0, 1));
+    final double xPos = spacing * (xIndex + 1);
+
+    final double yPos = size.height * (1 - (yValue / maxY).clamp(0, 1));
 
     _drawDashedLine(
       canvas,

@@ -7,12 +7,12 @@ import '../../apiURL.dart';
 import 'downloadService.dart';
 
 class BatteryReportApiService {
-  final String baseUrl = BaseURLConfig.reportsApiUrl + "/battery";
+  final String baseUrl = BaseURLConfig.batteryReportApiUrl;
 
   Future<BatteryReportModel> fetchBatteryReports({
     required String fromDate,
     String? toDate,
-    String? imei,
+    // String? imei,
     String? batteryStatus,
     String? vehicleType,
     int? rangeDays,
@@ -28,7 +28,7 @@ class BatteryReportApiService {
       String url = _buildUrl(
         fromDate: fromDate,
         toDate: toDate,
-        imei: imei,
+        // imei: imei,
         batteryStatus: batteryStatus,
         vehicleType: vehicleType,
       );
@@ -82,7 +82,7 @@ class BatteryReportApiService {
 
     return fetchBatteryReports(
       fromDate: fromDate,
-      imei: imei,
+      // imei: imei,
       batteryStatus: batteryStatus,
       vehicleType: vehicleType,
     );
@@ -97,7 +97,7 @@ class BatteryReportApiService {
     String? format,
     String? groupId,
   }) {
-    String url = baseUrl + "/all";
+    String url = baseUrl;
 
     Map<String, String> queryParams = {};
 
@@ -158,9 +158,9 @@ class BatteryReportApiService {
   }
 
   Future<void> downloadReport({
-    required BuildContext context,
     required String fromDate,
     String? toDate,
+    required BuildContext context,
     String? imei,
     String? groupId,
     String? batteryStatus,
@@ -180,6 +180,75 @@ class BatteryReportApiService {
         format: format,
       );
 
+      // Step 1: Fetch the data first to check if there's any content
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken');
+
+      if (token == null) {
+        onError("Authentication required - Please login again");
+        return;
+      }
+
+      final uri = Uri.parse(url);
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode != 200) {
+        onError("Failed to fetch data: HTTP ${response.statusCode}");
+        return;
+      }
+
+      final jsonData = json.decode(response.body);
+
+      // Step 2: Check if there's no data
+      bool hasNoData = false;
+
+      // Check totalCount if it exists
+      if (jsonData['totalCount'] != null && jsonData['totalCount'] == 0) {
+        hasNoData = true;
+      }
+      // Check if entities is empty
+      else if (jsonData['entities'] is List &&
+          (jsonData['entities'] as List).isEmpty) {
+        hasNoData = true;
+      }
+      // Check if data is empty
+      else if (jsonData['data'] is List && (jsonData['data'] as List).isEmpty) {
+        hasNoData = true;
+      }
+      // Check if items is empty
+      else if (jsonData['items'] is List &&
+          (jsonData['items'] as List).isEmpty) {
+        hasNoData = true;
+      }
+      // Check if battery data array is empty (battery report specific)
+      else if (jsonData['batteryData'] is List &&
+          (jsonData['batteryData'] as List).isEmpty) {
+        hasNoData = true;
+      } else if (jsonData['batteryReports'] is List &&
+          (jsonData['batteryReports'] as List).isEmpty) {
+        hasNoData = true;
+      }
+      // Check if the response itself is empty or has error message
+      else if (jsonData.isEmpty ||
+          (jsonData.keys.length == 1 &&
+              (jsonData.containsKey('message') ||
+                  jsonData.containsKey('error')))) {
+        hasNoData = true;
+      }
+
+      // Step 3: Show error and return if no data found
+      if (hasNoData) {
+        onError("No battery data found for the selected filters");
+        return;
+      }
+
+      // Step 4: Proceed with download only if there's data
       String fileExtension = format ?? 'csv';
       String timestamp = DateTime.now()
           .toString()
@@ -188,11 +257,7 @@ class BatteryReportApiService {
           .replaceAll(':', '-')
           .replaceAll(' ', '_');
 
-      String fileName = 'battery_report_${fromDate.replaceAll('-', '_')}';
-
-      if (toDate != null && toDate.isNotEmpty) {
-        fileName += '_to_${toDate.replaceAll('-', '_')}';
-      }
+      String fileName = 'battery_report_';
 
       if (imei != null && imei.isNotEmpty) {
         fileName += '_$imei';

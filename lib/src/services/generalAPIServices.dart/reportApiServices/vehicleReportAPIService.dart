@@ -9,9 +9,12 @@ import '../../apiURL.dart';
 import 'downloadService.dart';
 
 class VehicleReportApiService {
-  final String baseUrl = BaseURLConfig.reportsApiUrl + "/vehicle";
+  final String baseUrl = BaseURLConfig.vehicleReportApiUrl;
 
   Future<VehicleReportModel> fetchVehicleReports({
+    // required String fromDate,
+    // required String toDate,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -26,6 +29,9 @@ class VehicleReportApiService {
       }
 
       String url = _buildUrl(
+        // fromDate: fromDate,
+        // toDate: toDate,
+        imeiList: imeiList,
         groupId: groupId,
         rangeDays: rangeDays,
         status: status,
@@ -71,11 +77,21 @@ class VehicleReportApiService {
   }
 
   Future<VehicleReportModel> fetchRecentVehicleReports({
+    String? imeiList,
     String? groupId,
     String? status,
     String? availability,
   }) async {
+    final now = DateTime.now();
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    // String fromDate = _formatDate(sevenDaysAgo);
+    // String toDate = _formatDate(now);
+
     return fetchVehicleReports(
+      // fromDate: fromDate,
+      // toDate: toDate,
+      imeiList: imeiList,
       groupId: groupId,
       rangeDays: 7,
       status: status,
@@ -84,6 +100,9 @@ class VehicleReportApiService {
   }
 
   String _buildUrl({
+    // required String fromDate,
+    // required String toDate,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -102,6 +121,17 @@ class VehicleReportApiService {
 
     Map<String, String> queryParams = {};
 
+    // if (rangeDays == null || rangeDays <= 0) {
+    //   if (fromDate.isNotEmpty && toDate.isNotEmpty) {
+    //     queryParams["fromDate"] = fromDate;
+    //     queryParams["toDate"] = toDate;
+    //   }
+    // }
+
+    if (imeiList != null && imeiList.isNotEmpty) {
+      queryParams["imeiList"] = imeiList;
+    }
+
     if (groupId != null && groupId.isNotEmpty) {
       queryParams["groupId"] = groupId;
     }
@@ -119,6 +149,9 @@ class VehicleReportApiService {
   }
 
   Future<String> getDownloadUrl({
+    required String fromDate,
+    required String toDate,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -126,6 +159,9 @@ class VehicleReportApiService {
     String? format,
   }) async {
     return _buildUrl(
+      // fromDate: fromDate,
+      // toDate: toDate,
+      imeiList: imeiList,
       groupId: groupId,
       rangeDays: rangeDays,
       status: status,
@@ -136,7 +172,9 @@ class VehicleReportApiService {
 
   Future<void> downloadReport({
     required BuildContext context,
-    // String? imei,
+    // required String fromDate,
+    // required String toDate,
+    String? imeiList,
     String? groupId,
     int? rangeDays,
     String? status,
@@ -147,7 +185,9 @@ class VehicleReportApiService {
   }) async {
     try {
       String url = _buildUrl(
-        // imei: imei,
+        // fromDate: fromDate,
+        // toDate: toDate,
+        imeiList: imeiList,
         groupId: groupId,
         rangeDays: rangeDays,
         status: status,
@@ -163,9 +203,11 @@ class VehicleReportApiService {
           .replaceAll(':', '-')
           .replaceAll(' ', '_');
 
-      String fileName = 'vehicle_report_${groupId}';
+      String fileName = 'vehicle_report';
 
-      if (groupId != null && groupId.isNotEmpty) {
+      if (imeiList != null && imeiList.isNotEmpty) {
+        fileName += '_$imeiList';
+      } else if (groupId != null && groupId.isNotEmpty) {
         fileName += '_group_$groupId';
       }
 
@@ -180,13 +222,43 @@ class VehicleReportApiService {
       }
 
       fileName += '_$timestamp.$fileExtension';
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken');
 
+      if (token == null) {
+        onError("Authentication required - Please login again");
+        return;
+      }
+
+      final uri = Uri.parse(url);
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode != 200) {
+        onError("Failed to fetch data: HTTP ${response.statusCode}");
+        return;
+      }
+
+      final jsonData = json.decode(response.body);
+
+      // Check if there's no data
+      if (jsonData['totalCount'] == 0 ||
+          (jsonData['entities'] as List?)?.isEmpty == true) {
+        onError("No data found for the selected filters");
+        return;
+      }
       await DownloadService.downloadFile(
         context: context,
         url: url,
         fileName: fileName,
         contentType: _getContentType(format ?? 'xlsx'),
         format: format ?? 'xlsx',
+        jsonData: jsonData,
         onSuccess: onSuccess,
         onError: onError,
       );

@@ -67,10 +67,9 @@ class CommandsApiService {
 //     return {"command": command, "imeis": imeis};
 //   }
 // }
-
 class MulCommandRequest {
   final String command;
-  final List<String> groups;
+  final List<Map<String, String>> groups;
 
   MulCommandRequest({required this.command, required this.groups});
 
@@ -78,3 +77,13 @@ class MulCommandRequest {
     return {"command": command, "groups": groups};
   }
 }
+// class MulCommandRequest {
+//   final String command;
+//   final List<String> groups;
+
+//   MulCommandRequest({required this.command, required this.groups});
+
+//   Map<String, dynamic> toJson() {
+//     return {"command": command, "groups": groups};
+//   }
+// }

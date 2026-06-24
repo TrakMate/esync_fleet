@@ -53,6 +53,7 @@ class DevicesApiService {
     String? status,
     String? search,
     String? SOC,
+    String? vehicleFilter,
     List<String>? selectedStatuses,
   }) async {
     final prefs = await SharedPreferences.getInstance();
@@ -70,6 +71,8 @@ class DevicesApiService {
       queryParameters: {
         'currentIndex': currentIndex.toString(),
         'sizePerPage': sizePerPage.toString(),
+        if (vehicleFilter != null && vehicleFilter.isNotEmpty)
+          'vehicleFilter': vehicleFilter,
         if (search != null && search.isNotEmpty) 'searchText': search,
         if (SOC != null && SOC.isNotEmpty) 'SOC': SOC,
       },
@@ -82,6 +85,7 @@ class DevicesApiService {
         'Content-Type': 'application/json',
       },
     );
+    print("URL: $uri");
 
     if (response.statusCode == 200) {
       return DevicesModel.fromJson(jsonDecode(response.body));
@@ -94,13 +98,18 @@ class DevicesApiService {
 class DevicesMapApiService {
   static const String baseUrl = BaseURLConfig.devicesMapApiUrl;
 
-  Future<DevicesMapModel> fetchDevicesMap({String? status}) async {
+  Future<DevicesMapModel> fetchDevicesMap({
+    String? status,
+    String? vehicleFilter,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('accessToken');
 
     final uri = Uri.parse(baseUrl).replace(
       queryParameters: {
         if (status != null && status.isNotEmpty) 'status': status,
+        if (vehicleFilter != null && vehicleFilter.isNotEmpty)
+          'vehicleFilter': vehicleFilter,
       },
     );
 

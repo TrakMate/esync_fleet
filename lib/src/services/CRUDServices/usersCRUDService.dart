@@ -12,18 +12,67 @@ class UserApiService {
     return prefs.getString("accessToken") ?? "";
   }
 
+  Future<String?> getUserRole() async {
+    final token = await _token();
+
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+
+    final parts = token.split('.');
+
+    if (parts.length != 3) {
+      return null;
+    }
+
+    final payload = parts[1];
+
+    String normalized = base64Url.normalize(payload);
+
+    final decoded = utf8.decode(base64Url.decode(normalized));
+
+    final Map<String, dynamic> data = jsonDecode(decoded);
+
+    return data["auth"];
+  }
+
   Future<UserCRUDModel> fetchUsers({
     required int page,
     required int sizePerPage,
+    String? role,
+    int? status,
+    String? searchText,
   }) async {
-    final url =
-        "${BaseURLConfig.userApiURL}"
-        "?page=$page"
-        "&sizePerPage=$sizePerPage"
-        "&currentIndex=${(page - 1) * sizePerPage}";
+    String? mappedRole = role;
+
+    if (role == "SUPER ADMIN") {
+      mappedRole = "SUPER_ADMIN";
+    }
+
+    final queryParams = {
+      "page": page.toString(),
+      "sizePerPage": sizePerPage.toString(),
+      "currentIndex": ((page - 1) * sizePerPage).toString(),
+    };
+
+    if (mappedRole != null && mappedRole.isNotEmpty && mappedRole != "ALL") {
+      queryParams["role"] = mappedRole;
+    }
+
+    if (status != null && status != -1) {
+      queryParams["status"] = status.toString();
+    }
+
+    if (searchText != null && searchText.trim().isNotEmpty) {
+      queryParams["searchText"] = searchText.trim();
+    }
+
+    final uri = Uri.parse(
+      BaseURLConfig.userApiURL,
+    ).replace(queryParameters: queryParams);
 
     final response = await http.get(
-      Uri.parse(url),
+      uri,
       headers: {
         "Authorization": "Bearer ${await _token()}",
         "Content-Type": "application/json",
@@ -39,8 +88,14 @@ class UserApiService {
 
   /// CREATE USER
   Future<void> createUser(Map<String, dynamic> payload) async {
+    final loggedInRole = await getUserRole();
+
+    final apiUrl =
+        loggedInRole == "SUPER_ADMIN"
+            ? BaseURLConfig.UpdateUserApiURL
+            : BaseURLConfig.userApiURL;
     final response = await http.post(
-      Uri.parse(BaseURLConfig.userApiURL),
+      Uri.parse(apiUrl),
       headers: {
         "Authorization": "Bearer ${await _token()}",
         "Content-Type": "application/json",
@@ -55,10 +110,17 @@ class UserApiService {
 
   /// UPDATE USER
   Future<void> updateUser(String id, Map<String, dynamic> payload) async {
-    payload["id"] = id; // IMPORTANT (backend consistency)
+    payload["id"] = id;
+
+    final loggedInRole = await getUserRole();
+
+    final apiUrl =
+        loggedInRole == "SUPER_ADMIN"
+            ? BaseURLConfig.UpdateUserApiURL
+            : BaseURLConfig.userApiURL;
 
     final response = await http.post(
-      Uri.parse("${BaseURLConfig.userApiURL}/$id"),
+      Uri.parse("$apiUrl/$id"),
       headers: {
         "Authorization": "Bearer ${await _token()}",
         "Content-Type": "application/json",
@@ -73,8 +135,14 @@ class UserApiService {
 
   /// DELETE USER
   Future<void> deleteUser(String id) async {
+    final loggedInRole = await getUserRole();
+
+    final apiUrl =
+        loggedInRole == "SUPER_ADMIN"
+            ? BaseURLConfig.UpdateUserApiURL
+            : BaseURLConfig.userApiURL;
     final response = await http.delete(
-      Uri.parse("${BaseURLConfig.userApiURL}/$id"),
+      Uri.parse("$apiUrl/$id"),
       headers: {"Authorization": "Bearer ${await _token()}"},
     );
 
@@ -85,8 +153,15 @@ class UserApiService {
 
   /// RESET PASSWORD
   Future<void> resetPassword(String id, String password) async {
+    final loggedInRole = await getUserRole();
+
+    final apiUrl =
+        loggedInRole == "SUPER_ADMIN"
+            ? "${BaseURLConfig.baseURL}/api/super/resetPassword"
+            : "${BaseURLConfig.baseURL}/api/resetPassword";
+
     final response = await http.post(
-      Uri.parse("${BaseURLConfig.baseURL}/api/resetPassword/$id"),
+      Uri.parse("$apiUrl/$id"),
       headers: {
         "Authorization": "Bearer ${await _token()}",
         "Content-Type": "application/json",

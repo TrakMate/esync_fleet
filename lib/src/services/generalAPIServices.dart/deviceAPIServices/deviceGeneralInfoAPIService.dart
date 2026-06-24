@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../models/deviceOverviewModel.dart';
@@ -167,8 +168,9 @@ class IMEIGraphApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('accessToken') ?? '';
 
-    // final formattedDate = DateFormat('yyyy-MM-dd').format(date);
-    final formattedDate = date?.toUtc().toIso8601String();
+    // final formattedDate = date?.toUtc().toIso8601String();
+    final formattedDate =
+        date != null ? DateFormat('yyyy-MM-dd').format(date) : null;
 
     final uri = Uri.parse(
       '$baseUrl/$imei',
@@ -247,7 +249,9 @@ class IMEIVehicleGraphApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('accessToken') ?? '';
 
-    final formattedDate = date?.toUtc().toIso8601String();
+    // final formattedDate = date?.toUtc().toIso8601String();
+    final formattedDate =
+        date != null ? DateFormat('yyyy-MM-dd').format(date) : null;
 
     final uri = Uri.parse(
       '$baseUrl/$imei',

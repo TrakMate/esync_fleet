@@ -9,13 +9,18 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:svg_flutter/svg_flutter.dart';
 
 // import '../../models/dashboardDetailsModel.dart';
 import '../../models/alertCountModel.dart';
-import '../../models/alertGraphModel.dart';
 import '../../models/groupsModel.dart';
-import '../../models/tripGraphModel.dart';
-import '../../models/vehicleDashboardModel.dart';
+// import '../../models/alertGraphModel.dart';
+// import '../../models/tripGraphModel.dart';
+// import '../../models/vehicleDashboardModel.dart';
+import '../../models/alertGraphModel.dart' as alertModel;
+import '../../models/tripGraphModel.dart' as tripModel;
+import '../../models/vehicleDashboardModel.dart' as vehicleModel;
+
 import '../../provider/fleetModeProvider.dart';
 import '../../services/generalAPIServices.dart/alertCountAPIService.dart';
 import '../../services/generalAPIServices.dart/dashboardAPIService.dart';
@@ -46,10 +51,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? apiDate;
 
   String? selectedGroup;
+  // String get dateParam => selectedDate.toUtc().toIso8601String();
   final DashboardApiService _dashboardApi = DashboardApiService();
 
   bool isLoadingGroups = false;
   bool isHovered = false;
+
+  OverlayEntry? _groupOverlayEntry;
+  final LayerLink _groupLayerLink = LayerLink();
+
+  void _hideGroupDropdown() {
+    if (_groupOverlayEntry != null) {
+      try {
+        _groupOverlayEntry!.remove();
+      } catch (_) {}
+      _groupOverlayEntry = null;
+    }
+  }
 
   String formatDateTime(String? value) {
     if (value == null || value.isEmpty) return '--';
@@ -62,84 +80,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Future<void> fetchDashboardDetails() async {
-  //   setState(() => isDashboardLoading = true);
-
-  //   try {
-  //     final response = await _dashboardApi.fetchDashboardDetails(
-  //       date: dateParam,
-  //       groupId: selectedGroup,
-  //     );
-
-  //     setState(() {
-  //       groupsList = response.groups ?? [];
-  //       if (selectedGroup != null &&
-  //           !groupsList.any((g) => g.id == selectedGroup)) {
-  //         selectedGroup = null;
-  //       }
-
-  //       // VEHICLES
-  //       totalVehicles = response.totalVehicles ?? 0;
-  //       activeVehicles = response.activeVehicle ?? 0;
-  //       inactiveVehicles = response.inactiveVehicle ?? 0;
-
-  //       // STATUS
-  //       moving = response.vehicleStatus!.moving ?? 0;
-  //       idle = response.vehicleStatus!.idle ?? 0;
-  //       stopped = response.vehicleStatus!.stopped ?? 0;
-  //       disconnected = response.vehicleStatus!.disconnected ?? 0;
-  //       nonCoverage = response.vehicleStatus!.noncoverage ?? 0;
-
-  //       charging = response.vehicleStatus!.charging ?? 0;
-  //       discharging = response.vehicleStatus!.disCharging ?? 0;
-  //       batteryIdle = response.vehicleStatus?.idle ?? 0;
-  //       batteryDisconnected = response.vehicleStatus?.disconnected ?? 0;
-
-  //       // TRIPS
-  //       tripsTotal = response.totalTrips ?? 0;
-  //       completedTrips = response.completedTrips ?? 0;
-  //       ongoingTrips = response.ongoingTrips ?? 0;
-  //       totalDistance = response.totalDistance ?? 0;
-  //       totalOperHours = response.totalOperateHr ?? 0;
-  //       avgTripsDay = response.averageTrips ?? 0;
-  //       totalConsumedEnergy = response.consumedFuel ?? 0;
-  //       todayTotalDistance = response.todayDistanceKm ?? 0;
-  //       todayTotalOperHr = response.todayOperHr ?? 0;
-  //       yesterdayTotalDistanceKm = response.yesterdayDistanceKm ?? 0;
-  //       yesterdayTotalOperHr = response.yesterdayOperHr ?? 0;
-
-  //       // ALERTS
-  //       totalAlerts = response.totalAlerts ?? 0;
-  //       criticalAlerts = response.critical ?? 0;
-  //       nonCriticalAlerts = response.nonCritical ?? 0;
-  //       attentionNeededVehicles = response.faults ?? 0;
-
-  //       recentAlerts =
-  //           response.allAlerts?.map((e) => e.toJson()).toList() ?? [];
-
-  //       //BMS Stats
-  //       bmsStatsExcellent = response.bms!.excellent ?? 0;
-  //       bmsStatsGood = response.bms!.good ?? 0;
-  //       bmsStatsModerate = response.bms!.moderate ?? 0;
-  //       bmsStatsPoor = response.bms!.poor ?? 0;
-
-  //       // ALERT GRAPHS
-  //       alertsWeeklyGraph = response.alertsGraph ?? [];
-  //       alertsMonthlyGraph = response.alertGraphforMonth ?? [];
-
-  //       tripsWeeklyGraph = response.tripsGraph ?? [];
-  //       tripsMonthlyGraph = response.tripsGraphforMonth ?? [];
-
-  //       vehicleUtilizationWeeklyGraph = response.vehicleutliGraph ?? [];
-  //       vehicleUtilizationMonthlyGraph =
-  //           response.vehicleutliGraphforMonth ?? [];
-  //     });
-  //   } catch (e) {
-  //     debugPrint("Dashboard API error: $e");
-  //   } finally {
-  //     setState(() => isDashboardLoading = false);
-  //   }
-  // }
+  AlertCountModel? alertCountModel;
+  final AlertCountApiService _alertCountApiService = AlertCountApiService();
+  Future<void> fetchAlertCounts() async {
+    try {
+      final result = await _alertCountApiService.fetchAlertCounts();
+      if (mounted) {
+        setState(() {
+          alertCountModel = result;
+        });
+      }
+    } catch (e) {
+      debugPrint("Alert Counts API Error: $e");
+    }
+  }
 
   Future<void> fetchAlertDetails({bool showLoading = true}) async {
     if (showLoading) setState(() => isDashboardLoading = true);
@@ -149,6 +103,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         date: dateParam,
         groupId: selectedGroup,
       );
+
+      updateGroups(response.groups);
 
       setState(() {
         // groupsList = response.groups ?? [];
@@ -164,67 +120,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         attentionNeededVehicles = response.attentionNeededVehicles ?? 0;
 
         recentAlerts = response.alerts?.map((e) => e.toJson()).toList() ?? [];
-
-        // ALERT GRAPHS
-        // alertsWeeklyGraph = response.weeklyAlertsGraph ?? [];
-        // alertsMonthlyGraph = response.monthlyAlertsGraph ?? [];
       });
     } catch (e) {
       debugPrint("Dashboard API error: $e");
     } finally {
       if (showLoading && mounted) setState(() => isDashboardLoading = false);
-    }
-  }
-
-  bool isGraphLoading = false;
-
-  Future<void> fetchAlertGraphsOnly({bool showLoading = true}) async {
-    if (showLoading) setState(() => isGraphLoading = true);
-
-    try {
-      final response = await _dashboardApi.fetchAlertGraph(
-        date: dateParam,
-        groupId: selectedGroup,
-      );
-      if (!mounted) return;
-      setState(() {
-        if (response.weeklyAlertsGraph != null) {
-          alertsWeeklyGraph = response.weeklyAlertsGraph!;
-        }
-
-        if (response.monthlyAlertsGraph != null) {
-          alertsMonthlyGraph = response.monthlyAlertsGraph!;
-        }
-      });
-    } catch (e) {
-      debugPrint("Graph API error: $e");
-    } finally {
-      if (showLoading && mounted) setState(() => isGraphLoading = false);
-    }
-  }
-
-  Future<void> fetchTripsGraphsOnly({bool showLoading = true}) async {
-    if (showLoading && mounted) setState(() => isGraphLoading = true);
-
-    try {
-      final response = await _dashboardApi.fetchTripsGraph(
-        date: dateParam,
-        groupId: selectedGroup,
-      );
-      if (!mounted) return;
-      setState(() {
-        if (response.weeklyTripsGraph != null) {
-          tripsWeeklyGraph = response.weeklyTripsGraph!;
-        }
-
-        if (response.monthlyTripsGraph != null) {
-          tripsMonthlyGraph = response.monthlyTripsGraph!;
-        }
-      });
-    } catch (e) {
-      debugPrint("Graph API error: $e");
-    } finally {
-      if (showLoading && mounted) setState(() => isGraphLoading = false);
     }
   }
 
@@ -236,6 +136,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         date: dateParam,
         groupId: selectedGroup,
       );
+      updateGroups(response.groups);
       if (!mounted) return;
       setState(() {
         // groupsList = response.groups ?? [];
@@ -279,6 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         date: dateParam,
         groupId: selectedGroup,
       );
+      updateGroups(response.groups);
       if (!mounted) return;
       setState(() {
         // groupsList = response.groups ?? [];
@@ -321,22 +223,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  bool isGraphsLoading = false;
-
+  bool isGraphLoading = false;
   Future<void> fetchAllGraphs() async {
     if (!mounted) return;
 
-    setState(() => isGraphsLoading = true);
+    setState(() => isGraphLoading = true);
 
     try {
-      await Future.wait([
-        fetchAlertGraphsOnly(showLoading: false),
-        fetchTripsGraphsOnly(showLoading: false),
-      ]);
+      final alertResponse = await _dashboardApi.fetchAlertGraph(
+        date: dateParam,
+        groupId: selectedGroup,
+      );
+
+      final tripResponse = await _dashboardApi.fetchTripsGraph(
+        date: dateParam,
+        groupId: selectedGroup,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        alertsWeeklyGraph = alertResponse.weeklyAlertsGraph ?? [];
+        alertsMonthlyGraph = alertResponse.monthlyAlertsGraph ?? [];
+
+        tripsWeeklyGraph = tripResponse.weeklyTripsGraph ?? [];
+        tripsMonthlyGraph = tripResponse.monthlyTripsGraph ?? [];
+      });
     } catch (e) {
       debugPrint('Graphs API error: $e');
     } finally {
-      if (mounted) setState(() => isGraphsLoading = false);
+      if (mounted) {
+        setState(() => isGraphLoading = false);
+      }
     }
   }
 
@@ -347,13 +265,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
         fetchAlertDetails(showLoading: false),
         fetchTripDetails(showLoading: false),
         fetchVehicleDetails(showLoading: false),
+        // fetchAlertCounts(),
+        fetchAllGraphs(),
       ]);
     } catch (e) {
       debugPrint('Dashboard API error: $e');
     } finally {
       if (mounted) setState(() => isDashboardLoading = false);
     }
-    fetchAllGraphs();
+    // fetchAllGraphs();
+  }
+
+  void updateGroups(List<dynamic>? groupsFromApi) {
+    if (groupsFromApi == null || groupsFromApi.isEmpty) return;
+
+    setState(() {
+      groupsList =
+          groupsFromApi.map((g) => Group.fromJson(g.toJson())).toList();
+
+      if (selectedGroup != null &&
+          !groupsList.any((g) => g.id == selectedGroup)) {
+        selectedGroup = null;
+      }
+    });
   }
 
   Map<String, dynamic>? dashboardData;
@@ -407,20 +341,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // List<AlertsGraph> alertsWeeklyGraph = [];
   // List<AlertGraphforMonth> alertsMonthlyGraph = [];
 
-  List<WeeklyAlertsGraph> alertsWeeklyGraph = [];
-  List<MonthlyAlertsGraph> alertsMonthlyGraph = [];
+  List<alertModel.WeeklyAlertsGraph> alertsWeeklyGraph = [];
+  List<alertModel.MonthlyAlertsGraph> alertsMonthlyGraph = [];
 
   // List<TripsGraph> tripsWeeklyGraph = [];
   // List<TripsGraphforMonth> tripsMonthlyGraph = [];
 
-  List<WeeklyTripsGraph> tripsWeeklyGraph = [];
-  List<MonthlyTripsGraph> tripsMonthlyGraph = [];
+  List<tripModel.WeeklyTripsGraph> tripsWeeklyGraph = [];
+  List<tripModel.MonthlyTripsGraph> tripsMonthlyGraph = [];
 
   // List<VehicleutliGraph> vehicleUtilizationWeeklyGraph = [];
   // List<VehicleutliGraphforMonth> vehicleUtilizationMonthlyGraph = [];
 
-  List<WeeklyVehicleUtilization> vehicleUtilizationWeeklyGraph = [];
-  List<MonthlyVehicleUtilization> vehicleUtilizationMonthlyGraph = [];
+  List<vehicleModel.WeeklyVehicleUtilization> vehicleUtilizationWeeklyGraph =
+      [];
+  List<vehicleModel.MonthlyVehicleUtilization> vehicleUtilizationMonthlyGraph =
+      [];
 
   List<Group> groupsList = [];
 
@@ -464,45 +400,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final NumberFormat format = NumberFormat('#,##,###');
 
-  // List<Map<String, dynamic>> getEVBackendStatus() {
-  //   final total = totalVehicles;
-  //   if (total == 0) return [];
+  String formatEnergy(num valueInKw) {
+    final int digits = valueInKw.toStringAsFixed(0).length;
 
-  //   double pct(int value) => (value / total) * 100;
+    if (digits > 3) {
+      double mw = valueInKw / 1000;
+      return "${mw.toStringAsFixed(2)} ᴍᴡ";
+    }
 
-  //   return [
-  //     {
-  //       'label': 'Charging',
-  //       'color': Colors.teal,
-  //       'count': charging,
-  //       'percent': pct(charging),
-  //     },
-  //     {
-  //       'label': 'Discharging',
-  //       'color': tGreen,
-  //       'count': discharging,
-  //       'percent': pct(discharging),
-  //     },
-  //     {
-  //       'label': 'Idle',
-  //       'color': tOrange1,
-  //       'count': batteryIdle,
-  //       'percent': pct(batteryIdle),
-  //     },
-  //     {
-  //       'label': 'Disconnected',
-  //       'color': tGrey,
-  //       'count': batteryDisconnected,
-  //       'percent': pct(batteryDisconnected),
-  //     },
-  //     {
-  //       'label': 'Non Coverage',
-  //       'color': Colors.purple,
-  //       'count': nonCoverage,
-  //       'percent': pct(nonCoverage),
-  //     },
-  //   ];
-  // }
+    return "${format.format(valueInKw.toInt())} kw";
+  }
+
   List<Map<String, dynamic>> getBackendStatus() {
     final total = totalVehicles;
     if (total == 0) return [];
@@ -600,17 +508,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return DateFormat('dd MMM yyyy, HH:mm:ss').format(dateTime);
   }
 
-  String formatEnergy(num valueInKw) {
-    final int digits = valueInKw.toStringAsFixed(0).length;
-
-    if (digits > 3) {
-      double mw = valueInKw / 1000;
-      return "${mw.toStringAsFixed(2)} MW";
-    }
-
-    return "${valueInKw.toStringAsFixed(0)} kW";
-  }
-
   @override
   void initState() {
     super.initState();
@@ -622,6 +519,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     _horizontalController.dispose();
     _verticalController.dispose();
+    _hideGroupDropdown();
     super.dispose();
   }
 
@@ -629,23 +527,1260 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return ResponsiveLayout(
       mobile: _buildMobileLayout(),
-      tablet: Container(),
+      // tablet: Container(),
+      tablet: _buildTabletLayout(),
       desktop: _buildDesktopLayout(),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_groupOverlayEntry != null) {
+      _hideGroupDropdown();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _groupOverlayEntry?.markNeedsBuild();
+      });
+    }
   }
 
   Widget _buildMobileLayout() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mode = context.watch<FleetModeProvider>().mode;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
 
+    return Stack(
       children: [
-        FleetTitleBar(isDark: isDark, title: "Dashboard"),
-        SizedBox(height: 10),
-        _buildGroupSelector(isDark),
-        const SizedBox(height: 10),
-        _buildDateSelector(isDark),
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              /// HEADER
+              FleetTitleBar(isDark: isDark, title: "Dashboard"),
+
+              const SizedBox(height: 12),
+
+              /// FILTERS
+              Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildGroupSelector(isDark),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _buildDateSelector(isDark),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              /// TOTAL VEHICLES
+              SizedBox(
+                height: 185,
+                child: Row(
+                  children: [
+                    /// TOTAL VEHICLES CARD
+                    Expanded(
+                      flex: 2,
+                      child: GestureDetector(
+                        onTap: () {
+                          context.go('/home/devices');
+                        },
+                        child: LargeHoverCard(
+                          value: "$totalVehicles",
+                          label: "Total Vehicles",
+                          labelColor: tBlue,
+                          icon: "icons/car.svg",
+                          iconColor: tBlue,
+                          bgColor: tBlue.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 5),
+
+                    /// ACTIVE + INACTIVE
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              context.go('/home/devices?vehicleFilter=active');
+                            },
+                            child: SmallHoverCard(
+                              height: 90,
+                              value: "$activeVehicles",
+                              label: "Active ",
+                              labelColor: tGreen,
+                              icon: "icons/car.svg",
+                              iconColor: tGreen,
+                              bgColor: tGreen.withOpacity(0.1),
+                              isDark: isDark,
+                            ),
+                          ),
+
+                          const SizedBox(height: 5),
+
+                          GestureDetector(
+                            onTap: () {
+                              context.go(
+                                '/home/devices?vehicleFilter=inactive',
+                              );
+                            },
+                            child: SmallHoverCard(
+                              height: 90,
+                              value: "$inactiveVehicles",
+                              label: "InActive ",
+                              labelColor: tRed,
+                              icon: "icons/car.svg",
+                              iconColor: tRed,
+                              bgColor: tRed.withOpacity(0.1),
+                              isDark: isDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              /// VEHICLE STATUS
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                      // color: isDark ? Colors.white12 : Colors.black12,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.12)
+                              : tBlack.withOpacity(0.1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mode == 'EV Fleet'
+                          ? 'EV Vehicle Status'
+                          : 'Vehicle Status',
+                      style: GoogleFonts.urbanist(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? tWhite : tBlack,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    DynamicSegmentBar(
+                      statuses:
+                          mode == 'EV Fleet'
+                              ? getEVBackendStatus()
+                              : getBackendStatus(),
+                      height: 24,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              if (mode == "EV Fleet") ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Text(
+                    'Battery Status',
+                    style: GoogleFonts.urbanist(
+                      fontSize: 14,
+                      color: isDark ? tWhite : tBlack,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? tBlack : tWhite,
+                    boxShadow: [
+                      BoxShadow(
+                        spreadRadius: 2,
+                        blurRadius: 10,
+                        // color:
+                        //     isDark
+                        //         ? tWhite.withOpacity(0.25)
+                        //         : tBlack.withOpacity(0.15),
+                        color:
+                            isDark
+                                ? tWhite.withOpacity(0.25)
+                                : tBlack.withOpacity(0.15),
+                      ),
+                    ],
+                  ),
+                  padding: EdgeInsets.all(15),
+                  child: Opacity(
+                    opacity: isDashboardLoading ? 0.5 : 1.0,
+                    child: BatteryProgressBar(
+                      counts: [
+                        bmsStatsExcellent,
+                        bmsStatsGood,
+                        bmsStatsModerate,
+                        bmsStatsPoor,
+                      ],
+                      showLabels: true,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+
+              /// TRIPS OVERVIEW
+              Text(
+                'Trips Overview',
+                style: GoogleFonts.urbanist(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              /// TRIPS
+              SizedBox(
+                height: 190,
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: GestureDetector(
+                        onTap: () {
+                          context.go('/home/trips');
+                        },
+                        child: LargeHoverCard(
+                          value: format.format(tripsTotal),
+                          label: "Trips",
+                          labelColor: tGreen,
+                          icon: "icons/distance.svg",
+                          iconColor: tGreen,
+                          bgColor: tGreen.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 5),
+
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                context.go('/home/trips?filter=Completed');
+                              },
+                              child: SmallHoverCard(
+                                value: format.format(completedTrips),
+                                label: "Completed",
+                                labelColor: tBlue,
+                                icon: "icons/completed.svg",
+                                iconColor: tBlue,
+                                bgColor: tBlue.withOpacity(0.1),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 4),
+
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                context.go('/home/trips?filter=Ongoing');
+                              },
+                              child: SmallHoverCard(
+                                value: format.format(ongoingTrips),
+                                label: "Ongoing",
+                                labelColor: tOrange1,
+                                icon: "icons/ongoing.svg",
+                                iconColor: tOrange1,
+                                bgColor: tOrange1.withOpacity(0.1),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SmallHoverCard(
+                          value: format.format(avgTripsDay),
+                          label: "Avg Trips",
+                          labelColor: tBlueSky,
+                          icon: "icons/distance.svg",
+                          iconColor: tBlueSky,
+                          bgColor: tBlueSky.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      Expanded(
+                        child:
+                            mode == 'EV Fleet'
+                                ? SmallHoverCard(
+                                  value: formatEnergy(totalConsumedEnergy),
+                                  label: "Energy",
+                                  labelColor: tBlue1,
+                                  icon: "icons/battery.svg",
+                                  iconColor: tBlue1,
+                                  bgColor: tBlue1.withOpacity(0.1),
+                                  isDark: isDark,
+                                )
+                                : SmallHoverCard(
+                                  height: 78,
+                                  value: "--",
+                                  label: "Fuel(L)",
+                                  labelColor: tRed,
+                                  icon: "icons/fuel.svg",
+                                  iconColor: tRed,
+                                  bgColor: tRed.withOpacity(0.1),
+                                  isDark: isDark,
+                                ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: format.format(todayTotalDistance),
+                          label: "Today Dist.",
+                          labelColor: tGreenDark,
+                          icon: "icons/distance.svg",
+                          iconColor: tGreenDark,
+                          bgColor: tGreenDark.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: todayTotalOperHr.toString(),
+                          label: "Today Hours",
+                          labelColor: tPink,
+                          icon: "icons/consumedhours.svg",
+                          iconColor: tPink,
+                          bgColor: tPink.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: format.format(yesterdayTotalDistanceKm),
+                          label: "Yest Dist.",
+                          labelColor: tGreen,
+                          icon: "icons/distance.svg",
+                          iconColor: tGreen,
+                          bgColor: tGreen.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: yesterdayTotalOperHr.toString(),
+                          label: "Yest Hours",
+                          labelColor: Colors.purpleAccent,
+                          icon: "icons/consumedhours.svg",
+                          iconColor: Colors.purpleAccent,
+                          bgColor: Colors.purpleAccent.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              /// ALERTS SECTION
+              Text(
+                'Alerts Overview',
+                style: GoogleFonts.urbanist(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: SmallHoverCard(
+                      value: format.format(totalAlerts),
+                      label: "Alerts",
+                      labelColor: tRed,
+                      icon: "icons/alert.svg",
+                      iconColor: tRed,
+                      bgColor: tRed.withOpacity(0.1),
+                      isDark: isDark,
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: SmallHoverCard(
+                      value: format.format(attentionNeededVehicles),
+                      label: "Faults",
+                      labelColor: tPink,
+                      icon: "icons/fault.svg",
+                      iconColor: tPink,
+                      bgColor: tPink.withOpacity(0.1),
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: SmallHoverCard(
+                      value: format.format(nonCriticalAlerts),
+                      label: "Non Critical",
+                      labelColor: tBlueSky,
+                      icon: "icons/alert.svg",
+                      iconColor: tBlueSky,
+                      bgColor: tBlueSky.withOpacity(0.1),
+                      isDark: isDark,
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: SmallHoverCard(
+                      value: format.format(criticalAlerts),
+                      label: "Critical",
+                      labelColor: tOrange1,
+                      icon: "icons/alert.svg",
+                      iconColor: tOrange1,
+                      bgColor: tOrange1.withOpacity(0.1),
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              /// RECENT ALERTS
+              Text(
+                'Recent Alerts',
+                style: GoogleFonts.urbanist(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              SizedBox(height: 400, child: buildAlertsTable(isDark)),
+
+              const SizedBox(height: 16),
+              Container(
+                height: 270,
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.12)
+                              : tBlack.withOpacity(0.08),
+                    ),
+                  ],
+                ),
+                child: AlertsDonutChart(
+                  critical: criticalAlerts,
+                  nonCritical: nonCriticalAlerts,
+                  avgCritical:
+                      ((criticalAlerts * 100) /
+                              (totalAlerts == 0 ? 1 : totalAlerts))
+                          .toInt(),
+                  avgNonCritical:
+                      ((nonCriticalAlerts * 100) /
+                              (totalAlerts == 0 ? 1 : totalAlerts))
+                          .toInt(),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              /// CHARTS
+              Container(
+                height: 300,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  borderRadius: BorderRadius.zero,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.25)
+                              : tBlack.withOpacity(0.15),
+                    ),
+                  ],
+                ),
+                child: ClipRect(
+                  child: SizedBox.expand(
+                    child: TripsChart(
+                      weeklyData: tripsWeeklyGraph,
+                      monthlyData: tripsMonthlyGraph,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              Container(
+                height: 300,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  borderRadius: BorderRadius.zero,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.25)
+                              : tBlack.withOpacity(0.15),
+                    ),
+                  ],
+                ),
+                child: ClipRect(
+                  child: SizedBox.expand(
+                    child: VehicleUtilizationChart(
+                      weeklyData: vehicleUtilizationWeeklyGraph,
+                      monthlyData: vehicleUtilizationMonthlyGraph,
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                height: 300,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  borderRadius: BorderRadius.zero,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.25)
+                              : tBlack.withOpacity(0.15),
+                    ),
+                  ],
+                ),
+                child: ClipRect(
+                  child: SizedBox.expand(
+                    child: AlertsChart(
+                      weeklyData: alertsWeeklyGraph,
+                      monthlyData: alertsMonthlyGraph,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+
+        if (isDashboardLoading) _buildLoadingOverlay(isDark),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = context.watch<FleetModeProvider>().mode;
+
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  FleetTitleBar(isDark: isDark, title: "Dashboard"),
+                  const Spacer(),
+
+                  SizedBox(width: 275, child: _buildGroupSelector(isDark)),
+
+                  const SizedBox(width: 5),
+
+                  _buildDateSelector(isDark),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              SizedBox(
+                height: 185,
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: GestureDetector(
+                        onTap: () {
+                          context.go('/home/devices');
+                        },
+                        child: LargeHoverCard(
+                          value: "$totalVehicles",
+                          label: "Total Vehicles",
+                          labelColor: tBlue,
+                          icon: "icons/car.svg",
+                          iconColor: tBlue,
+                          bgColor: tBlue.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 5),
+
+                    /// ACTIVE + INACTIVE
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              context.go('/home/devices?vehicleFilter=active');
+                            },
+                            child: SmallHoverCard(
+                              height: 90,
+                              value: "$activeVehicles",
+                              label: "Active Vehicles",
+                              labelColor: tGreen,
+                              icon: "icons/car.svg",
+                              iconColor: tGreen,
+                              bgColor: tGreen.withOpacity(0.1),
+                              isDark: isDark,
+                            ),
+                          ),
+
+                          const SizedBox(height: 5),
+
+                          GestureDetector(
+                            onTap: () {
+                              context.go(
+                                '/home/devices?vehicleFilter=inactive',
+                              );
+                            },
+                            child: SmallHoverCard(
+                              height: 90,
+                              value: "$inactiveVehicles",
+                              label: "InActive Vehicles ",
+                              labelColor: tRed,
+                              icon: "icons/car.svg",
+                              iconColor: tRed,
+                              bgColor: tRed.withOpacity(0.1),
+                              isDark: isDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: SmallHoverCard(
+                                    value: format.format(
+                                      attentionNeededVehicles,
+                                    ),
+                                    label: "Faults",
+                                    labelColor: tPink,
+                                    icon: "icons/fault.svg",
+                                    iconColor: tPink,
+                                    bgColor: tPink.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+
+                                Expanded(
+                                  child: SmallHoverCard(
+                                    value: format.format(totalAlerts),
+                                    label: "Alerts",
+                                    labelColor: tRed,
+                                    icon: "icons/alert.svg",
+                                    iconColor: tRed,
+                                    bgColor: tRed.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: SmallHoverCard(
+                                    value: format.format(nonCriticalAlerts),
+                                    label: "Non Critical",
+                                    labelColor: tBlueSky,
+                                    icon: "icons/alert.svg",
+                                    iconColor: tBlueSky,
+                                    bgColor: tBlueSky.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+
+                                const SizedBox(width: 8),
+
+                                Expanded(
+                                  child: SmallHoverCard(
+                                    value: format.format(criticalAlerts),
+                                    label: "Critical",
+                                    labelColor: tOrange1,
+                                    icon: "icons/alert.svg",
+                                    iconColor: tOrange1,
+                                    bgColor: tOrange1.withOpacity(0.1),
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              /// VEHICLE STATUS
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                      // color: isDark ? Colors.white12 : Colors.black12,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.12)
+                              : tBlack.withOpacity(0.1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mode == 'EV Fleet'
+                          ? 'EV Vehicle Status'
+                          : 'Vehicle Status',
+                      style: GoogleFonts.urbanist(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? tWhite : tBlack,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    DynamicSegmentBar(
+                      statuses:
+                          mode == 'EV Fleet'
+                              ? getEVBackendStatus()
+                              : getBackendStatus(),
+                      height: 24,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              if (mode == "EV Fleet") ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Text(
+                    // 'SOC Status',
+                    'Battery Status',
+                    style: GoogleFonts.urbanist(
+                      fontSize: 14,
+                      color: isDark ? tWhite : tBlack,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? tBlack : tWhite,
+                    boxShadow: [
+                      BoxShadow(
+                        spreadRadius: 2,
+                        blurRadius: 10,
+                        // color:
+                        //     isDark
+                        //         ? tWhite.withOpacity(0.25)
+                        //         : tBlack.withOpacity(0.15),
+                        color:
+                            isDark
+                                ? tWhite.withOpacity(0.25)
+                                : tBlack.withOpacity(0.15),
+                      ),
+                    ],
+                  ),
+                  padding: EdgeInsets.all(15),
+                  child: Opacity(
+                    opacity: isDashboardLoading ? 0.5 : 1.0,
+                    child: BatteryProgressBar(
+                      counts: [
+                        bmsStatsExcellent,
+                        bmsStatsGood,
+                        bmsStatsModerate,
+                        bmsStatsPoor,
+                      ],
+                      showLabels: true,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+
+              /// TRIPS
+              Text(
+                'Trips Overview',
+                style: GoogleFonts.urbanist(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Column(
+                children: [
+                  SizedBox(
+                    height: 185,
+                    child: Row(
+                      children: [
+                        /// LEFT SIDE - TRIPS
+                        GestureDetector(
+                          onTap: () {
+                            context.go('/home/trips');
+                          },
+
+                          child: LargeHoverCard(
+                            value: format.format(tripsTotal),
+                            label: "Trips",
+                            labelColor: tGreen,
+                            icon: "icons/distance.svg",
+                            iconColor: tGreen,
+                            bgColor: tGreen.withOpacity(0.1),
+                            isDark: isDark,
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        /// RIGHT SIDE - 4 SMALL CARDS
+                        Expanded(
+                          child: Column(
+                            children: [
+                              /// TOP ROW
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          context.go(
+                                            '/home/trips?filter=Completed',
+                                          );
+                                        },
+
+                                        child: SmallHoverCard(
+                                          value: format.format(completedTrips),
+                                          label: "Completed",
+                                          labelColor: tBlue,
+                                          icon: "icons/completed.svg",
+                                          iconColor: tBlue,
+                                          bgColor: tBlue.withOpacity(0.1),
+                                          isDark: isDark,
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 8),
+
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          context.go(
+                                            '/home/trips?filter=Ongoing',
+                                          );
+                                        },
+
+                                        child: SmallHoverCard(
+                                          value: format.format(ongoingTrips),
+                                          label: "Ongoing",
+                                          labelColor: tOrange1,
+                                          icon: "icons/ongoing.svg",
+                                          iconColor: tOrange1,
+                                          bgColor: tOrange1.withOpacity(0.1),
+                                          isDark: isDark,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              /// BOTTOM ROW
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: SmallHoverCard(
+                                        width: double.infinity,
+                                        value: format.format(avgTripsDay),
+                                        label: "Avg. Trips",
+                                        labelColor: tBlueSky,
+                                        icon: "icons/distance.svg",
+                                        iconColor: tBlueSky,
+                                        bgColor: tBlueSky.withOpacity(0.1),
+                                        isDark: isDark,
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 8),
+
+                                    Expanded(
+                                      child:
+                                          mode == 'EV Fleet'
+                                              ? SmallHoverCard(
+                                                width: double.infinity,
+                                                height: 75,
+                                                value: formatEnergy(
+                                                  totalConsumedEnergy,
+                                                ),
+                                                label: "Consumed Energy",
+                                                labelColor: tBlue1,
+                                                icon: "icons/battery.svg",
+                                                iconColor: tBlue1,
+                                                bgColor: tBlue1.withOpacity(
+                                                  0.1,
+                                                ),
+                                                isDark: isDark,
+                                              )
+                                              : SmallHoverCard(
+                                                width: double.infinity,
+                                                height: 75,
+                                                value: "--",
+                                                label: "Consumed Fuel(L)",
+                                                labelColor: tRed,
+                                                icon: "icons/fuel.svg",
+                                                iconColor: tRed,
+                                                bgColor: tRed.withOpacity(0.1),
+                                                isDark: isDark,
+                                              ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: format.format(todayTotalDistance),
+                          label: "Today Dist.",
+                          labelColor: tGreenDark,
+                          icon: "icons/distance.svg",
+                          iconColor: tGreenDark,
+                          bgColor: tGreenDark.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: todayTotalOperHr.toString(),
+                          label: "Today Hours",
+                          labelColor: tPink,
+                          icon: "icons/consumedhours.svg",
+                          iconColor: tPink,
+                          bgColor: tPink.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: format.format(yesterdayTotalDistanceKm),
+                          label: "Yest Dist.",
+                          labelColor: tGreen,
+                          icon: "icons/distance.svg",
+                          iconColor: tGreen,
+                          bgColor: tGreen.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      Expanded(
+                        child: SmallHoverCard(
+                          enableHover: false,
+                          value: yesterdayTotalOperHr.toString(),
+                          label: "Yest Hours",
+                          labelColor: Colors.purpleAccent,
+                          icon: "icons/consumedhours.svg",
+                          iconColor: Colors.purpleAccent,
+                          bgColor: Colors.purpleAccent.withOpacity(0.1),
+                          isDark: isDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              /// RECENT ALERTS
+              Text(
+                'Recent Alerts',
+                style: GoogleFonts.urbanist(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              SizedBox(height: 400, child: buildAlertsTable(isDark)),
+
+              const SizedBox(height: 16),
+              Container(
+                height: 270,
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.12)
+                              : tBlack.withOpacity(0.08),
+                    ),
+                  ],
+                ),
+                child: AlertsDonutChart(
+                  critical: criticalAlerts,
+                  nonCritical: nonCriticalAlerts,
+                  avgCritical:
+                      ((criticalAlerts * 100) /
+                              (totalAlerts == 0 ? 1 : totalAlerts))
+                          .toInt(),
+                  avgNonCritical:
+                      ((nonCriticalAlerts * 100) /
+                              (totalAlerts == 0 ? 1 : totalAlerts))
+                          .toInt(),
+                ),
+              ),
+              SizedBox(height: 12),
+
+              /// CHARTS
+              Container(
+                height: 300,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  borderRadius: BorderRadius.zero,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.25)
+                              : tBlack.withOpacity(0.15),
+                    ),
+                  ],
+                ),
+                child: TripsChart(
+                  weeklyData: tripsWeeklyGraph,
+                  monthlyData: tripsMonthlyGraph,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              Container(
+                height: 300,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  borderRadius: BorderRadius.zero,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.25)
+                              : tBlack.withOpacity(0.15),
+                    ),
+                  ],
+                ),
+                child: VehicleUtilizationChart(
+                  weeklyData: vehicleUtilizationWeeklyGraph,
+                  monthlyData: vehicleUtilizationMonthlyGraph,
+                ),
+              ),
+
+              Container(
+                height: 300,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack : tWhite,
+                  borderRadius: BorderRadius.zero,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.25)
+                              : tBlack.withOpacity(0.15),
+                    ),
+                  ],
+                ),
+                child: AlertsChart(
+                  weeklyData: alertsWeeklyGraph,
+                  monthlyData: alertsMonthlyGraph,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+
+        if (isDashboardLoading) _buildLoadingOverlay(isDark),
       ],
     );
   }
@@ -710,7 +1845,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 /// 🔹 Active Vehicles
                                 GestureDetector(
                                   onTap: () {
-                                    context.go('/home/devices');
+                                    context.push(
+                                      '/home/devices?vehicleFilter=active',
+                                    );
                                   },
                                   child: SmallHoverCard(
                                     width: double.infinity,
@@ -728,7 +1865,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const SizedBox(height: 11),
                                 GestureDetector(
                                   onTap: () {
-                                    context.go('/home/devices');
+                                    context.push(
+                                      '/home/devices?vehicleFilter=inactive',
+                                    );
                                   },
                                   child: SmallHoverCard(
                                     width: double.infinity,
@@ -754,6 +1893,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               height: 185,
                               decoration: BoxDecoration(
                                 color: isDark ? tBlack : tWhite,
+                                borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
                                     blurRadius: 12,
@@ -773,35 +1913,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    mode == 'EV Fleet'
-                                        ? 'EV Vehicle Status'
-                                        : 'Vehicle Status',
-                                    style: GoogleFonts.urbanist(
-                                      fontSize: 13,
-                                      color: isDark ? tWhite : tBlack,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  Row(
+                                    children: [
+                                      SvgPicture.asset(
+                                        'icons/progress.svg',
+                                        height: 16,
+                                        width: 16,
+                                        color: isDark ? tWhite : tBlack,
+                                      ),
+                                      SizedBox(width: 10),
+                                      Text(
+                                        mode == 'EV Fleet'
+                                            ? 'EV Fleet Status'
+                                            : 'ICE Fleet Status',
+                                        style: GoogleFonts.urbanist(
+                                          fontSize: 13,
+                                          color: isDark ? tWhite : tBlack,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
                                   ),
 
                                   const SizedBox(height: 10),
 
-                                  // If EV mode → show EV status, else show normal status
-                                  // mode == 'EV Fleet'
-                                  //     ? DynamicSegmentBar(
-                                  //       statuses:
-                                  //           getEVBackendStatus(), // or getEVBackendStatus()
-                                  //       height: 26,
-                                  //     )
-                                  //     //  _buildMobileDynamicStatusBar(
-                                  //     //   getEVBackendStatus(),
-                                  //     // )
-                                  //     : DynamicSegmentBar(
-                                  //       statuses:
-                                  //           getBackendStatus(), // or getEVBackendStatus()
-                                  //       height: 26,
-                                  //     ),
-                                  //_buildDynamicStatusBar(getBackendStatus()),
                                   mode == 'EV Fleet'
                                       ? Opacity(
                                         opacity: isDashboardLoading ? 0.5 : 1.0,
@@ -850,7 +1985,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Padding(
                           padding: const EdgeInsets.only(left: 10),
                           child: Text(
-                            'SOC Status',
+                            // 'SOC Status',
+                            'Battery Status',
                             style: GoogleFonts.urbanist(
                               fontSize: 13,
                               color: isDark ? tWhite : tBlack,
@@ -864,6 +2000,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Container(
                           decoration: BoxDecoration(
                             color: isDark ? tBlack : tWhite,
+                            borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
                                 spreadRadius: 2,
@@ -950,18 +2087,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                           );
                                                         },
                                                         child: LargeHoverCard(
-                                                          //value:
-                                                          //     totalAlerts
-                                                          //         .toString(), //
-                                                          // value: NumberFormat(
-                                                          //   '#,##,###',
-                                                          // ).format(
-                                                          //   int.tryParse(
-                                                          //         totalAlerts
-                                                          //             .toString(),
-                                                          //       ) ??
-                                                          //       0,
-                                                          // ),
                                                           value: format.format(
                                                             totalAlerts,
                                                           ),
@@ -982,23 +2107,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                                                     Expanded(
                                                       child: LargeHoverCard(
-                                                        // value: NumberFormat(
-                                                        //   '#,##,###',
-                                                        // ).format(
-                                                        //   int.tryParse(
-                                                        //         attentionNeededVehicles
-                                                        //             .toString(),
-                                                        //       ) ??
-                                                        //       0,
-                                                        // ),
                                                         value: format.format(
                                                           attentionNeededVehicles ??
                                                               0,
                                                         ),
                                                         label: "Faults",
                                                         labelColor: tPink,
-                                                        icon:
-                                                            "icons/faults.svg",
+                                                        icon: "icons/fault.svg",
                                                         iconColor: tPink,
                                                         bgColor: tPink
                                                             .withOpacity(0.1),
@@ -1095,6 +2210,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               padding: const EdgeInsets.all(10),
                                               decoration: BoxDecoration(
                                                 color: isDark ? tBlack : tWhite,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
                                                 boxShadow: [
                                                   BoxShadow(
                                                     blurRadius: 12,
@@ -1248,6 +2365,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               children: [
                                                 SmallHoverCard(
                                                   width: double.infinity,
+                                                  enableHover: false,
                                                   height: 75,
                                                   // value: NumberFormat(
                                                   //   '#,##,###',
@@ -1275,6 +2393,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                 mode == 'EV Fleet'
                                                     ? SmallHoverCard(
                                                       width: double.infinity,
+                                                      enableHover: false,
                                                       height: 75,
                                                       value: formatEnergy(
                                                         totalConsumedEnergy,
@@ -1289,6 +2408,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                     )
                                                     : SmallHoverCard(
                                                       width: double.infinity,
+                                                      enableHover: false,
                                                       height: 75,
                                                       value: "--",
                                                       label: "Consumed Fuel(L)",
@@ -1449,7 +2569,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
-                                      // 🔹 Left side
+                                      // Left side
                                       Text(
                                         'Recent Alerts',
                                         style: GoogleFonts.urbanist(
@@ -1459,7 +2579,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         ),
                                       ),
 
-                                      // 🔹 Right side group
+                                      // Right side group
                                       MouseRegion(
                                         cursor: SystemMouseCursors.click,
                                         onEnter:
@@ -1485,7 +2605,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             decoration: BoxDecoration(
                                               color:
                                                   isHovered
-                                                      ? tBlue1
+                                                      ? tGreen8
                                                       : Colors.transparent,
                                               borderRadius:
                                                   BorderRadius.circular(4),
@@ -1535,6 +2655,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ],
                       ),
                       SizedBox(height: 10),
+
                       Row(
                         children: [
                           Expanded(
@@ -1543,6 +2664,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               height: 325,
                               decoration: BoxDecoration(
                                 color: isDark ? tBlack : tWhite,
+                                borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
                                     spreadRadius: 2,
@@ -1555,13 +2677,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ],
                               ),
                               padding: const EdgeInsets.all(15),
-                              child:
-                                  isGraphLoading
-                                      ? _buildLoadingOverlay(isDark)
-                                      : TripsChart(
-                                        weeklyData: tripsWeeklyGraph,
-                                        monthlyData: tripsMonthlyGraph,
-                                      ),
+                              child: ClipRect(
+                                child: SizedBox.expand(
+                                  child: TripsChart(
+                                    weeklyData: tripsWeeklyGraph,
+                                    monthlyData: tripsMonthlyGraph,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -1571,6 +2694,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               height: 325,
                               decoration: BoxDecoration(
                                 color: isDark ? tBlack : tWhite,
+                                borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
                                     spreadRadius: 2,
@@ -1583,17 +2707,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ],
                               ),
                               padding: const EdgeInsets.all(15),
-                              child:
-                                  isGraphLoading
-                                      ? _buildLoadingOverlay(isDark)
-                                      : VehicleUtilizationChart(
-                                        weeklyData:
-                                            vehicleUtilizationWeeklyGraph,
-                                        monthlyData:
-                                            vehicleUtilizationMonthlyGraph,
-                                      ),
+                              // child: ClipRect(
+                              //   child: SizedBox.expand(
+                              child: VehicleUtilizationChart(
+                                weeklyData: vehicleUtilizationWeeklyGraph,
+                                monthlyData: vehicleUtilizationMonthlyGraph,
+                              ),
                             ),
                           ),
+                          //   ),
+                          // ),
                           const SizedBox(width: 10),
                           Expanded(
                             flex: 4,
@@ -1601,6 +2724,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               height: 325,
                               decoration: BoxDecoration(
                                 color: isDark ? tBlack : tWhite,
+                                borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
                                     spreadRadius: 2,
@@ -1613,13 +2737,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ],
                               ),
                               padding: const EdgeInsets.all(15),
-                              child:
-                                  isGraphLoading
-                                      ? _buildLoadingOverlay(isDark)
-                                      : AlertsChart(
-                                        weeklyData: alertsWeeklyGraph,
-                                        monthlyData: alertsMonthlyGraph,
-                                      ),
+                              child: ClipRect(
+                                child: SizedBox.expand(
+                                  child: AlertsChart(
+                                    weeklyData: alertsWeeklyGraph,
+                                    monthlyData: alertsMonthlyGraph,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -1643,7 +2768,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         Row(
           children: [
-            _buildLabelBox("Group Name", isDark ? tGreen8 : tBlack, isDark),
+            _buildLabelBox("Group Name", tBlue, isDark),
             const SizedBox(width: 5),
             _buildDynamicDropdown(isDark),
           ],
@@ -1661,29 +2786,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Widget _buildDateSelector(bool isDark) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       Row(
-  //         children: [
-  //           _buildLabelBox("Date", tBlue, isDark),
-  //           const SizedBox(width: 5),
-  //           _buildDynamicDatePicker(isDark),
-  //         ],
-  //       ),
-  //       const SizedBox(height: 5),
-  //       Text(
-  //         '(Note: Filter by Date)',
-  //         style: GoogleFonts.urbanist(
-  //           fontSize: 10,
-  //           color: isDark ? tWhite.withOpacity(0.6) : tBlack.withOpacity(0.6),
-  //           fontWeight: FontWeight.w500,
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
   Widget _buildDateSelector(bool isDark) {
     return _buildDynamicDatePicker(isDark);
   }
@@ -1700,85 +2802,180 @@ class _DashboardScreenState extends State<DashboardScreen> {
         style: GoogleFonts.urbanist(
           fontSize: 12,
           color: textColor,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
   Widget _buildDynamicDropdown(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: tTransparent,
-        border: Border.all(width: 0.6, color: isDark ? tWhite : tBlack),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton2<String>(
-          isExpanded: false,
-          hint: Text(
-            'Select Group',
-            style: GoogleFonts.urbanist(fontSize: 12.5, color: tGrey),
-          ),
+    void _showGroupDropdown(BuildContext context) {
+      final overlay = Overlay.of(context);
 
-          items:
-              groupsList
-                  .map(
-                    (group) => DropdownMenuItem<String>(
-                      value: group.id,
-                      child: Text(
-                        group.name ?? '',
-                        style: GoogleFonts.urbanist(
-                          fontSize: 12.5,
-                          color: isDark ? tWhite : tBlack,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+      _groupOverlayEntry = OverlayEntry(
+        builder: (context) {
+          return Positioned(
+            width: 180,
+            child: CompositedTransformFollower(
+              link: _groupLayerLink,
+              offset: const Offset(0, 35),
+              showWhenUnlinked: false,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? tBlack.withOpacity(0.95) : Colors.white,
+                    border: Border.all(
+                      color:
+                          isDark
+                              ? tWhite.withOpacity(0.10)
+                              : Colors.grey.shade300,
+                      width: 1.2,
                     ),
-                  )
-                  .toList(),
-
-          value: selectedGroup,
-
-          onChanged: (value) {
-            setState(() {
-              selectedGroup = value;
-            });
-            fetchAllDashboardData();
-          },
-
-          iconStyleData: IconStyleData(
-            icon: Icon(
-              CupertinoIcons.chevron_down,
-              size: 16,
-              color: isDark ? tWhite : tBlack,
-            ),
-          ),
-
-          dropdownStyleData: DropdownStyleData(
-            padding: EdgeInsets.zero,
-            maxHeight: 200,
-            decoration: BoxDecoration(
-              color: isDark ? tBlack : tWhite,
-              boxShadow: [
-                BoxShadow(
-                  spreadRadius: 2,
-                  blurRadius: 10,
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.25)
-                          : tBlack.withOpacity(0.15),
+                    boxShadow: [
+                      if (!isDark)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                    ],
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: 200),
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      children: [
+                        // Group options
+                        ...groupsList.map((group) {
+                          return InkWell(
+                            onTap: () {
+                              if (!mounted) return;
+                              setState(() {
+                                selectedGroup = group.id;
+                              });
+                              _hideGroupDropdown();
+                              fetchAllDashboardData();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Text(
+                                group.name ?? '',
+                                style: GoogleFonts.urbanist(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? tWhite : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
+              ),
             ),
-          ),
+          );
+        },
+      );
 
-          buttonStyleData: const ButtonStyleData(
-            padding: EdgeInsets.zero,
-            height: 30,
+      overlay.insert(_groupOverlayEntry!);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CompositedTransformTarget(
+          link: _groupLayerLink,
+          child: GestureDetector(
+            onTap: () {
+              if (_groupOverlayEntry == null) {
+                _showGroupDropdown(context);
+              } else {
+                _hideGroupDropdown();
+              }
+            },
+            child: Container(
+              height: 30,
+              width: 180,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: isDark ? tWhite : tBlack, width: 0.6),
+                boxShadow: [
+                  if (!isDark)
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      selectedGroup == null
+                          ? "Select Group"
+                          : (groupsList
+                                  .firstWhere(
+                                    (g) => g.id == selectedGroup,
+                                    orElse: () => Group(id: '', name: ''),
+                                  )
+                                  .name ??
+                              "Select Group"),
+                      style: GoogleFonts.urbanist(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? tWhite : Colors.black87,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (selectedGroup != null) ...[
+                        GestureDetector(
+                          onTap: () {
+                            _hideGroupDropdown();
+                            setState(() {
+                              selectedGroup = null;
+                            });
+                            fetchAllDashboardData();
+                          },
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color:
+                                isDark
+                                    ? tWhite.withOpacity(0.8)
+                                    : Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Icon(
+                        Icons.expand_more_rounded,
+                        size: 20,
+                        color:
+                            isDark
+                                ? tWhite.withOpacity(0.8)
+                                : Colors.grey.shade700,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -1861,6 +3058,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: isDark ? tBlack : tWhite,
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
                 blurRadius: 10,
@@ -1887,109 +3085,152 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: SingleChildScrollView(
                           controller: _verticalController,
                           scrollDirection: Axis.vertical,
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              isDark
-                                  ? tBlue.withOpacity(0.15)
-                                  : tBlue.withOpacity(0.05),
-                            ),
-                            headingTextStyle: GoogleFonts.urbanist(
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? tWhite : tBlack,
-                              fontSize: 13,
-                            ),
-                            dataTextStyle: GoogleFonts.urbanist(
-                              color: isDark ? tWhite : tBlack,
-                              fontWeight: FontWeight.w400,
-                              fontSize: 12,
-                            ),
-                            columnSpacing: 35,
-                            border: TableBorder.all(
-                              color:
-                                  isDark
-                                      ? tWhite.withOpacity(0.1)
-                                      : tBlack.withOpacity(0.1),
-                              width: 0.4,
-                            ),
-                            dividerThickness: 0.01,
-                            columns: const [
-                              DataColumn(label: Text("Vehicle / IMEI")),
-                              DataColumn(label: Text("Date & Time")),
-                              DataColumn(label: Text("Alert Type")),
-                            ],
-                            rows:
-                                alerts.map((alert) {
-                                  final alertType =
-                                      (alert['alertType'] ?? '').toString();
-                                  final alertColor = getAlertColor(
-                                    alert['alertType']!,
-                                  );
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(15),
+                            child: DataTable(
+                              headingRowColor: WidgetStateProperty.all(
+                                isDark
+                                    ? tGreen8.withOpacity(0.15)
+                                    : tGreen8.withOpacity(0.05),
+                              ),
+                              headingTextStyle: GoogleFonts.urbanist(
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? tWhite : tBlack,
+                                fontSize: 13,
+                              ),
+                              dataTextStyle: GoogleFonts.urbanist(
+                                color: isDark ? tWhite : tBlack,
+                                fontWeight: FontWeight.w400,
+                                fontSize: 12,
+                              ),
+                              columnSpacing: 35,
 
-                                  return DataRow(
-                                    cells: [
-                                      // Vehicle + IMEI column
-                                      DataCell(
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              (alert['vehicleNumber'] ?? '')
-                                                  .toString(),
-                                              style: GoogleFonts.urbanist(
-                                                fontWeight: FontWeight.bold,
+                              border: TableBorder.all(
+                                color:
+                                    isDark
+                                        ? tWhite.withOpacity(0.1)
+                                        : tBlack.withOpacity(0.1),
+                                width: 0.4,
+                              ),
+                              dividerThickness: 0.01,
+                              columns: [
+                                DataColumn(
+                                  label: Text(
+                                    "Vehicle / IMEI",
+                                    style: GoogleFonts.urbanist(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: isDark ? tWhite : tBlack,
+                                    ),
+                                  ),
+                                ),
+                                DataColumn(
+                                  label: Text(
+                                    "Date & Time",
+                                    style: GoogleFonts.urbanist(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: isDark ? tWhite : tBlack,
+                                    ),
+                                  ),
+                                ),
+                                DataColumn(
+                                  label: Text(
+                                    "Alert Type",
+                                    style: GoogleFonts.urbanist(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: isDark ? tWhite : tBlack,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              rows:
+                                  alerts.map((alert) {
+                                    final alertType =
+                                        (alert['alertType'] ?? '').toString();
+                                    final alertColor = getAlertColor(
+                                      alert['alertType']!,
+                                    );
+
+                                    return DataRow(
+                                      cells: [
+                                        // Vehicle + IMEI column
+                                        DataCell(
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                (alert['imei'] ?? '')
+                                                    .toString(),
+                                                style: GoogleFonts.urbanist(
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 12,
+                                                  color:
+                                                      isDark ? tWhite : tBlack,
+                                                ),
                                               ),
-                                            ),
-                                            Text(
-                                              (alert['imei'] ?? '').toString(),
-                                              style: GoogleFonts.urbanist(
-                                                fontSize: 11,
-                                                color:
-                                                    isDark
-                                                        ? Colors.grey[300]
-                                                        : Colors.grey[700],
+                                              Text(
+                                                (alert['vehicleNumber'] ?? '')
+                                                    .toString(),
+                                                style: GoogleFonts.urbanist(
+                                                  fontWeight: FontWeight.w400,
+                                                  fontSize: 11,
+                                                  color:
+                                                      isDark
+                                                          ? Colors.grey[300]
+                                                          : Colors.grey[700],
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-
-                                      // DateTime
-                                      DataCell(
-                                        Text(
-                                          formatDateTime(
-                                            alert['time'] ?? '',
-                                          ).toString(),
-                                        ),
-                                      ),
-
-                                      // Alert Type Badge
-                                      DataCell(
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                            horizontal: 10,
+                                            ],
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: alertColor.withOpacity(0.18),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            alertType,
+                                        ),
+
+                                        // DateTime
+                                        DataCell(
+                                          Text(
+                                            formatDateTime(
+                                              alert['time'] ?? '',
+                                            ).toString(),
                                             style: GoogleFonts.urbanist(
-                                              color: alertColor,
-                                              fontWeight: FontWeight.w700,
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: 12,
+                                              color: isDark ? tWhite : tBlack,
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
+
+                                        // Alert Type Badge
+                                        DataCell(
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                              horizontal: 10,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: alertColor.withOpacity(
+                                                0.18,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              alertType,
+                                              style: GoogleFonts.urbanist(
+                                                color: alertColor,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                            ),
                           ),
                         ),
                       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:svg_flutter/svg.dart';
 import '../../../models/CRUDModels/groupsCRUDModel.dart';
@@ -61,7 +62,7 @@ Future<void> showDeviceCreateUpdateDialog({
       return StatefulBuilder(
         builder: (context, setState) {
           return Dialog(
-            backgroundColor: isDark ? tBlack : tWhite,
+            backgroundColor: Colors.transparent,
             child: Container(
               width: 600,
               decoration: BoxDecoration(
@@ -76,7 +77,7 @@ Future<void> showDeviceCreateUpdateDialog({
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.all(20),
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,6 +131,7 @@ Future<void> showDeviceCreateUpdateDialog({
                               hint: "TN01AB1234",
                               controller: vehicleNoCtrl,
                               disabled: isLoading,
+                              requiredField: false,
                             ),
                           ),
                         ],
@@ -149,6 +151,7 @@ Future<void> showDeviceCreateUpdateDialog({
                           hint: "Battery No",
                           controller: batteryNoCtrl,
                           disabled: isLoading,
+                          requiredField: false,
                         ),
                       ],
 
@@ -169,6 +172,7 @@ Future<void> showDeviceCreateUpdateDialog({
                               hint: "Model",
                               controller: vehicleModelCtrl,
                               disabled: isLoading,
+                              requiredField: false,
                             ),
                           ),
                           SizedBox(width: 10),
@@ -179,6 +183,7 @@ Future<void> showDeviceCreateUpdateDialog({
                               hint: "Dealer Code",
                               controller: dealerCodeCtrl,
                               disabled: isLoading,
+                              requiredField: false,
                             ),
                           ),
                         ],
@@ -193,6 +198,7 @@ Future<void> showDeviceCreateUpdateDialog({
                               hint: "RTO",
                               controller: rtoCtrl,
                               disabled: isLoading,
+                              requiredField: false,
                             ),
                           ),
                           SizedBox(width: 10),
@@ -203,6 +209,7 @@ Future<void> showDeviceCreateUpdateDialog({
                               hint: "FG Code",
                               controller: fgCodeCtrl,
                               disabled: isLoading,
+                              requiredField: false,
                             ),
                           ),
                         ],
@@ -244,15 +251,12 @@ Future<void> showDeviceCreateUpdateDialog({
                                 isLoading
                                     ? null
                                     : () async {
-                                      if (vehicleNoCtrl.text.trim().isEmpty ||
-                                          selectedGroup.isEmpty) {
+                                      if (selectedGroup.isEmpty) {
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
                                           const SnackBar(
-                                            content: Text(
-                                              "Vehicle No and Group are mandatory",
-                                            ),
+                                            content: Text("Group is mandatory"),
                                           ),
                                         );
                                         return;
@@ -366,8 +370,11 @@ Widget _textField({
           keyboardType: keyboard,
           cursorColor: isDark ? tWhite : tBlack,
           style: GoogleFonts.urbanist(fontSize: 14),
+          maxLength: 16,
+          inputFormatters: [LengthLimitingTextInputFormatter(16)],
           decoration: InputDecoration(
             hintText: hint,
+            counterText: "",
             filled: false,
             fillColor:
                 isDark ? tWhite.withOpacity(0.05) : tBlack.withOpacity(0.03),
@@ -497,7 +504,7 @@ Widget _deviceTypeChips(
   ValueChanged<String> onChanged,
 ) {
   final types = [
-    {"key": "NON_EV", "label": "Non EV", "color": tBlue},
+    {"key": "NON_EV", "label": "Non EV", "color": tGreen8},
     {"key": "EV", "label": "EV", "color": tGreen3},
   ];
 

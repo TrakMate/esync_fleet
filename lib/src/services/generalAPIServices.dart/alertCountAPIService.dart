@@ -7,11 +7,7 @@ import '../apiURL.dart';
 class AlertCountApiService {
   static const String baseUrl = BaseURLConfig.alertCountApiUrl;
 
-  Future<AlertCountModel> fetchAlertCounts({
-    String? imei,
-    DateTime? startDate,
-    DateTime? endDate,
-  }) async {
+  Future<AlertCountModel> fetchAlertCounts({String? imei, String? date}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('accessToken');
 
@@ -21,13 +17,8 @@ class AlertCountApiService {
     if (imei != null && imei.isNotEmpty) {
       queryParams['imei'] = imei;
     }
-
-    if (startDate != null) {
-      queryParams['startDate'] = startDate.toIso8601String();
-    }
-
-    if (endDate != null) {
-      queryParams['endDate'] = endDate.toIso8601String();
+    if (date != null) {
+      queryParams['date'] = date;
     }
 
     final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
@@ -58,17 +49,10 @@ class AlertCountApiService {
     }
   }
 
-  // Optional: Method to fetch counts for a specific device
-  Future<AlertCountModel> fetchDeviceAlertCounts(String imei) async {
-    return fetchAlertCounts(imei: imei);
-  }
-
-  // Optional: Method to fetch counts within a date range
-  Future<AlertCountModel> fetchAlertCountsForDateRange({
-    required DateTime startDate,
-    required DateTime endDate,
+  Future<AlertCountModel> fetchAlertCountsForDate(
+    String date, {
     String? imei,
   }) async {
-    return fetchAlertCounts(imei: imei, startDate: startDate, endDate: endDate);
+    return fetchAlertCounts(imei: imei, date: date);
   }
 }

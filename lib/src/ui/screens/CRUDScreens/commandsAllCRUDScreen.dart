@@ -14,22 +14,20 @@ import '../../../utils/appColors.dart';
 import '../../forms/commandsAllSendDialog.dart';
 
 class CommandsAllCRUDContent extends StatefulWidget {
-  const CommandsAllCRUDContent({super.key});
-
+  final bool isMobile;
+  const CommandsAllCRUDContent({super.key, this.isMobile = false});
   @override
   State<CommandsAllCRUDContent> createState() => _CommandsAllCRUDContentState();
 }
 
 class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
-  // Scroll controllers for horizontal and vertical scrolling
   final ScrollController _horizontalController = ScrollController();
   final ScrollController _verticalController = ScrollController();
+  final GlobalKey _pageSizeKey = GlobalKey();
 
-  // Pagination / API params
   int page = 1;
-  int sizePerPage = 10;
+  int sizePerPage = 25;
 
-  // UI state
   bool isLoading = false;
   bool isError = false;
   String? errorMessage;
@@ -38,30 +36,44 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
   int currentPage = 1;
   int totalPages = 1;
 
-  // Data
   List<CommandEntities> allcommands = [];
+  List<CommandEntities> filteredCommands = [];
   List<GroupEntity> groups = [];
   List<Entities> filteredallDevices = [];
   final DevicesCRUDApiService _devicesApiService = DevicesCRUDApiService();
   final _apiService = GroupsApiService();
   final CommandsApiService _commandsApiService = CommandsApiService();
-
+  final TextEditingController _searchController = TextEditingController();
   bool isGroupsLoading = false;
 
-  // Page size options
+  OverlayEntry? _pageSizeOverlayEntry;
+  final LayerLink _pageSizeLayerLink = LayerLink();
   final List<int> pageSizeOptions = [10, 25, 50, 100];
-
   @override
   void initState() {
     super.initState();
-    fetchAllCommands(); // initial load
+    fetchAllCommands();
     _loadGroups();
     _reloadDevices();
   }
 
-  // -------------------------
-  // API: fetch paginated commands
-  // -------------------------
+  void _filterCommands(String query) {
+    final lowerQuery = query.toLowerCase();
+
+    setState(() {
+      filteredCommands =
+          allcommands.where((cmd) {
+            final imei = cmd.imei?.toLowerCase() ?? '';
+            final command = cmd.commandSent?.toLowerCase() ?? '';
+
+            return imei.contains(lowerQuery) || command.contains(lowerQuery);
+          }).toList();
+
+      // currentPage = 1;
+      // page = 1;
+    });
+  }
+
   Future<void> fetchAllCommands() async {
     if (!mounted) return;
 
@@ -73,7 +85,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
 
     try {
       final result = await _commandsApiService.fetchCommands(
-        page: page,
+        page: currentPage, // Use currentPage directly instead of page
         sizePerPage: sizePerPage,
       );
 
@@ -81,11 +93,17 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
 
       setState(() {
         allcommands = result.entities ?? [];
+        filteredCommands = allcommands; // Apply search filter if needed
         totalCount = result.totalCount ?? 0;
+        // Fix totalPages calculation
         totalPages = totalCount == 0 ? 1 : (totalCount / sizePerPage).ceil();
-        currentPage = page;
         isLoading = false;
       });
+
+      // Re-apply search filter if there's a search query
+      if (_searchController.text.isNotEmpty) {
+        _filterCommands(_searchController.text);
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -122,6 +140,101 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
       debugPrint("Group fetch error: $e");
       if (mounted) setState(() => isGroupsLoading = false);
     }
+  }
+
+  void _hidePageSizeDropdown() {
+    if (_pageSizeOverlayEntry != null) {
+      try {
+        _pageSizeOverlayEntry!.remove();
+      } catch (_) {}
+      _pageSizeOverlayEntry = null;
+    }
+  }
+
+  void _showPageSizeDropdown(BuildContext context) {
+    final overlay = Overlay.of(context);
+    final renderObject = _pageSizeKey.currentContext?.findRenderObject();
+
+    if (renderObject == null || renderObject is! RenderBox) {
+      return;
+    }
+
+    final RenderBox renderBox = renderObject;
+    final double fieldWidth = renderBox.size.width;
+
+    _pageSizeOverlayEntry = OverlayEntry(
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Positioned(
+          width: fieldWidth,
+          child: CompositedTransformFollower(
+            link: _pageSizeLayerLink,
+            offset: const Offset(0, 45),
+            showWhenUnlinked: false,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? tBlack.withOpacity(0.95) : Colors.white,
+                  border: Border.all(
+                    color:
+                        isDark
+                            ? tWhite.withOpacity(0.10)
+                            : Colors.grey.shade300,
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    if (!isDark)
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                  ],
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  children:
+                      pageSizeOptions.map((s) {
+                        return InkWell(
+                          onTap: () {
+                            if (!mounted) return;
+
+                            setState(() {
+                              sizePerPage = s;
+                              page = 1;
+                              currentPage = 1;
+                            });
+
+                            _hidePageSizeDropdown();
+                            fetchAllCommands();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Text(
+                              "$s / page",
+                              style: GoogleFonts.urbanist(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? tWhite : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_pageSizeOverlayEntry!);
   }
 
   Future<void> _reloadDevices() async {
@@ -164,6 +277,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
 
   @override
   void dispose() {
+    _hidePageSizeDropdown();
     _horizontalController.dispose();
     _verticalController.dispose();
     super.dispose();
@@ -310,139 +424,153 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = MediaQuery.of(context).size.width;
 
+    final isMobile = widget.isMobile || (screenWidth <= 600);
     return Stack(
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row: title + controls
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "Commands",
-                  style: GoogleFonts.urbanist(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? tWhite : tBlack,
-                  ),
-                ),
-                Row(
-                  children: [
-                    _sendCommandButton(isDark),
-                    const SizedBox(width: 10),
-                    Container(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color:
-                            isDark
-                                ? tWhite.withOpacity(0.08)
-                                : Colors.grey.shade50,
-                        border: Border.all(
-                          color:
-                              isDark
-                                  ? tWhite.withOpacity(0.10)
-                                  : Colors.grey.shade300,
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          if (!isDark)
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                        ],
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          value: sizePerPage,
-                          icon: Icon(
-                            Icons.expand_more_rounded,
-                            size: 20,
-                            color:
-                                isDark
-                                    ? tWhite.withOpacity(0.8)
-                                    : Colors.grey.shade700,
-                          ),
-                          dropdownColor:
-                              isDark ? tBlack.withOpacity(0.95) : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          style: GoogleFonts.urbanist(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? tWhite : Colors.black87,
-                          ),
-                          items:
-                              pageSizeOptions
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
-                                      child: Text(
-                                        "$s / page",
-                                        style: GoogleFonts.urbanist(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color:
-                                              isDark ? tWhite : Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setState(() {
-                              sizePerPage = v;
-                              page = 1;
-                            });
-                            fetchAllCommands();
-                          },
-                        ),
-                      ),
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Commands",
+                    style: GoogleFonts.urbanist(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? tWhite : tBlack,
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(child: _sendCommandButton(isDark, isMobile)),
+                      const SizedBox(width: 10),
+                      _buildPageSizeSelector(isDark),
+                    ],
+                  ),
+                ],
+              )
+            else
+              // Desktop: Horizontal layout
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Commands",
+                    style: GoogleFonts.urbanist(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? tWhite : tBlack,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      _sendCommandButton(isDark, isMobile),
+                      const SizedBox(width: 10),
+                      _buildPageSizeSelector(isDark),
+                    ],
+                  ),
+                ],
+              ),
             const SizedBox(height: 16),
-            // Table area - Always visible
             Expanded(child: _buildTableArea(isDark)),
-            // Pagination footer - Dimmed during loading
             const SizedBox(height: 12),
             Opacity(
               opacity: isLoading ? 0.5 : 1.0,
               child: IgnorePointer(
                 ignoring: isLoading,
-                child: _buildPaginationControls(isDark),
+                child: _buildPaginationControls(isDark, isMobile),
               ),
             ),
           ],
         ),
-        // Loading Overlay
         if (isLoading) _buildLoadingOverlay(isDark),
       ],
     );
   }
 
-  Widget _buildTableArea(bool isDark) {
-    // If API returns zero items
-    if (!isLoading && allcommands.isEmpty) {
-      return Center(
-        child: Text(
-          isError
-              ? (errorMessage ?? "Failed to load commands")
-              : "No commands found.",
-          style: GoogleFonts.urbanist(
-            fontSize: 14,
-            color: isDark ? tWhite : tBlack,
+  Widget _buildPageSizeSelector(bool isDark) {
+    return CompositedTransformTarget(
+      key: _pageSizeKey,
+      link: _pageSizeLayerLink,
+      child: GestureDetector(
+        onTap: () {
+          if (_pageSizeOverlayEntry == null) {
+            _showPageSizeDropdown(context);
+          } else {
+            _hidePageSizeDropdown();
+          }
+        },
+        child: Container(
+          height: 42,
+          width: 150,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: isDark ? tWhite.withOpacity(0.08) : Colors.grey.shade50,
+            border: Border.all(
+              color: isDark ? tWhite.withOpacity(0.10) : Colors.grey.shade300,
+              width: 1.2,
+            ),
+            boxShadow: [
+              if (!isDark)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+            ],
           ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "$sizePerPage / page",
+                style: GoogleFonts.urbanist(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? tWhite : Colors.black87,
+                ),
+              ),
+              Icon(
+                Icons.expand_more_rounded,
+                size: 20,
+                color: isDark ? tWhite.withOpacity(0.8) : Colors.grey.shade700,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTableArea(bool isDark) {
+    if (!isLoading && filteredCommands.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SvgPicture.asset('icons/nodata1.svg', height: 120, width: 120),
+            const SizedBox(height: 16),
+            Text(
+              isError
+                  ? (errorMessage ?? "Failed to load commands")
+                  : "No commands found.",
+              style: GoogleFonts.urbanist(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? tWhite : tBlack,
+              ),
+            ),
+          ],
         ),
       );
     }
 
+    // Show current page data directly
     return Opacity(
       opacity: isLoading ? 0.3 : 1.0,
       child: IgnorePointer(
@@ -467,7 +595,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
                     headingRowColor: WidgetStateProperty.all(
                       isDark
                           ? tGreen8.withOpacity(0.15)
-                          : tGreen8.withOpacity(0.1),
+                          : tGreen8.withOpacity(0.05),
                     ),
                     headingTextStyle: GoogleFonts.urbanist(
                       fontWeight: FontWeight.w700,
@@ -498,7 +626,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
                       DataColumn(label: Text('User')),
                     ],
                     rows:
-                        allcommands.asMap().entries.map((entry) {
+                        filteredCommands.asMap().entries.map((entry) {
                           final idx = entry.key;
                           final cmd = entry.value;
                           final imei = cmd.imei ?? "--";
@@ -511,7 +639,9 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
                           return DataRow(
                             cells: [
                               DataCell(
-                                Text('${(page - 1) * sizePerPage + idx + 1}'),
+                                Text(
+                                  '${(currentPage - 1) * sizePerPage + idx + 1}',
+                                ),
                               ),
                               DataCell(Text(imei)),
                               DataCell(
@@ -523,8 +653,8 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
                                   decoration: BoxDecoration(
                                     color:
                                         isReceived
-                                            ? tBlueSky.withOpacity(0.15)
-                                            : tGreen8.withOpacity(0.10),
+                                            ? tGreen3.withOpacity(0.15)
+                                            : tBlue.withOpacity(0.15),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -532,10 +662,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
                                     style: GoogleFonts.urbanist(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color:
-                                          isReceived
-                                              ? tBlueSky
-                                              : (isDark ? tGreen8 : tGreen),
+                                      color: isReceived ? tGreen3 : tBlue,
                                     ),
                                   ),
                                 ),
@@ -572,6 +699,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
       ),
     );
   }
+
   //       const SizedBox(height: 16),
 
   //       // Table area with loading overlay
@@ -750,9 +878,9 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
   //   );
   // }
 
-  Widget _buildPaginationControls(bool isDark) {
+  Widget _buildPaginationControls(bool isDark, bool isMobile) {
     const int visiblePageCount = 5;
-    final computedTotalPages = totalPages < 1 ? 1 : totalPages;
+    final computedTotalPages = (totalCount / sizePerPage).ceil().clamp(1, 999);
 
     int startPage =
         ((currentPage - 1) ~/ visiblePageCount) * visiblePageCount + 1;
@@ -776,12 +904,12 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
             margin: const EdgeInsets.symmetric(horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: isSelected ? tGreen8 : Colors.transparent,
+              color: isSelected ? tBlue : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color:
                     isSelected
-                        ? tGreen8
+                        ? tBlue
                         : (isDark ? Colors.white54 : Colors.black54),
               ),
             ),
@@ -790,7 +918,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
               style: GoogleFonts.urbanist(
                 color:
                     isSelected
-                        ? tBlack
+                        ? tWhite
                         : (isDark
                             ? tWhite.withOpacity(0.8)
                             : tBlack.withOpacity(0.8)),
@@ -807,151 +935,231 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Previous
-          IconButton(
-            icon: Icon(
-              Icons.chevron_left,
-              color: isDark ? tWhite : tBlack,
-              size: 22,
-            ),
-            onPressed: () {
-              if (currentPage > 1) {
-                setState(() {
-                  currentPage--;
-                  page = currentPage;
-                });
-                fetchAllCommands();
-              }
-            },
-          ),
+      child:
+          isMobile
+              ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_left,
+                          color: isDark ? tWhite : tBlack,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          if (currentPage > 1) {
+                            setState(() {
+                              currentPage--;
+                              page = currentPage;
+                            });
+                            fetchAllCommands();
+                          }
+                        },
+                      ),
 
-          Row(children: pageButtons),
+                      Row(children: pageButtons),
 
-          // Next
-          IconButton(
-            icon: Icon(
-              Icons.chevron_right,
-              color: isDark ? tWhite : tBlack,
-              size: 22,
-            ),
-            onPressed: () {
-              if (currentPage < totalPages) {
-                setState(() {
-                  currentPage++;
-                  page = currentPage;
-                });
-                fetchAllCommands();
-              }
-            },
-          ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_right,
+                          color: isDark ? tWhite : tBlack,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          if (currentPage < totalPages) {
+                            setState(() {
+                              currentPage++;
+                              page = currentPage;
+                            });
+                            fetchAllCommands();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
 
-          const SizedBox(width: 16),
+                  const SizedBox(height: 10),
 
-          // Jump to page
-          SizedBox(
-            width: 70,
-            height: 32,
-            child: TextField(
-              controller: controller,
-              style: GoogleFonts.urbanist(
-                fontSize: 13,
-                color: isDark ? tWhite : tBlack,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 28,
+                        child: TextField(
+                          controller: controller,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 10,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Page',
+                            hintStyle: GoogleFonts.urbanist(
+                              fontSize: 10,
+                              color: isDark ? Colors.white54 : Colors.black54,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 0.8,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: BorderSide(
+                                color: isDark ? tWhite : tBlack,
+                                width: 1.2,
+                              ),
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            final p = int.tryParse(value);
+
+                            if (p != null && p >= 1 && p <= totalPages) {
+                              setState(() {
+                                currentPage = p;
+                                page = currentPage;
+                              });
+                              fetchAllCommands();
+                            }
+                          },
+                          cursorColor: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Flexible(
+                        child: Text(
+                          'Page $currentPage of $computedTotalPages',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 12,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+              : Center(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_left,
+                          color: isDark ? tWhite : tBlack,
+                          size: 22,
+                        ),
+                        onPressed: () {
+                          if (currentPage > 1) {
+                            setState(() {
+                              currentPage--;
+                              page = currentPage;
+                            });
+                            fetchAllCommands();
+                          }
+                        },
+                      ),
+
+                      Row(children: pageButtons),
+
+                      IconButton(
+                        icon: Icon(
+                          Icons.chevron_right,
+                          color: isDark ? tWhite : tBlack,
+                          size: 22,
+                        ),
+                        onPressed: () {
+                          if (currentPage < totalPages) {
+                            setState(() {
+                              currentPage++;
+                              page = currentPage;
+                            });
+                            fetchAllCommands();
+                          }
+                        },
+                      ),
+
+                      const SizedBox(width: 16),
+
+                      SizedBox(
+                        width: 70,
+                        height: 32,
+                        child: TextField(
+                          controller: controller,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.urbanist(
+                            fontSize: 13,
+                            color: isDark ? tWhite : tBlack,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Page',
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          onSubmitted: (value) {
+                            final p = int.tryParse(value);
+
+                            if (p != null && p >= 1 && p <= totalPages) {
+                              setState(() {
+                                currentPage = p;
+                                page = currentPage;
+                              });
+                              fetchAllCommands();
+                            }
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Text(
+                        'Page $currentPage of $computedTotalPages · $totalCount items',
+                        style: GoogleFonts.urbanist(
+                          fontSize: 13,
+                          color: isDark ? tWhite : tBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: 'Page',
-                hintStyle: GoogleFonts.urbanist(
-                  fontSize: 12,
-                  color: isDark ? Colors.white54 : Colors.black54,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 0.8,
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 0.8,
-                  ),
-                ),
-
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: isDark ? tWhite : tBlack,
-                    width: 1.2, // slightly thicker when focused
-                  ),
-                ),
-
-                disabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color:
-                        isDark
-                            ? tWhite.withOpacity(0.4)
-                            : tBlack.withOpacity(0.4),
-                    width: 0.8,
-                  ),
-                ),
-              ),
-              onSubmitted: (value) {
-                final p = int.tryParse(value);
-                if (p != null && p >= 1 && p <= totalPages) {
-                  setState(() {
-                    currentPage = p;
-                    page = currentPage;
-                  });
-                  fetchAllCommands();
-                }
-              },
-              cursorColor: isDark ? tWhite : tBlack,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          Text(
-            'Page $currentPage of $computedTotalPages · $totalCount items',
-            style: GoogleFonts.urbanist(
-              fontSize: 13,
-              color: isDark ? tWhite : tBlack,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _sendCommandButton(bool isDark) => Container(
+  Widget _sendCommandButton(bool isDark, bool isMobile) => Container(
     height: 40,
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(color: isDark ? tWhite : tBlack),
     child: TextButton(
       onPressed: () {
-        // TODO: open create user dialog
         showSendCommandDialog(
           context: context,
           allGroups: groups,
 
-          /// Map group → IMEIs
-          // getImeisByGroup: (groupId) {
-          //   return filteredallDevices
-          //       .where((d) => d.groupDetails?.id == groupId)
-          //       .map((d) => d.imei!)
-          //       .toList();
-          // },
-
-          /// Final API call
-          // onConfirm: (imeis, command) async {
-          //   final groupIds = groups.map((g) => g.id!).toList();
-          //   // final request = MulCommandRequest(command: command, imeis: imeis);
+          // onConfirm: (groupIds, command) async {
           //   final request = MulCommandRequest(
           //     command: command,
           //     groups: groupIds,
@@ -960,11 +1168,11 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
           //   fetchAllCommands();
           // },
           onConfirm: (groupIds, command) async {
-            // Send only group IDs (List<String>) to backend
             final request = MulCommandRequest(
               command: command,
-              groups: groupIds,
+              groups: groupIds.map((id) => {"id": id}).toList(),
             );
+
             await _commandsApiService.sendMulCommand(request);
             fetchAllCommands();
           },
@@ -980,7 +1188,7 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
           ),
           const SizedBox(width: 8),
           Text(
-            'Send Command',
+            isMobile ? 'Send' : 'Send Command',
             style: GoogleFonts.urbanist(
               fontSize: 13,
               color: isDark ? tBlack : tWhite,
@@ -988,6 +1196,37 @@ class _CommandsAllCRUDContentState extends State<CommandsAllCRUDContent> {
             ),
           ),
         ],
+      ),
+    ),
+  );
+  Widget _buildFilterBySearch(bool isDark) => Container(
+    width: 180,
+    height: 40,
+    decoration: BoxDecoration(
+      color: tTransparent,
+      border: Border.all(color: isDark ? tWhite : tBlack, width: 1),
+    ),
+    child: TextField(
+      controller: _searchController,
+      onChanged: _filterCommands,
+      style: GoogleFonts.urbanist(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: isDark ? tWhite : tBlack,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Search...',
+        hintStyle: GoogleFonts.urbanist(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: isDark ? tWhite.withOpacity(0.6) : tBlack.withOpacity(0.6),
+        ),
+        border: InputBorder.none,
+        prefixIcon: Icon(
+          Icons.search,
+          size: 18,
+          color: isDark ? tWhite : tBlack,
+        ),
       ),
     ),
   );

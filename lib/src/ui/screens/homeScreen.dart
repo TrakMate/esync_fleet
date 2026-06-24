@@ -618,8 +618,8 @@ class _HomeScreenState extends State<HomeScreen>
       decoration: BoxDecoration(
         color: tTransparent,
         border: Border(
-          top: BorderSide(color: tBlue, width: 0.5),
-          bottom: BorderSide(color: tBlue, width: 0.5),
+          top: BorderSide(color: tGreen8, width: 0.5),
+          bottom: BorderSide(color: tGreen8, width: 0.5),
         ),
       ),
 
@@ -738,13 +738,13 @@ class _HomeScreenState extends State<HomeScreen>
                         color:
                             isSelected
                                 ? (isDark
-                                    ? tBlue1.withOpacity(0.1)
-                                    : tBlue1.withOpacity(0.1))
+                                    ? tGreen8.withOpacity(0.1)
+                                    : tGreen8.withOpacity(0.1))
                                 : Colors.transparent,
                         border:
                             isSelected
                                 ? Border(
-                                  right: BorderSide(width: 4, color: tBlue1),
+                                  right: BorderSide(width: 4, color: tGreen8),
                                 )
                                 : null,
                       ),
@@ -760,7 +760,7 @@ class _HomeScreenState extends State<HomeScreen>
                             height: 22,
                             color:
                                 isSelected
-                                    ? tBlue1
+                                    ? tGreen8
                                     : (isDark ? tWhite : tBlack),
                           ),
                           const SizedBox(width: 15),
@@ -773,7 +773,7 @@ class _HomeScreenState extends State<HomeScreen>
                                       : FontWeight.w500,
                               color:
                                   isSelected
-                                      ? tBlue1
+                                      ? tGreen8
                                       : (isDark ? tWhite : tBlack),
                             ),
                           ),
