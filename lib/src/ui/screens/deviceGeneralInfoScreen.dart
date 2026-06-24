@@ -2977,29 +2977,29 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     String getTruckIcon(String status) {
       switch (status.toLowerCase()) {
         case 'moving':
-          return 'icons/indicationIcons/moving1.svg';
+          return 'icons/indicationIcons/cycmoving.svg';
 
         case 'stopped':
-          return 'icons/indicationIcons/stopped1.svg';
+          return 'icons/indicationIcons/cycstopped.svg';
 
         case 'idle':
-          return 'icons/indicationIcons/idle1.svg';
+          return 'icons/indicationIcons/cycidle.svg';
 
         case 'disconnected':
-          return 'icons/indicationIcons/disconnected1.svg';
+          return 'icons/indicationIcons/cycdisconnected.svg';
 
         case 'non coverage':
         case 'non_coverage':
-          return 'icons/indicationIcons/noncoverage1.svg';
+          return 'icons/indicationIcons/cycnoncoverage.svg';
 
         case 'charging':
-          return 'icons/indicationIcons/charging1.svg';
+          return 'icons/indicationIcons/cyccharging.svg';
 
         case 'discharging':
-          return 'icons/indicationIcons/moving1.svg';
+          return 'icons/indicationIcons/cycmoving.svg';
 
         default:
-          return 'icons/indicationIcons/stopped1.svg';
+          return 'icons/indicationIcons/cycstopped.svg';
       }
     }
 
@@ -3620,7 +3620,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                 Text(
                                   parts.first,
                                   style: GoogleFonts.urbanist(
-                                    fontSize: 10,
+                                    fontSize: 8,
                                     color: isDark ? tWhite : tBlack,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -3628,7 +3628,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                 Text(
                                   parts.length > 1 ? parts.last : '',
                                   style: GoogleFonts.urbanist(
-                                    fontSize: 10,
+                                    fontSize: 8,
                                     color: isDark ? tWhite : tBlack,
                                     fontWeight: FontWeight.w600,
                                   ),

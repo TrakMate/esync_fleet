@@ -178,12 +178,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
   late final List<Marker> _cachedMarkers;
 
   final List<String> _truckIconPaths = [
-    'icons/indicationIcons/moving1.svg',
-    'icons/indicationIcons/stopped1.svg',
-    'icons/indicationIcons/idle1.svg',
-    'icons/indicationIcons/disconnected1.svg',
-    'icons/indicationIcons/noncoverage1.svg',
-    'icons/indicationIcons/charging1.svg',
+    'icons/indicationIcons/cycmoving.svg',
+    'icons/indicationIcons/cycstopped.svg',
+    'icons/indicationIcons/cycidle.svg',
+    'icons/indicationIcons/cycdisconnected.svg',
+    'icons/indicationIcons/cycnoncoverage.svg',
+    'icons/indicationIcons/cycdischarging.svg',
   ];
 
   final Map<String, Future<String>> _addressCache = {};
@@ -1333,6 +1333,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
           ],
         ),
 
+        if (isMapFullscreen)
+          Positioned(top: 12, left: 12, child: _buildFleetRibbon(isDark)),
         //Map View
         Positioned(
           top: 12,
@@ -1343,11 +1345,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
             decoration: BoxDecoration(
               color:
                   isDark
-                      ? Colors.black.withOpacity(.85)
+                      ? tBlack.withOpacity(.85)
                       : Colors.white.withOpacity(.95),
               borderRadius: BorderRadius.circular(0),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(.15), blurRadius: 10),
+                BoxShadow(color: tBlack.withOpacity(.15), blurRadius: 10),
               ],
             ),
             child: Row(
@@ -1387,19 +1389,20 @@ class _DevicesScreenState extends State<DevicesScreen> {
               });
             },
             child: Container(
-              width: 42,
-              height: 42,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color:
                     isDark
                         ? tBlack.withOpacity(.85)
                         : Colors.white.withOpacity(.95),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(0),
+                border: Border.all(color: isDark ? tWhite : tBlack, width: 1),
                 boxShadow: [
                   BoxShadow(color: tBlack.withOpacity(.15), blurRadius: 10),
                 ],
               ),
-              child: const Icon(Icons.fullscreen),
+              child: const Icon(Icons.fullscreen, size: 18),
             ),
           ),
         ),
@@ -2131,29 +2134,29 @@ class _DevicesScreenState extends State<DevicesScreen> {
     String getTruckIcon(String status) {
       switch (status.toLowerCase()) {
         case 'moving':
-          return 'icons/indicationIcons/moving1.svg';
+          return 'icons/indicationIcons/cycmoving.svg';
 
         case 'stopped':
-          return 'icons/indicationIcons/stopped1.svg';
+          return 'icons/indicationIcons/cycstopped.svg';
 
         case 'idle':
-          return 'icons/indicationIcons/idle1.svg';
+          return 'icons/indicationIcons/cycidle.svg';
 
         case 'disconnected':
-          return 'icons/indicationIcons/disconnected1.svg';
+          return 'icons/indicationIcons/cycdisconnected.svg';
 
         case 'non coverage':
         case 'non_coverage':
-          return 'icons/indicationIcons/noncoverage1.svg';
+          return 'icons/indicationIcons/cycnoncoverage.svg';
 
         case 'charging':
-          return 'icons/indicationIcons/charging1.svg';
+          return 'icons/indicationIcons/cycdischarging.svg';
 
         case 'discharging':
-          return 'icons/indicationIcons/moving1.svg';
+          return 'icons/indicationIcons/cycmoving.svg';
 
         default:
-          return 'icons/indicationIcons/stopped1.svg';
+          return 'icons/indicationIcons/cycstopped.svg';
       }
     }
 
@@ -3300,15 +3303,20 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         });
                       },
                       child: Container(
-                        width: 46,
-                        height: 46,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
-                          color: isDark ? tWhite : tBlack,
-                          borderRadius: BorderRadius.circular(12),
+                          color: isDark ? tBlack : tWhite,
+                          borderRadius: BorderRadius.circular(0),
+                          border: Border.all(
+                            color: isDark ? tWhite : tBlack,
+                            width: 1,
+                          ),
                         ),
                         child: Icon(
                           Icons.fullscreen_exit,
-                          color: isDark ? tBlack : tWhite,
+                          size: 18,
+                          color: isDark ? tWhite : tBlack,
                         ),
                       ),
                     ),

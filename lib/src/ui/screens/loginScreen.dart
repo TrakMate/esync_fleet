@@ -283,259 +283,75 @@ class _LoginScreenState extends State<LoginScreen>
           flex: (widthFactor * 200).toInt(),
           child: Stack(
             children: [
+              Positioned.fill(
+                child: Image.asset('images/bg-cycle.png', fit: BoxFit.cover),
+              ),
+
+              //Full gradient background overlay
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      tGreen8.withOpacity(0.1),
+                      tGreen8.withOpacity(0.5),
+                    ],
+                  ),
+                ),
+              ),
+
+              //Content on top
               Padding(
-                padding: const EdgeInsets.fromLTRB(70, 40, 70, 40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        style: GoogleFonts.inter(
-                          fontSize: isTablet ? 36 : 48,
-                          fontWeight: FontWeight.w800,
-                          height: 1.15,
-                          color: isDark ? tWhite : tBlack,
-                        ),
-                        children: [
-                          const TextSpan(text: "Drive smarter\nwith "),
-                          TextSpan(
-                            text: "your data",
-                            style: TextStyle(
-                              color: tGreen8,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
+                padding: const EdgeInsets.all(40.0),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      // maxWidth: MediaQuery.of(context).size.width * 0.5,
+                      maxWidth: 700,
                     ),
-
-                    const SizedBox(height: 20),
-
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 800),
-                      child: Text(
-                        "Monitor, manage and optimize your vehicles in real-time with advanced IoT telematics technology. Track fleets, analyze driver behavior, improve operational efficiency and gain actionable insights through a unified intelligent platform.",
-                        style: GoogleFonts.urbanist(
-                          fontSize: isTablet ? 12 : 14,
-                          height: 1.8,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? tWhite : tBlack,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 40),
-
-                    Wrap(
-                      spacing: isTablet ? 10 : 20,
-                      runSpacing: isTablet ? 10 : 20,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _featureGlassCard(
-                          svg: "icons/tracking.svg",
-                          title: "Live Tracking",
-                          description:
-                              "Real-time GPS tracking with route history and geofencing.",
-                          color: const Color(0xFF3B82F6), // Blue
+                        Text(
+                          'Powering the Future of Electric Mobility',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 34,
+                            fontWeight: FontWeight.bold,
+                            color: tWhite,
+                            height: 1.3,
+                          ),
                         ),
 
-                        _featureGlassCard(
-                          svg: "icons/car.svg",
-                          title: "Fleet Analytics",
-                          description:
-                              "Vehicle utilization, trip reports and performance insights.",
-                          color: const Color(0xFF10B981), // Green
+                        const SizedBox(height: 20),
+
+                        Text(
+                          'eSync is redefining electric mobility through innovative technology, smart connectivity, and sustainable solutions designed for next-generation transportation.',
+                          style: GoogleFonts.urbanist(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w400,
+                            color: tWhite.withOpacity(0.95),
+                            height: 1.6,
+                          ),
                         ),
 
-                        _featureGlassCard(
-                          svg: "icons/battery.svg",
-                          title: "ICE & EV Monitoring",
-                          description:
-                              "Fuel level, mileage, SOC, DTE, battery health and charging analytics.",
-                          color: const Color(0xFFF59E0B), // Orange
-                        ),
+                        const SizedBox(height: 30),
 
-                        _featureGlassCard(
-                          svg: "icons/alerts.svg",
-                          title: "Smart Alerts",
-                          description:
-                              "Instant notifications for ignition, overspeed and faults.",
-                          color: const Color(0xFFEF4444), // Red
+                        _buildPoint(
+                          'Advanced electric vehicle solutions built for performance and reliability.',
                         ),
-
-                        _featureGlassCard(
-                          svg: "icons/analytics.svg",
-                          title: "Remote Diagnostics",
-                          description:
-                              "Monitor device health and troubleshoot remotely.",
-                          color: const Color(0xFF8B5CF6), // Purple
+                        _buildPoint(
+                          'Smart IoT-enabled systems for seamless connectivity and control.',
                         ),
-
-                        _featureGlassCard(
-                          svg: "icons/maintenance.svg",
-                          title: "Maintenance",
-                          description:
-                              "Schedule preventive maintenance and reduce vehicle downtime.",
-                          color: tGreen3,
+                        _buildPoint(
+                          'Sustainable and eco-friendly mobility for modern transportation.',
                         ),
-                        _featureGlassCard(
-                          svg: "icons/report_file.svg",
-                          title: "Reports",
-                          description:
-                              "Automated reports for trips, fuel, utilization and more.",
-                          color: const Color(0xFF06B6D4), // Cyan
+                        _buildPoint(
+                          'Continuous innovation shaping the future of e-mobility.',
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-
-              Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: _animController,
-                  builder: (context, child) {
-                    return CustomPaint(
-                      painter: TechGridPainter(
-                        tick: _animController.value,
-                        isDark: isDark,
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // ---------------- SCANNING LINES ----------------
-              Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: _animController,
-                  builder: (context, child) {
-                    return CustomPaint(
-                      painter: ScanningLinesPainter(
-                        offset: _animController.value,
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // ----------------------- FLOATING SHAPES (parallax) -----------------------
-              Positioned(
-                top: 80,
-                right: 60,
-                child: FloatingShape(
-                  anim: _animController,
-                  size: 120,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.orangeAccent.withOpacity(0.18),
-                          Colors.transparent,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: SizedBox(width: 120, height: 120),
-                  ),
-                ),
-              ),
-
-              Positioned(
-                top: 220,
-                left: 140,
-                child: FloatingShape(
-                  anim: _animController,
-                  speed: 1.2,
-                  amplitude: 14,
-                  size: 100,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.blueAccent.withOpacity(0.10),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                    child: SizedBox(width: 100, height: 100),
-                  ),
-                ),
-              ),
-
-              Positioned(
-                top: 10,
-                left: 40,
-                child: FloatingShape(
-                  anim: _animController,
-                  speed: 0.6,
-                  amplitude: 18,
-                  size: 90,
-                  child: Transform.rotate(
-                    angle: -0.5,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.cyanAccent.withOpacity(0.07),
-                            Colors.transparent,
-                          ],
-                          begin: Alignment.topRight,
-                          end: Alignment.bottomLeft,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.cyanAccent.withOpacity(0.02),
-                            blurRadius: 20,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: SizedBox(width: 90, height: 90),
-                    ),
-                  ),
-                ),
-              ),
-
-              // ----------------------- SPOTLIGHT BEHIND CONTENT -----------------------
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AnimatedBuilder(
-                    animation: _animController,
-                    builder: (context, _) {
-                      // subtle pulsing of spotlight
-                      final pulse =
-                          0.9 + 0.1 * sin(_animController.value * 2 * pi);
-                      return Container(
-                        alignment: Alignment.topLeft,
-                        padding: const EdgeInsets.fromLTRB(40, 120, 0, 0),
-                        child: Transform.scale(
-                          scale: pulse,
-                          origin: const Offset(0, 0),
-                          child: Container(
-                            width: 1100,
-                            height: 540,
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: const Alignment(-0.4, -0.6),
-                                radius: 0.9,
-                                colors: [
-                                  (isDark
-                                          ? Colors.tealAccent
-                                          : Colors.orangeAccent)
-                                      .withOpacity(0.06),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
                   ),
                 ),
               ),
