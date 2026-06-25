@@ -826,7 +826,7 @@ class _LoginScreenState extends State<LoginScreen>
 
             Center(
               child: Text(
-                '© TrakMate Design Solutions Pvt Ltd',
+                '© ESYNC, Hero EDU Systems Pvt.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.urbanist(
                   fontSize: 13,

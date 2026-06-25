@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:esync_fleet/src/ui/widgets/charts/deviceAlertChart.dart'
     show DeviceAlertsChart;
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
@@ -27,6 +28,7 @@ import '../../models/tripMAPModel.dart';
 import '../../provider/fleetModeProvider.dart';
 import '../../services/generalAPIServices.dart/deviceAPIServices/deviceGeneralInfoAPIService.dart';
 import '../../services/generalAPIServices.dart/deviceDetailsAPIService.dart';
+import '../../services/generalAPIServices.dart/tripsAPIService.dart';
 import '../../services/getAddressService.dart';
 import '../../utils/appColors.dart';
 import '../../utils/appLogger.dart';
@@ -37,6 +39,7 @@ import '../widgets/charts/deviceTripChart.dart';
 import '../widgets/charts/distanceSpeedchart.dart';
 import '../widgets/charts/doughnutChart.dart';
 import '../widgets/charts/speedDistanceChart.dart';
+import '../../models/tripRoutePlayBackModel.dart' as TripPlaybackModel;
 
 class DeviceGeneralInfoScreen extends StatefulWidget {
   final DeviceEntity device;
@@ -64,6 +67,24 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
   DeviceDetailsModel? deviceDetailsModel;
   final DeviceDetailsApiService _deviceDetailsApiService =
       DeviceDetailsApiService();
+
+  final TripsApiService _api = TripsApiService();
+
+  bool _isRouteLoading = false;
+  dynamic selectedTrip;
+
+  List<LatLng> _convertPlaybackDataToLatLng(List<TripPlaybackModel.Data> data) {
+    return data
+        .where(
+          (e) =>
+              e.lat != null &&
+              e.lng != null &&
+              e.lat!.isNotEmpty &&
+              e.lng!.isNotEmpty,
+        )
+        .map((e) => LatLng(double.parse(e.lat!), double.parse(e.lng!)))
+        .toList();
+  }
 
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
@@ -2872,66 +2893,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     );
   }
 
-  // Widget _buildInfoCard(
-  //   bool isDark,
-  //   String title,
-  //   String value,
-  //   Gradient cardColor,
-  // ) {
-  //   return Container(
-  //     width: double.infinity, // fits 2 per row
-  //     decoration: BoxDecoration(
-  //       color: tTransparent,
-  //       boxShadow: [
-  //         BoxShadow(
-  //           spreadRadius: 2,
-  //           blurRadius: 10,
-  //           color: isDark ? tWhite.withOpacity(0.25) : tBlack.withOpacity(0.15),
-  //         ),
-  //       ],
-  //     ),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.stretch,
-  //       children: [
-  //         /// Header
-  //         Container(
-  //           padding: const EdgeInsets.symmetric(vertical: 6),
-  //           decoration: BoxDecoration(
-  //             color: isDark ? tBlack : tWhite,
-  //             // border: Border.all(width: 0.5, color: isDark ? tWhite : tBlack),
-  //           ),
-  //           child: Text(
-  //             title,
-  //             style: GoogleFonts.urbanist(
-  //               fontSize: 12,
-  //               color: isDark ? tWhite : tBlack,
-  //               fontWeight: FontWeight.bold,
-  //             ),
-  //             textAlign: TextAlign.center,
-  //           ),
-  //         ),
-
-  //         /// Gradient Value Box
-  //         Container(
-  //           height: 78,
-  //           width: double.infinity,
-  //           decoration: BoxDecoration(gradient: cardColor),
-  //           alignment: Alignment.center,
-  //           child: Text(
-  //             value,
-  //             style: GoogleFonts.urbanist(
-  //               fontSize: 33,
-  //               color: tWhite,
-  //               fontWeight: FontWeight.bold,
-  //             ),
-  //             textAlign: TextAlign.center,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
   Widget buildDeviceCard({
     required bool isDark,
     required String vehicleNumber,
@@ -4027,11 +3988,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
 
   Widget _buildTripsTable(bool isDark) {
     final trips = tripsModel?.trips?.entities ?? [];
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    final isMobile = screenWidth < 600;
-
-    final isTablet = screenWidth >= 600 && screenWidth < 1100;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -4039,13 +3995,18 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
         final maxWidth = constraints.maxWidth;
 
         Color getStatusColor(String status) {
-          return status == "Completed" ? tGreen8 : tBlueSky;
+          return status == "Completed" ? tBlue : tGreen;
         }
 
         String formatDate(String? iso) {
           if (iso == null || iso.isEmpty) return "-";
-          final dt = DateTime.parse(iso);
-          return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+
+          final utc = DateTime.parse(iso).toUtc();
+          final ist = utc.add(
+            const Duration(hours: 5, minutes: 30),
+          ); // convert to IST
+
+          return DateFormat('dd MMM yyyy, hh:mm a').format(ist);
         }
 
         String resolveTripStatus(int? status) {
@@ -4061,7 +4022,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isDark ? tBlack : tWhite,
-            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
                 blurRadius: 10,
@@ -4075,7 +4035,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
               Expanded(
                 child: Scrollbar(
                   controller: _tripHorizontalCtrl,
-                  thumbVisibility: false,
+                  thumbVisibility: true,
                   radius: const Radius.circular(6),
                   thickness: 4,
                   child: SingleChildScrollView(
@@ -4085,93 +4045,147 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                       constraints: BoxConstraints(minWidth: maxWidth),
                       child: Scrollbar(
                         controller: _tripVerticalCtrl,
-                        thumbVisibility: false,
+                        thumbVisibility: true,
                         child: SingleChildScrollView(
                           controller: _tripVerticalCtrl,
                           scrollDirection: Axis.vertical,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                isDark
-                                    ? tGreen8.withOpacity(0.15)
-                                    : tGreen8.withOpacity(0.05),
-                              ),
-                              headingTextStyle: GoogleFonts.urbanist(
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? tWhite : tBlack,
-                                fontSize: isMobile ? 11 : 13,
-                              ),
-                              dataTextStyle: GoogleFonts.urbanist(
-                                color: isDark ? tWhite : tBlack,
-                                fontWeight: FontWeight.w400,
-                                fontSize: isMobile ? 10 : 12,
-                              ),
-                              columnSpacing: isMobile ? 20 : 30,
-                              border: TableBorder.all(
-                                color:
-                                    isDark
-                                        ? tWhite.withOpacity(0.1)
-                                        : tBlack.withOpacity(0.1),
-                                width: 0.4,
-                              ),
-                              dividerThickness: 0.01,
-                              columns: const [
-                                DataColumn(label: Text("Start Date")),
-                                DataColumn(label: Text("End Date")),
-                                DataColumn(label: Text("Duration")),
-                                DataColumn(label: Text("Distance")),
-                                DataColumn(label: Text("Trip Status")),
-                              ],
-                              rows:
-                                  trips.map((trip) {
-                                    final status = resolveTripStatus(
-                                      trip.tripStatus,
-                                    );
-                                    return DataRow(
-                                      cells: [
-                                        DataCell(
-                                          Text(formatDate(trip.tripStartTime)),
-                                        ),
-                                        DataCell(
-                                          Text(formatDate(trip.tripEndTime)),
-                                        ),
-                                        DataCell(
-                                          Text("${trip.totalTime} mins"),
-                                        ),
-                                        DataCell(
-                                          Text(
-                                            "${trip.totalDistance?.toStringAsFixed(2)} kms",
-                                          ),
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              isDark
+                                  ? tGreen8.withOpacity(0.15)
+                                  : tGreen8.withOpacity(0.1),
+                            ),
+                            headingTextStyle: GoogleFonts.urbanist(
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? tWhite : tBlack,
+                              fontSize: 13,
+                            ),
+                            dataTextStyle: GoogleFonts.urbanist(
+                              color: isDark ? tWhite : tBlack,
+                              fontWeight: FontWeight.w400,
+                              fontSize: 12,
+                            ),
+                            columnSpacing: 30,
+                            border: TableBorder.all(
+                              color:
+                                  isDark
+                                      ? tWhite.withOpacity(0.1)
+                                      : tBlack.withOpacity(0.1),
+                              width: 0.4,
+                            ),
+                            dividerThickness: 0.01,
+                            columns: const [
+                              DataColumn(label: Text("Start Date")),
+                              DataColumn(label: Text("End Date")),
+                              DataColumn(label: Text("Duration")),
+                              DataColumn(label: Text("Distance")),
+                              DataColumn(label: Text("Trip Status")),
+                            ],
+                            rows:
+                                trips.map((trip) {
+                                  final status = resolveTripStatus(
+                                    trip.tripStatus,
+                                  );
+                                  // return DataRow(
+                                  //   cells: [
+                                  //     DataCell(
+                                  //       Text(formatDate(trip.tripStartTime)),
+                                  //     ),
+                                  //     DataCell(
+                                  //       Text(formatDate(trip.tripEndTime)),
+                                  //     ),
+                                  //     DataCell(Text("${trip.totalTime} mins")),
+                                  //     DataCell(
+                                  //       Text(
+                                  //         "${trip.totalDistance?.toStringAsFixed(2)} kms",
+                                  //       ),
+                                  //     ),
+
+                                  //     // Status badge
+                                  //     DataCell(
+                                  //       Container(
+                                  //         padding: const EdgeInsets.symmetric(
+                                  //           vertical: 4,
+                                  //           horizontal: 12,
+                                  //         ),
+                                  //         decoration: BoxDecoration(
+                                  //           color: getStatusColor(
+                                  //             status,
+                                  //           ).withOpacity(0.15),
+                                  //           borderRadius: BorderRadius.circular(
+                                  //             6,
+                                  //           ),
+                                  //         ),
+                                  //         child: Text(
+                                  //           status,
+                                  //           style: GoogleFonts.urbanist(
+                                  //             color: getStatusColor(status),
+                                  //             fontWeight: FontWeight.bold,
+                                  //           ),
+                                  //         ),
+                                  //       ),
+                                  //     ),
+                                  //   ],
+                                  // );
+                                  return DataRow(
+                                    color:
+                                        WidgetStateProperty.resolveWith<Color?>(
+                                          (states) {
+                                            if (selectedTrip?.id == trip.id) {
+                                              return tGreen8.withOpacity(0.05);
+                                            }
+                                            return null;
+                                          },
                                         ),
 
-                                        // Status badge
-                                        DataCell(
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 4,
-                                              horizontal: 12,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: getStatusColor(
-                                                status,
-                                              ).withOpacity(0.15),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
+                                    cells: [
+                                      DataCell(
+                                        Text(formatDate(trip.tripStartTime)),
+                                      ),
+                                      DataCell(
+                                        Text(formatDate(trip.tripEndTime)),
+                                      ),
+                                      DataCell(
+                                        Text("${trip.totalTime ?? '--'} mins"),
+                                      ),
+                                      DataCell(
+                                        Text(
+                                          trip.totalDistance != null
+                                              ? "${trip.totalDistance!.toStringAsFixed(2)} kms"
+                                              : "--",
+                                        ),
+                                      ),
+
+                                      /// STATUS BADGE
+                                      DataCell(
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 4,
+                                            horizontal: 12,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: getStatusColor(
                                               status,
-                                              style: GoogleFonts.urbanist(
-                                                color: getStatusColor(status),
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                            ).withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            status,
+                                            style: GoogleFonts.urbanist(
+                                              color: getStatusColor(status),
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    );
-                                  }).toList(),
-                            ),
+                                        onTap:
+                                            () =>
+                                                _handleTripClick(trip, isDark),
+                                      ),
+                                    ],
+                                  );
+                                }).toList(),
                           ),
                         ),
                       ),
@@ -4179,9 +4193,89 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                   ),
                 ),
               ),
-
-              // No pagination required unless you need it later
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  String resolveTripStatus(dynamic status) {
+    switch (status) {
+      case 0:
+        return "Ongoing";
+      case 1:
+        return "Completed";
+      default:
+        return "Unknown";
+    }
+  }
+
+  Future<void> _handleTripClick(dynamic trip, bool isDark) async {
+    final status = resolveTripStatus(trip.tripStatus).toLowerCase();
+
+    if (status != "completed") return;
+
+    setState(() {
+      selectedTrip = trip;
+      _isRouteLoading = true;
+    });
+
+    final result = await _api.fetchTripRoutePlayback(trip.id!);
+
+    if (!mounted || result == null) {
+      setState(() => _isRouteLoading = false);
+      return;
+    }
+
+    final playbackData = result.data ?? [];
+    final points = _convertPlaybackDataToLatLng(playbackData);
+
+    setState(() {
+      _isRouteLoading = false;
+    });
+
+    _showTripPopup(context, trip, points, playbackData, isDark);
+  }
+
+  void _showTripPopup(
+    BuildContext context,
+    dynamic trip,
+    List<LatLng> points,
+    List<TripPlaybackModel.Data> _playbackData,
+    bool isDark,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          backgroundColor: Colors.transparent,
+          child: Container(
+            height: 620,
+            width: 940,
+            decoration: BoxDecoration(
+              color: isDark ? tBlack : tWhite,
+              borderRadius: BorderRadius.zero,
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      isDark
+                          ? tWhite.withOpacity(0.4)
+                          : tBlack.withOpacity(0.4),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: TripPlaybackWidget(
+              trip: trip,
+              routePoints: points,
+              playbackData: _playbackData,
+              isDark: isDark,
+            ),
           ),
         );
       },
@@ -4465,4 +4559,447 @@ class CrosshairPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class TripPlaybackWidget extends StatefulWidget {
+  final dynamic trip;
+  final List<LatLng> routePoints;
+  final List<TripPlaybackModel.Data> playbackData;
+  final bool isDark;
+
+  const TripPlaybackWidget({
+    super.key,
+    required this.trip,
+    required this.routePoints,
+    required this.playbackData,
+    this.isDark = false,
+  });
+
+  @override
+  State<TripPlaybackWidget> createState() => _TripPlaybackWidgetState();
+}
+
+class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
+  final MapController _mapController = MapController();
+
+  List<LatLng> completedPath = [];
+  List<LatLng> remainingPath = [];
+
+  LatLng? _movingMarker;
+  int _playIndex = 0;
+  bool _isPlaying = false;
+  Timer? _playTimer;
+  bool _isMapReady = false;
+  List<LatLng> _routePoints = [];
+  double _currentZoom = 17.0;
+  Entities? selectedTrip;
+
+  TripPlaybackModel.Data? _currentPlaybackData;
+
+  double _zoom = 16;
+  final int _tickMs = 750;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.routePoints.isNotEmpty) {
+      completedPath = [widget.routePoints.first];
+      remainingPath = List.from(widget.routePoints);
+      _movingMarker = widget.routePoints.first;
+    }
+
+    if (widget.playbackData.isNotEmpty) {
+      _currentPlaybackData = widget.playbackData.first;
+    }
+  }
+
+  void _togglePlayback() {
+    if (_isPlaying) {
+      _stopPlayback();
+    } else {
+      _startPlayback();
+    }
+  }
+
+  void _startPlayback() {
+    _playTimer?.cancel();
+
+    setState(() => _isPlaying = true);
+
+    _playTimer = Timer.periodic(Duration(milliseconds: _tickMs), (_) {
+      if (_playIndex < widget.routePoints.length - 1) {
+        setState(() {
+          _playIndex++;
+
+          _movingMarker = widget.routePoints[_playIndex];
+          _currentPlaybackData = widget.playbackData[_playIndex];
+
+          completedPath = widget.routePoints.sublist(0, _playIndex + 1);
+          remainingPath = widget.routePoints.sublist(_playIndex);
+
+          _mapController.move(_movingMarker!, _zoom);
+        });
+      } else {
+        _stopPlayback();
+      }
+    });
+  }
+
+  void _stopPlayback() {
+    _playTimer?.cancel();
+    setState(() => _isPlaying = false);
+  }
+
+  double _calculateBearing(LatLng from, LatLng to) {
+    final lat1 = from.latitude * pi / 180;
+    final lon1 = from.longitude * pi / 180;
+    final lat2 = to.latitude * pi / 180;
+    final lon2 = to.longitude * pi / 180;
+
+    final dLon = lon2 - lon1;
+
+    final y = sin(dLon) * cos(lat2);
+    final x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon);
+
+    double brng = atan2(y, x);
+    return (brng * 180 / pi + 360) % 360;
+  }
+
+  @override
+  void dispose() {
+    _playTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+
+    return Container(
+      height: double.infinity,
+      margin: const EdgeInsets.all(3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isDark ? tBlack.withOpacity(0.5) : tWhite,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row (Title + Close)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "#${widget.trip.id ?? '--'}",
+                //"#${trip['tripNumber']}",
+                style: GoogleFonts.urbanist(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                icon: Icon(
+                  CupertinoIcons.xmark_circle_fill,
+                  color: isDark ? tRed : Colors.redAccent,
+                  size: 22,
+                ),
+                tooltip: "Close",
+              ),
+            ],
+          ),
+
+          Divider(
+            color: isDark ? tWhite.withOpacity(0.5) : tBlack.withOpacity(0.5),
+            thickness: 0.5,
+          ),
+
+          // const SizedBox(height: 8),
+
+          // Buttons Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _buildStyledDetailButton(
+                () {},
+                "Download Trip",
+                CupertinoIcons.cloud_download,
+                isDark,
+              ),
+              const SizedBox(width: 10),
+              _buildStyledDetailButton(
+                () => _togglePlayback(),
+                _isPlaying ? "Stop Playback" : "Route Playback",
+                CupertinoIcons.play_arrow_solid,
+                isDark,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 5),
+
+          // Map placeholder
+          Expanded(
+            flex: 5,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color:
+                    isDark ? tWhite.withOpacity(0.1) : tBlack.withOpacity(0.1),
+              ),
+              padding: const EdgeInsets.all(2),
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter:
+                          widget.routePoints.isNotEmpty
+                              ? widget.routePoints.first
+                              : LatLng(0, 0),
+                      initialZoom: 13,
+
+                      onMapReady: () {
+                        if (widget.routePoints.length < 2) return;
+
+                        Future.delayed(const Duration(milliseconds: 200), () {
+                          _mapController.fitCamera(
+                            CameraFit.bounds(
+                              bounds: LatLngBounds.fromPoints(
+                                widget.routePoints,
+                              ),
+                              padding: const EdgeInsets.all(80),
+                              maxZoom: 16,
+                            ),
+                          );
+                        });
+                      },
+                    ),
+
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            isDark
+                                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        subdomains: const ['a', 'b', 'c'],
+                        userAgentPackageName: 'com.example.app',
+                      ),
+
+                      // Route polyline
+                      PolylineLayer(
+                        polylines: [
+                          if (completedPath.length > 1)
+                            Polyline(
+                              points: completedPath,
+                              strokeWidth: 6,
+                              color: tGreen8.withOpacity(0.6),
+                            ),
+
+                          if (remainingPath.length > 1)
+                            Polyline(
+                              points: remainingPath,
+                              strokeWidth: 6,
+                              color: tBlue,
+                            ),
+                        ],
+                      ),
+
+                      MarkerLayer(
+                        markers: [
+                          if (widget.routePoints.isNotEmpty)
+                            Marker(
+                              point: widget.routePoints.first,
+                              width: 20,
+                              height: 20,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: tWhite,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: tGreen8.withOpacity(0.9),
+                                      blurRadius: 15,
+                                      spreadRadius: 4,
+                                    ),
+                                  ],
+                                  border: Border.all(color: tGreen8, width: 3),
+                                ),
+                                child: const Icon(
+                                  Icons.circle,
+                                  size: 10,
+                                  color: tGreen8,
+                                ),
+                              ),
+                            ),
+
+                          if (widget.routePoints.length > 1)
+                            Marker(
+                              point: widget.routePoints.last,
+                              width: 20,
+                              height: 20,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: tWhite,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.9),
+                                      blurRadius: 15,
+                                      spreadRadius: 4,
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: Colors.red,
+                                    width: 3,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.circle,
+                                  size: 10,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+
+                          /// 🚗 MOVING
+                          if (_movingMarker != null)
+                            Marker(
+                              point: _movingMarker!,
+                              width: 40,
+                              height: 40,
+                              child: const Icon(
+                                Icons.navigation,
+                                color: Colors.blue,
+                                size: 28,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // SPEED & ODOMETER OVERLAY
+                  if (_currentPlaybackData != null)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              isDark
+                                  ? tBlack.withOpacity(0.7)
+                                  : tWhite.withOpacity(0.9),
+                          // borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: tBlack.withOpacity(0.25),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _mapInfoRow(
+                              "Speed",
+                              _currentPlaybackData!.speed ?? '0',
+                              isDark,
+                            ),
+                            const SizedBox(height: 4),
+                            _mapInfoRow(
+                              "Odo",
+                              _currentPlaybackData!.odo ?? '0',
+                              isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Playback progress / info
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Playback: ${_playIndex + 1}/${widget.playbackData.length}",
+                style: GoogleFonts.urbanist(fontSize: 13),
+              ),
+              Text(
+                widget.trip.startAddress ?? '', // trip['source'] ?? '',
+                style: GoogleFonts.urbanist(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStyledDetailButton(
+    VoidCallback onPressed,
+    String text,
+    IconData icon,
+    bool isDark,
+  ) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16, color: tGreen8),
+      label: Text(
+        text,
+        style: GoogleFonts.urbanist(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: tGreen8,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isDark ? tBlack : tWhite,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: tGreen8, width: 1),
+        ),
+        elevation: 0,
+      ),
+    );
+  }
+
+  Widget _mapInfoRow(String label, String value, bool isDark) {
+    return Row(
+      children: [
+        Text(
+          "$label: ",
+          style: GoogleFonts.urbanist(
+            fontSize: 11,
+            color: isDark ? Colors.white70 : Colors.black54,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.urbanist(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isDark ? tWhite : tBlack,
+          ),
+        ),
+      ],
+    );
+  }
 }

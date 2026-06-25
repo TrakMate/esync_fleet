@@ -127,9 +127,6 @@ class _UserCRUDContentState extends State<UserCRUDContent> {
       isSuperAdmin = role == 'SUPER_ADMIN';
     });
 
-    debugPrint('Role: $role');
-    debugPrint('isSuperAdmin: $isSuperAdmin');
-
     if (isSuperAdmin) {
       await _loadOrganizations();
     }

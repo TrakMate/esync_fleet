@@ -268,12 +268,12 @@ class _CircularDoughnutPainter extends CustomPainter {
       );
 
       final lineEnd = Offset(
-        center.dx + cos(middleAngle) * (radius + 12),
-        center.dy + sin(middleAngle) * (radius + 12),
+        center.dx + cos(middleAngle) * (radius + 25),
+        center.dy + sin(middleAngle) * (radius + 25),
       );
 
       final horizontalEnd = Offset(
-        lineEnd.dx + (cos(middleAngle) > 0 ? 15 : -15),
+        lineEnd.dx + (cos(middleAngle) > 0 ? 35 : -35),
         lineEnd.dy,
       );
 
