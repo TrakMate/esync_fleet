@@ -70,6 +70,10 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
 
   final TripsApiService _api = TripsApiService();
 
+  List<LatLng> selectedRoutePoints = [];
+  List<TripPlaybackModel.Data> selectedPlaybackData = [];
+  bool showTripPlayback = false;
+
   bool _isRouteLoading = false;
   dynamic selectedTrip;
 
@@ -2076,585 +2080,791 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
           ),
         ),
         Expanded(
-          child: SingleChildScrollView(
-            child: Padding(
-              // padding: const EdgeInsets.all(10),
-              padding: EdgeInsets.only(left: 10, right: 10, top: 10),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      // Left panel
-                      Expanded(
-                        flex: 5,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          // mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // 🔹 Left section (Title + Doughnut Charts)
-                            Expanded(
-                              flex: 4,
-                              child: Container(
-                                height: 225,
-                                decoration: BoxDecoration(
-                                  color: isDark ? tBlack : tWhite,
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      spreadRadius: 2,
-                                      blurRadius: 10,
-                                      color:
-                                          isDark
-                                              ? tWhite.withOpacity(0.25)
-                                              : tBlack.withOpacity(0.15),
+          child:
+              showTripPlayback
+                  ? TripPlaybackWidget(
+                    trip: selectedTrip,
+                    routePoints: selectedRoutePoints,
+                    playbackData: selectedPlaybackData,
+                    isDark: isDark,
+                    onBack: () {
+                      setState(() {
+                        showTripPlayback = false;
+                        selectedTrip = null;
+                        selectedRoutePoints.clear();
+                        selectedPlaybackData.clear();
+                      });
+                    },
+                  )
+                  : SingleChildScrollView(
+                    child: Padding(
+                      // padding: const EdgeInsets.all(10),
+                      padding: EdgeInsets.only(left: 10, right: 10, top: 10),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              // Left panel
+                              Expanded(
+                                flex: 5,
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    // 🔹 Left section (Title + Doughnut Charts)
+                                    Expanded(
+                                      flex: 4,
+                                      child: Container(
+                                        height: 225,
+                                        decoration: BoxDecoration(
+                                          color: isDark ? tBlack : tWhite,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              spreadRadius: 2,
+                                              blurRadius: 10,
+                                              color:
+                                                  isDark
+                                                      ? tWhite.withOpacity(0.25)
+                                                      : tBlack.withOpacity(
+                                                        0.15,
+                                                      ),
+                                            ),
+                                          ],
+                                        ),
+                                        padding: const EdgeInsets.all(10),
+                                        child: LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            return Scrollbar(
+                                              controller:
+                                                  _chartScrollController,
+                                              thumbVisibility: true,
+                                              trackVisibility: true,
+                                              thickness:
+                                                  4, // Default is usually around 8
+                                              radius: const Radius.circular(4),
+                                              child: SingleChildScrollView(
+                                                controller:
+                                                    _chartScrollController,
+                                                scrollDirection:
+                                                    Axis.horizontal,
+                                                child: ConstrainedBox(
+                                                  constraints: BoxConstraints(
+                                                    minWidth:
+                                                        constraints.maxWidth,
+                                                  ),
+                                                  child: IntrinsicWidth(
+                                                    child: Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceEvenly,
+                                                      children: [
+                                                        mode == 'EV Fleet'
+                                                            ? SingleDoughnutChart(
+                                                              currentValue: toDouble(
+                                                                deviceOverviewModel
+                                                                    ?.voltage,
+                                                              ),
+                                                              avgValue: toDouble(
+                                                                deviceOverviewModel
+                                                                    ?.avgvoltage,
+                                                              ),
+                                                              title: "Voltage",
+                                                              unit: "V",
+                                                              primaryColor:
+                                                                  tBlue,
+                                                              isDark: isDark,
+                                                            )
+                                                            : SingleDoughnutChart(
+                                                              currentValue: toDouble(
+                                                                deviceOverviewModel
+                                                                    ?.vehvoltage,
+                                                              ),
+                                                              avgValue: toDouble(
+                                                                deviceOverviewModel
+                                                                    ?.avgvoltage,
+                                                              ),
+                                                              title: "Voltage",
+                                                              unit: "V",
+                                                              primaryColor:
+                                                                  tBlue,
+                                                              isDark: isDark,
+                                                            ),
+
+                                                        const SizedBox(
+                                                          width: 20,
+                                                        ),
+                                                        SingleDoughnutChart(
+                                                          currentValue: toDouble(
+                                                            deviceOverviewModel
+                                                                ?.speed,
+                                                          ),
+                                                          avgValue: toDouble(
+                                                            deviceOverviewModel
+                                                                ?.avgspeed,
+                                                          ),
+                                                          title: "Speed",
+                                                          unit: "km/h",
+                                                          primaryColor: tGreen,
+                                                          isDark: isDark,
+                                                        ),
+
+                                                        const SizedBox(
+                                                          width: 20,
+                                                        ),
+                                                        mode == 'EV Fleet'
+                                                            ? SingleDoughnutChart(
+                                                              currentValue:
+                                                                  toDouble(
+                                                                    deviceOverviewModel
+                                                                        ?.soc,
+                                                                  ),
+                                                              avgValue: toDouble(
+                                                                deviceOverviewModel
+                                                                    ?.avgsoc,
+                                                              ),
+                                                              title: "SOC",
+                                                              unit: "%",
+                                                              primaryColor:
+                                                                  tBlueSky,
+                                                              isDark: isDark,
+                                                            )
+                                                            : SingleDoughnutChart(
+                                                              currentValue:
+                                                                  toDouble(
+                                                                    device
+                                                                        .tafe
+                                                                        ?.fuellevel,
+                                                                  ),
+                                                              avgValue:
+                                                                  toDouble(
+                                                                    device
+                                                                        .tafe
+                                                                        ?.fuellevel,
+                                                                  ) *
+                                                                  0.9,
+                                                              title: "Fuel",
+                                                              unit: "%",
+                                                              primaryColor:
+                                                                  tBlueSky,
+                                                              isDark: isDark,
+                                                            ),
+
+                                                        const SizedBox(
+                                                          width: 20,
+                                                        ),
+                                                        SingleDoughnutChart(
+                                                          currentValue: toDouble(
+                                                            deviceOverviewModel
+                                                                ?.batteryBackUp,
+                                                          ),
+                                                          avgValue:
+                                                              toDouble(
+                                                                deviceOverviewModel
+                                                                    ?.batteryBackUp,
+                                                              ) *
+                                                              0.9,
+                                                          title:
+                                                              "Battery BackUp",
+                                                          unit: "%",
+                                                          primaryColor: tOrange,
+                                                          isDark: isDark,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          _buildInfoCard(
+                                            isDark,
+                                            "Odometer (km)",
+                                            format.format(
+                                              toDouble(
+                                                    deviceOverviewModel
+                                                        ?.odometer,
+                                                  ) ??
+                                                  0,
+                                            ),
+                                            tBlueGradient2,
+                                            'icons/odo.svg',
+                                          ),
+                                          const SizedBox(height: 8),
+
+                                          _buildInfoCard(
+                                            isDark,
+                                            "Operation Hours (hrs)",
+                                            // "${summary?.totalOperationalDuration ?? 0}",
+                                            format.format(
+                                              toDouble(
+                                                    summary?.totalOperationalDuration ??
+                                                        0,
+                                                  ) ??
+                                                  0,
+                                            ),
+                                            tRedGradient2,
+                                            'icons/consumedhours.svg',
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                                padding: const EdgeInsets.all(10),
-                                child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    return Scrollbar(
-                                      controller: _chartScrollController,
-                                      thumbVisibility: true,
-                                      trackVisibility: true,
-                                      thickness:
-                                          4, // Default is usually around 8
-                                      radius: const Radius.circular(4),
-                                      child: SingleChildScrollView(
-                                        controller: _chartScrollController,
-                                        scrollDirection: Axis.horizontal,
-                                        child: ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            minWidth: constraints.maxWidth,
-                                          ),
-                                          child: IntrinsicWidth(
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.spaceEvenly,
-                                              children: [
-                                                mode == 'EV Fleet'
-                                                    ? SingleDoughnutChart(
-                                                      currentValue: toDouble(
-                                                        deviceOverviewModel
-                                                            ?.voltage,
-                                                      ),
-                                                      avgValue: toDouble(
-                                                        deviceOverviewModel
-                                                            ?.avgvoltage,
-                                                      ),
-                                                      title: "Voltage",
-                                                      unit: "V",
-                                                      primaryColor: tBlue,
-                                                      isDark: isDark,
-                                                    )
-                                                    : SingleDoughnutChart(
-                                                      currentValue: toDouble(
-                                                        deviceOverviewModel
-                                                            ?.vehvoltage,
-                                                      ),
-                                                      avgValue: toDouble(
-                                                        deviceOverviewModel
-                                                            ?.avgvoltage,
-                                                      ),
-                                                      title: "Voltage",
-                                                      unit: "V",
-                                                      primaryColor: tBlue,
-                                                      isDark: isDark,
-                                                    ),
+                              ),
 
-                                                const SizedBox(width: 20),
-                                                SingleDoughnutChart(
-                                                  currentValue: toDouble(
-                                                    deviceOverviewModel?.speed,
+                              const SizedBox(width: 10),
+
+                              // Right panel (placeholder for map, chart, etc.)
+                              Expanded(
+                                flex: 4,
+                                child: _buildDeviceStatus(isDark),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Container(
+                                  height: 600,
+                                  decoration: BoxDecoration(
+                                    color: tTransparent,
+                                    // color: isDark ? tBlack : tWhite,
+                                    // boxShadow: [
+                                    //   BoxShadow(
+                                    //     spreadRadius: 2,
+                                    //     blurRadius: 10,
+                                    //     color:
+                                    //         isDark
+                                    //             ? tWhite.withOpacity(0.25)
+                                    //             : tBlack.withOpacity(0.15),
+                                    //   ),
+                                    // ],
+                                  ),
+                                  // padding: const EdgeInsets.all(10),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Alerts Overview',
+                                        style: GoogleFonts.urbanist(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? tWhite : tBlack,
+                                        ),
+                                      ),
+                                      SizedBox(height: 10),
+
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            flex: 1,
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                context.go(
+                                                  '/home/faults?imei=${widget.device.imei}',
+                                                );
+                                              },
+                                              child: LargeHoverCard(
+                                                value: format.format(0),
+                                                label: "Faults",
+                                                labelColor: tRed,
+                                                icon: "icons/fault.svg",
+                                                iconColor: tRed,
+                                                bgColor: tRed.withOpacity(0.1),
+                                                isDark: isDark,
+                                              ),
+                                            ),
+                                          ),
+
+                                          const SizedBox(width: 10),
+
+                                          /// RIGHT → ALERTS + (CRITICAL & NON-CRITICAL)
+                                          Expanded(
+                                            flex: 2,
+                                            child: Column(
+                                              children: [
+                                                /// TOP → ALERTS
+                                                GestureDetector(
+                                                  onTap: () {
+                                                    context.go(
+                                                      '/home/alerts?imei=${widget.device.imei}',
+                                                    );
+                                                  },
+                                                  child: SmallHoverCard(
+                                                    width: double.infinity,
+                                                    height: 85,
+                                                    value: format.format(
+                                                      alertsModel
+                                                              ?.totalAlerts ??
+                                                          0,
+                                                    ),
+                                                    label: "Alerts",
+                                                    labelColor: tRed,
+                                                    icon: "icons/alert.svg",
+                                                    iconColor: tRed,
+                                                    bgColor: tRed.withOpacity(
+                                                      0.1,
+                                                    ),
+                                                    isDark: isDark,
                                                   ),
-                                                  avgValue: toDouble(
-                                                    deviceOverviewModel
-                                                        ?.avgspeed,
-                                                  ),
-                                                  title: "Speed",
-                                                  unit: "km/h",
-                                                  primaryColor: tGreen,
-                                                  isDark: isDark,
                                                 ),
 
-                                                const SizedBox(width: 20),
-                                                mode == 'EV Fleet'
-                                                    ? SingleDoughnutChart(
-                                                      currentValue: toDouble(
-                                                        deviceOverviewModel
-                                                            ?.soc,
+                                                const SizedBox(height: 10),
+
+                                                /// BOTTOM → CRITICAL + NON-CRITICAL
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: GestureDetector(
+                                                        onTap: () {
+                                                          context.go(
+                                                            '/home/alerts?imei=${widget.device.imei}&type=CRITICAL',
+                                                          );
+                                                        },
+                                                        child: SmallHoverCard(
+                                                          height: 85,
+                                                          value: format.format(
+                                                            alertsModel
+                                                                    ?.criticalAlerts ??
+                                                                0,
+                                                          ),
+                                                          label: "Critical",
+                                                          labelColor: tOrange1,
+                                                          icon:
+                                                              "icons/alert.svg",
+                                                          iconColor: tOrange1,
+                                                          bgColor: tOrange1
+                                                              .withOpacity(0.1),
+                                                          isDark: isDark,
+                                                        ),
                                                       ),
-                                                      avgValue: toDouble(
-                                                        deviceOverviewModel
-                                                            ?.avgsoc,
-                                                      ),
-                                                      title: "SOC",
-                                                      unit: "%",
-                                                      primaryColor: tBlueSky,
-                                                      isDark: isDark,
-                                                    )
-                                                    : SingleDoughnutChart(
-                                                      currentValue: toDouble(
-                                                        device.tafe?.fuellevel,
-                                                      ),
-                                                      avgValue:
-                                                          toDouble(
-                                                            device
-                                                                .tafe
-                                                                ?.fuellevel,
-                                                          ) *
-                                                          0.9,
-                                                      title: "Fuel",
-                                                      unit: "%",
-                                                      primaryColor: tBlueSky,
-                                                      isDark: isDark,
                                                     ),
 
-                                                const SizedBox(width: 20),
-                                                SingleDoughnutChart(
-                                                  currentValue: toDouble(
-                                                    deviceOverviewModel
-                                                        ?.batteryBackUp,
-                                                  ),
-                                                  avgValue:
-                                                      toDouble(
-                                                        deviceOverviewModel
-                                                            ?.batteryBackUp,
-                                                      ) *
-                                                      0.9,
-                                                  title: "Battery BackUp",
-                                                  unit: "%",
-                                                  primaryColor: tOrange,
-                                                  isDark: isDark,
+                                                    const SizedBox(width: 10),
+
+                                                    Expanded(
+                                                      child: GestureDetector(
+                                                        onTap: () {
+                                                          context.go(
+                                                            '/home/alerts?imei=${widget.device.imei}&type=NON_CRITICAL',
+                                                          );
+                                                        },
+                                                        child: SmallHoverCard(
+                                                          height: 85,
+                                                          value: format.format(
+                                                            alertsModel
+                                                                    ?.nonCriticalAlerts ??
+                                                                0,
+                                                          ),
+                                                          label: "Non-Critical",
+                                                          labelColor: tBlueSky,
+                                                          icon:
+                                                              "icons/alert.svg",
+                                                          iconColor: tBlueSky,
+                                                          bgColor: tBlueSky
+                                                              .withOpacity(0.1),
+                                                          isDark: isDark,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ],
                                             ),
                                           ),
+                                        ],
+                                      ),
+
+                                      SizedBox(height: 10),
+                                      Text(
+                                        'Recent Alerts',
+                                        style: GoogleFonts.urbanist(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? tWhite : tBlack,
                                         ),
                                       ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 10),
-                            Expanded(
-                              flex: 2,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _buildInfoCard(
-                                    isDark,
-                                    "Odometer (km)",
-                                    format.format(
-                                      toDouble(deviceOverviewModel?.odometer) ??
-                                          0,
-                                    ),
-                                    tBlueGradient2,
-                                    'icons/odo.svg',
-                                  ),
-                                  const SizedBox(height: 8),
-
-                                  _buildInfoCard(
-                                    isDark,
-                                    "Operation Hours (hrs)",
-                                    // "${summary?.totalOperationalDuration ?? 0}",
-                                    format.format(
-                                      toDouble(
-                                            summary?.totalOperationalDuration ??
-                                                0,
-                                          ) ??
-                                          0,
-                                    ),
-                                    tRedGradient2,
-                                    'icons/consumedhours.svg',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-
-                      // Right panel (placeholder for map, chart, etc.)
-                      Expanded(flex: 4, child: _buildDeviceStatus(isDark)),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Container(
-                          height: 600,
-                          decoration: BoxDecoration(
-                            color: tTransparent,
-                            // color: isDark ? tBlack : tWhite,
-                            // boxShadow: [
-                            //   BoxShadow(
-                            //     spreadRadius: 2,
-                            //     blurRadius: 10,
-                            //     color:
-                            //         isDark
-                            //             ? tWhite.withOpacity(0.25)
-                            //             : tBlack.withOpacity(0.15),
-                            //   ),
-                            // ],
-                          ),
-                          // padding: const EdgeInsets.all(10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Alerts Overview',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? tWhite : tBlack,
-                                ),
-                              ),
-                              SizedBox(height: 10),
-
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 1,
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        context.go(
-                                          '/home/faults?imei=${widget.device.imei}',
-                                        );
-                                      },
-                                      child: LargeHoverCard(
-                                        value: format.format(0),
-                                        label: "Faults",
-                                        labelColor: tRed,
-                                        icon: "icons/fault.svg",
-                                        iconColor: tRed,
-                                        bgColor: tRed.withOpacity(0.1),
-                                        isDark: isDark,
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 10),
-
-                                  /// RIGHT → ALERTS + (CRITICAL & NON-CRITICAL)
-                                  Expanded(
-                                    flex: 2,
-                                    child: Column(
-                                      children: [
-                                        /// TOP → ALERTS
-                                        GestureDetector(
-                                          onTap: () {
-                                            context.go(
-                                              '/home/alerts?imei=${widget.device.imei}',
-                                            );
-                                          },
-                                          child: SmallHoverCard(
-                                            width: double.infinity,
-                                            height: 85,
-                                            value: format.format(
-                                              alertsModel?.totalAlerts ?? 0,
-                                            ),
-                                            label: "Alerts",
-                                            labelColor: tRed,
-                                            icon: "icons/alert.svg",
-                                            iconColor: tRed,
-                                            bgColor: tRed.withOpacity(0.1),
-                                            isDark: isDark,
+                                      SizedBox(height: 10),
+                                      Expanded(
+                                        child: Container(
+                                          height: 250,
+                                          decoration: BoxDecoration(
+                                            color: tTransparent,
                                           ),
+                                          child: buildAlertsTable(isDark),
                                         ),
-
-                                        const SizedBox(height: 10),
-
-                                        /// BOTTOM → CRITICAL + NON-CRITICAL
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  context.go(
-                                                    '/home/alerts?imei=${widget.device.imei}&type=CRITICAL',
-                                                  );
-                                                },
-                                                child: SmallHoverCard(
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                flex: 5,
+                                child: Container(
+                                  height: 600,
+                                  decoration: BoxDecoration(
+                                    color: tTransparent,
+                                  ),
+                                  // padding: EdgeInsets.all(10),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Trips Overview',
+                                        style: GoogleFonts.urbanist(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? tWhite : tBlack,
+                                        ),
+                                      ),
+                                      SizedBox(height: 10),
+                                      Row(
+                                        children: [
+                                          GestureDetector(
+                                            onTap: () {
+                                              context.go(
+                                                '/home/trips?Imei=${widget.device.imei}',
+                                              );
+                                            },
+                                            child: LargeHoverCard(
+                                              value: format.format(
+                                                summary?.totalTrips ?? 0,
+                                              ),
+                                              label: "Trips",
+                                              labelColor: tGreen,
+                                              icon: "icons/distance.svg",
+                                              iconColor: tGreen,
+                                              bgColor: tGreen.withOpacity(0.1),
+                                              isDark: isDark,
+                                            ),
+                                          ),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            flex: 2,
+                                            child: Column(
+                                              children: [
+                                                GestureDetector(
+                                                  onTap: () {
+                                                    context.go(
+                                                      '/home/trips?Imei=${widget.device.imei}&filter=Completed',
+                                                    );
+                                                  },
+                                                  child: SmallHoverCard(
+                                                    width: double.infinity,
+                                                    height: 85,
+                                                    value: format.format(
+                                                      summary?.completedTrips ??
+                                                          0,
+                                                    ),
+                                                    label: "Completed Trips",
+                                                    labelColor: tBlue,
+                                                    icon: "icons/completed.svg",
+                                                    iconColor: tBlue,
+                                                    bgColor: tBlue.withOpacity(
+                                                      0.1,
+                                                    ),
+                                                    isDark: isDark,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                SmallHoverCard(
+                                                  width: double.infinity,
                                                   height: 85,
                                                   value: format.format(
-                                                    alertsModel
-                                                            ?.criticalAlerts ??
+                                                    toDouble(
+                                                          summary?.avgTripsPerDay ??
+                                                              0,
+                                                        ) ??
                                                         0,
                                                   ),
-                                                  label: "Critical",
+                                                  label: "Avg. Trips",
                                                   labelColor: tOrange1,
-                                                  icon: "icons/alert.svg",
+                                                  icon: "icons/distance.svg",
                                                   iconColor: tOrange1,
                                                   bgColor: tOrange1.withOpacity(
                                                     0.1,
                                                   ),
                                                   isDark: isDark,
+                                                  enableHover: false,
                                                 ),
-                                              ),
+                                              ],
                                             ),
+                                          ),
+                                          const SizedBox(width: 10),
 
-                                            const SizedBox(width: 10),
-
-                                            Expanded(
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  context.go(
-                                                    '/home/alerts?imei=${widget.device.imei}&type=NON_CRITICAL',
-                                                  );
-                                                },
-                                                child: SmallHoverCard(
+                                          Expanded(
+                                            flex: 2,
+                                            child: Column(
+                                              children: [
+                                                SmallHoverCard(
+                                                  width: double.infinity,
                                                   height: 85,
                                                   value: format.format(
-                                                    alertsModel
-                                                            ?.nonCriticalAlerts ??
+                                                    toDouble(
+                                                          summary?.avgDistancePerImeiKm ??
+                                                              0,
+                                                        ) ??
                                                         0,
                                                   ),
-                                                  label: "Non-Critical",
+                                                  label:
+                                                      "Avg Dist.Travelled(km)",
                                                   labelColor: tBlueSky,
-                                                  icon: "icons/alert.svg",
+                                                  icon: "icons/distance.svg",
                                                   iconColor: tBlueSky,
                                                   bgColor: tBlueSky.withOpacity(
                                                     0.1,
                                                   ),
                                                   isDark: isDark,
+                                                  enableHover: false,
                                                 ),
-                                              ),
+                                                const SizedBox(height: 10),
+                                                SmallHoverCard(
+                                                  width: double.infinity,
+                                                  height: 85,
+                                                  value: format.format(
+                                                    toDouble(
+                                                          summary?.avgOperationalHoursPerImei ??
+                                                              0,
+                                                        ) ??
+                                                        0,
+                                                  ),
+                                                  label: "Avg.Oper. Hours(hrs)",
+                                                  labelColor: tRed,
+                                                  icon:
+                                                      "icons/consumedhours.svg",
+                                                  iconColor: tRed,
+                                                  bgColor: tRed.withOpacity(
+                                                    0.1,
+                                                  ),
+                                                  isDark: isDark,
+                                                  enableHover: false,
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              SizedBox(height: 10),
-                              Text(
-                                'Recent Alerts',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? tWhite : tBlack,
-                                ),
-                              ),
-                              SizedBox(height: 10),
-                              Expanded(
-                                child: Container(
-                                  height: 250,
-                                  decoration: BoxDecoration(
-                                    color: tTransparent,
-                                  ),
-                                  child: buildAlertsTable(isDark),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 5,
-                        child: Container(
-                          height: 600,
-                          decoration: BoxDecoration(color: tTransparent),
-                          // padding: EdgeInsets.all(10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Trips Overview',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? tWhite : tBlack,
-                                ),
-                              ),
-                              SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      context.go(
-                                        '/home/trips?Imei=${widget.device.imei}',
-                                      );
-                                    },
-                                    child: LargeHoverCard(
-                                      value: format.format(
-                                        summary?.totalTrips ?? 0,
+                                          ),
+                                        ],
                                       ),
-                                      label: "Trips",
-                                      labelColor: tGreen,
-                                      icon: "icons/distance.svg",
-                                      iconColor: tGreen,
-                                      bgColor: tGreen.withOpacity(0.1),
-                                      isDark: isDark,
-                                    ),
+                                      SizedBox(height: 10),
+                                      Text(
+                                        'Recent Trips',
+                                        style: GoogleFonts.urbanist(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? tWhite : tBlack,
+                                        ),
+                                      ),
+                                      SizedBox(height: 10),
+                                      Expanded(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: tTransparent,
+                                          ),
+                                          child: _buildTripsTable(
+                                            isDark,
+                                          ), // <-- NO SingleChildScrollView here
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  SizedBox(width: 10),
-                                  Expanded(
-                                    flex: 2,
-                                    child: Column(
-                                      children: [
-                                        GestureDetector(
-                                          onTap: () {
-                                            context.go(
-                                              '/home/trips?Imei=${widget.device.imei}&filter=Completed',
-                                            );
-                                          },
-                                          child: SmallHoverCard(
-                                            width: double.infinity,
-                                            height: 85,
-                                            value: format.format(
-                                              summary?.completedTrips ?? 0,
-                                            ),
-                                            label: "Completed Trips",
-                                            labelColor: tBlue,
-                                            icon: "icons/completed.svg",
-                                            iconColor: tBlue,
-                                            bgColor: tBlue.withOpacity(0.1),
-                                            isDark: isDark,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        SmallHoverCard(
-                                          width: double.infinity,
-                                          height: 85,
-                                          value: format.format(
-                                            toDouble(
-                                                  summary?.avgTripsPerDay ?? 0,
-                                                ) ??
-                                                0,
-                                          ),
-                                          label: "Avg. Trips",
-                                          labelColor: tOrange1,
-                                          icon: "icons/distance.svg",
-                                          iconColor: tOrange1,
-                                          bgColor: tOrange1.withOpacity(0.1),
-                                          isDark: isDark,
-                                          enableHover: false,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-
-                                  Expanded(
-                                    flex: 2,
-                                    child: Column(
-                                      children: [
-                                        SmallHoverCard(
-                                          width: double.infinity,
-                                          height: 85,
-                                          value: format.format(
-                                            toDouble(
-                                                  summary?.avgDistancePerImeiKm ??
-                                                      0,
-                                                ) ??
-                                                0,
-                                          ),
-                                          label: "Avg Dist.Travelled(km)",
-                                          labelColor: tBlueSky,
-                                          icon: "icons/distance.svg",
-                                          iconColor: tBlueSky,
-                                          bgColor: tBlueSky.withOpacity(0.1),
-                                          isDark: isDark,
-                                          enableHover: false,
-                                        ),
-                                        const SizedBox(height: 10),
-                                        SmallHoverCard(
-                                          width: double.infinity,
-                                          height: 85,
-                                          value: format.format(
-                                            toDouble(
-                                                  summary?.avgOperationalHoursPerImei ??
-                                                      0,
-                                                ) ??
-                                                0,
-                                          ),
-                                          label: "Avg.Oper. Hours(hrs)",
-                                          labelColor: tRed,
-                                          icon: "icons/consumedhours.svg",
-                                          iconColor: tRed,
-                                          bgColor: tRed.withOpacity(0.1),
-                                          isDark: isDark,
-                                          enableHover: false,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 10),
-                              Text(
-                                'Recent Trips',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? tWhite : tBlack,
                                 ),
                               ),
-                              SizedBox(height: 10),
+                              const SizedBox(width: 10),
                               Expanded(
+                                flex: 3,
                                 child: Container(
+                                  height: 600,
+                                  // decoration: BoxDecoration(
+                                  //   color: isDark ? tBlack : tWhite,
+                                  //   boxShadow: [
+                                  //     BoxShadow(
+                                  //       spreadRadius: 2,
+                                  //       blurRadius: 10,
+                                  //       color:
+                                  //           isDark
+                                  //               ? tWhite.withOpacity(0.25)
+                                  //               : tBlack.withOpacity(0.15),
+                                  //     ),
+                                  //   ],
+                                  // ),
                                   decoration: BoxDecoration(
                                     color: tTransparent,
+                                    borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: _buildTripsTable(
-                                    isDark,
-                                  ), // <-- NO SingleChildScrollView here
+
+                                  // padding: const EdgeInsets.all(2),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Trip Map',
+                                        style: GoogleFonts.urbanist(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark ? tWhite : tBlack,
+                                        ),
+                                      ),
+                                      SizedBox(height: 10),
+                                      Expanded(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                spreadRadius: 2,
+                                                blurRadius: 10,
+                                                color:
+                                                    isDark
+                                                        ? tWhite.withOpacity(
+                                                          0.15,
+                                                        )
+                                                        : tBlack.withOpacity(
+                                                          0.15,
+                                                        ),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            child: buildVehicleMap(
+                                              isDark: isDark,
+                                              zoom: 10,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 3,
-                        child: Container(
-                          height: 600,
-                          // decoration: BoxDecoration(
-                          //   color: isDark ? tBlack : tWhite,
-                          //   boxShadow: [
-                          //     BoxShadow(
-                          //       spreadRadius: 2,
-                          //       blurRadius: 10,
-                          //       color:
-                          //           isDark
-                          //               ? tWhite.withOpacity(0.25)
-                          //               : tBlack.withOpacity(0.15),
-                          //     ),
-                          //   ],
-                          // ),
-                          decoration: BoxDecoration(
-                            color: tTransparent,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-
-                          // padding: const EdgeInsets.all(2),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 10),
+                          Row(
                             children: [
-                              Text(
-                                'Trip Map',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? tWhite : tBlack,
+                              Expanded(
+                                flex: 4,
+                                child: Container(
+                                  height: 330,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    color: isDark ? tBlack : tWhite,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        spreadRadius: 2,
+                                        blurRadius: 10,
+                                        color:
+                                            isDark
+                                                ? tWhite.withOpacity(0.25)
+                                                : tBlack.withOpacity(0.15),
+                                      ),
+                                    ],
+                                  ),
+                                  padding: const EdgeInsets.all(15),
+                                  child: DeviceTripsChart(
+                                    weeklyData: weeklytrip,
+                                    monthlyData: monthlytrip,
+                                  ),
                                 ),
                               ),
-                              SizedBox(height: 10),
+                              const SizedBox(width: 10),
                               Expanded(
+                                flex: 5,
                                 child: Container(
+                                  height: 330,
                                   decoration: BoxDecoration(
+                                    color: isDark ? tBlack : tWhite,
+                                    borderRadius: BorderRadius.circular(20),
+
+                                    boxShadow: [
+                                      BoxShadow(
+                                        spreadRadius: 2,
+                                        blurRadius: 10,
+                                        color:
+                                            isDark
+                                                ? tWhite.withOpacity(0.25)
+                                                : tBlack.withOpacity(0.15),
+                                      ),
+                                    ],
+                                  ),
+                                  padding: EdgeInsets.all(15),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Vehicle Status',
+                                        style: GoogleFonts.urbanist(
+                                          fontSize: 13,
+                                          color: isDark ? tWhite : tBlack,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 15),
+                                      _buildStatusBarChart(isDark),
+                                      const SizedBox(height: 10),
+                                      // Legend
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          _LegendItem(
+                                            color: tGreen.withOpacity(0.9),
+                                            label: "Moving",
+                                          ),
+                                          SizedBox(width: 6),
+                                          _LegendItem(
+                                            color: tOrange1.withOpacity(0.9),
+                                            label: "Idle",
+                                          ),
+                                          SizedBox(width: 6),
+                                          _LegendItem(
+                                            color: tRed.withOpacity(0.9),
+                                            label: "Stopped",
+                                          ),
+                                          SizedBox(width: 6),
+                                          _LegendItem(
+                                            color: tBlue.withOpacity(0.9),
+                                            label: "Halted",
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                flex: 4,
+                                child: Container(
+                                  height: 330,
+                                  decoration: BoxDecoration(
+                                    color: isDark ? tBlack : tWhite,
                                     borderRadius: BorderRadius.circular(20),
                                     boxShadow: [
                                       BoxShadow(
@@ -2662,150 +2872,24 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                         blurRadius: 10,
                                         color:
                                             isDark
-                                                ? tWhite.withOpacity(0.15)
+                                                ? tWhite.withOpacity(0.25)
                                                 : tBlack.withOpacity(0.15),
                                       ),
                                     ],
                                   ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: buildVehicleMap(
-                                      isDark: isDark,
-                                      zoom: 10,
-                                    ),
+                                  padding: const EdgeInsets.all(15),
+                                  child: DeviceAlertsChart(
+                                    alertsGraph: weeklyalert,
+                                    alertGraphforMonth: monthlyalert,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 4,
-                        child: Container(
-                          height: 330,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            color: isDark ? tBlack : tWhite,
-                            boxShadow: [
-                              BoxShadow(
-                                spreadRadius: 2,
-                                blurRadius: 10,
-                                color:
-                                    isDark
-                                        ? tWhite.withOpacity(0.25)
-                                        : tBlack.withOpacity(0.15),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.all(15),
-                          child: DeviceTripsChart(
-                            weeklyData: weeklytrip,
-                            monthlyData: monthlytrip,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 5,
-                        child: Container(
-                          height: 330,
-                          decoration: BoxDecoration(
-                            color: isDark ? tBlack : tWhite,
-                            borderRadius: BorderRadius.circular(20),
-
-                            boxShadow: [
-                              BoxShadow(
-                                spreadRadius: 2,
-                                blurRadius: 10,
-                                color:
-                                    isDark
-                                        ? tWhite.withOpacity(0.25)
-                                        : tBlack.withOpacity(0.15),
-                              ),
-                            ],
-                          ),
-                          padding: EdgeInsets.all(15),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Vehicle Status',
-                                style: GoogleFonts.urbanist(
-                                  fontSize: 13,
-                                  color: isDark ? tWhite : tBlack,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 15),
-                              _buildStatusBarChart(isDark),
-                              const SizedBox(height: 10),
-                              // Legend
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _LegendItem(
-                                    color: tGreen.withOpacity(0.9),
-                                    label: "Moving",
-                                  ),
-                                  SizedBox(width: 6),
-                                  _LegendItem(
-                                    color: tOrange1.withOpacity(0.9),
-                                    label: "Idle",
-                                  ),
-                                  SizedBox(width: 6),
-                                  _LegendItem(
-                                    color: tRed.withOpacity(0.9),
-                                    label: "Stopped",
-                                  ),
-                                  SizedBox(width: 6),
-                                  _LegendItem(
-                                    color: tBlue.withOpacity(0.9),
-                                    label: "Halted",
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 4,
-                        child: Container(
-                          height: 330,
-                          decoration: BoxDecoration(
-                            color: isDark ? tBlack : tWhite,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                spreadRadius: 2,
-                                blurRadius: 10,
-                                color:
-                                    isDark
-                                        ? tWhite.withOpacity(0.25)
-                                        : tBlack.withOpacity(0.15),
-                              ),
-                            ],
-                          ),
-                          padding: const EdgeInsets.all(15),
-                          child: DeviceAlertsChart(
-                            alertsGraph: weeklyalert,
-                            alertGraphforMonth: monthlyalert,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ],
     );
@@ -4217,7 +4301,6 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     if (status != "completed") return;
 
     setState(() {
-      selectedTrip = trip;
       _isRouteLoading = true;
     });
 
@@ -4232,55 +4315,56 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     final points = _convertPlaybackDataToLatLng(playbackData);
 
     setState(() {
+      selectedTrip = trip;
+      selectedRoutePoints = points;
+      selectedPlaybackData = playbackData;
+      showTripPlayback = true;
       _isRouteLoading = false;
     });
-
-    _showTripPopup(context, trip, points, playbackData, isDark);
   }
-
-  void _showTripPopup(
-    BuildContext context,
-    dynamic trip,
-    List<LatLng> points,
-    List<TripPlaybackModel.Data> _playbackData,
-    bool isDark,
-  ) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          insetPadding: const EdgeInsets.all(20),
-          backgroundColor: Colors.transparent,
-          child: Container(
-            height: 620,
-            width: 940,
-            decoration: BoxDecoration(
-              color: isDark ? tBlack : tWhite,
-              borderRadius: BorderRadius.zero,
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      isDark
-                          ? tWhite.withOpacity(0.4)
-                          : tBlack.withOpacity(0.4),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: TripPlaybackWidget(
-              trip: trip,
-              routePoints: points,
-              playbackData: _playbackData,
-              isDark: isDark,
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // void _showTripPopup(
+  //   BuildContext context,
+  //   dynamic trip,
+  //   List<LatLng> points,
+  //   List<TripPlaybackModel.Data> _playbackData,
+  //   bool isDark,
+  // ) {
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: true,
+  //     builder: (context) {
+  //       return Dialog(
+  //         insetPadding: const EdgeInsets.all(20),
+  //         backgroundColor: Colors.transparent,
+  //         child: Container(
+  //           height: 620,
+  //           width: 940,
+  //           decoration: BoxDecoration(
+  //             color: isDark ? tBlack : tWhite,
+  //             borderRadius: BorderRadius.zero,
+  //             boxShadow: [
+  //               BoxShadow(
+  //                 color:
+  //                     isDark
+  //                         ? tWhite.withOpacity(0.4)
+  //                         : tBlack.withOpacity(0.4),
+  //                 blurRadius: 10,
+  //                 spreadRadius: 2,
+  //                 offset: const Offset(0, 4),
+  //               ),
+  //             ],
+  //           ),
+  //           child: TripPlaybackWidget(
+  //             trip: trip,
+  //             routePoints: points,
+  //             playbackData: _playbackData,
+  //             isDark: isDark,
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
 
   Widget buildAlertsTable(bool isDark) {
     final alerts = alertsModel?.alerts ?? [];
@@ -4567,12 +4651,15 @@ class TripPlaybackWidget extends StatefulWidget {
   final List<TripPlaybackModel.Data> playbackData;
   final bool isDark;
 
+  final VoidCallback? onBack;
+
   const TripPlaybackWidget({
     super.key,
     required this.trip,
     required this.routePoints,
     required this.playbackData,
     this.isDark = false,
+    this.onBack,
   });
 
   @override
@@ -4591,12 +4678,12 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
   Timer? _playTimer;
   bool _isMapReady = false;
   List<LatLng> _routePoints = [];
-  double _currentZoom = 17.0;
+  double _currentZoom = 18.0;
   Entities? selectedTrip;
 
   TripPlaybackModel.Data? _currentPlaybackData;
 
-  double _zoom = 16;
+  double _zoom = 18;
   final int _tickMs = 750;
 
   @override
@@ -4646,6 +4733,13 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
     });
   }
 
+  String formatDateTime(String value) {
+    if (value.isEmpty) return '--';
+    final dateTime = DateTime.tryParse(value);
+    if (dateTime == null) return value;
+    return DateFormat('dd MMM yyyy hh:mm a').format(dateTime);
+  }
+
   void _stopPlayback() {
     _playTimer?.cancel();
     setState(() => _isPlaying = false);
@@ -4692,23 +4786,24 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
             children: [
               Text(
                 "#${widget.trip.id ?? '--'}",
-                //"#${trip['tripNumber']}",
                 style: GoogleFonts.urbanist(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: isDark ? tWhite : tBlack,
                 ),
               ),
-              IconButton(
+              TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
+                  widget.onBack?.call(); // or Navigator.pop(context);
                 },
-                icon: Icon(
-                  CupertinoIcons.xmark_circle_fill,
-                  color: isDark ? tRed : Colors.redAccent,
-                  size: 22,
+                child: Text(
+                  "Close",
+                  style: GoogleFonts.urbanist(
+                    color: isDark ? tWhite : tBlack,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                tooltip: "Close",
               ),
             ],
           ),
@@ -4761,7 +4856,7 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                           widget.routePoints.isNotEmpty
                               ? widget.routePoints.first
                               : LatLng(0, 0),
-                      initialZoom: 13,
+                      initialZoom: 18,
 
                       onMapReady: () {
                         if (widget.routePoints.length < 2) return;
@@ -4773,7 +4868,7 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                                 widget.routePoints,
                               ),
                               padding: const EdgeInsets.all(80),
-                              maxZoom: 16,
+                              maxZoom: 20,
                             ),
                           );
                         });
@@ -4796,14 +4891,14 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                           if (completedPath.length > 1)
                             Polyline(
                               points: completedPath,
-                              strokeWidth: 6,
-                              color: tGreen8.withOpacity(0.6),
+                              strokeWidth: 8,
+                              color: tBlue.withOpacity(0.35),
                             ),
 
                           if (remainingPath.length > 1)
                             Polyline(
                               points: remainingPath,
-                              strokeWidth: 6,
+                              strokeWidth: 10,
                               color: tBlue,
                             ),
                         ],
@@ -4814,8 +4909,8 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                           if (widget.routePoints.isNotEmpty)
                             Marker(
                               point: widget.routePoints.first,
-                              width: 20,
-                              height: 20,
+                              width: 30,
+                              height: 30,
                               child: Container(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
@@ -4831,7 +4926,7 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                                 ),
                                 child: const Icon(
                                   Icons.circle,
-                                  size: 10,
+                                  size: 15,
                                   color: tGreen8,
                                 ),
                               ),
@@ -4840,8 +4935,8 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                           if (widget.routePoints.length > 1)
                             Marker(
                               point: widget.routePoints.last,
-                              width: 20,
-                              height: 20,
+                              width: 30,
+                              height: 30,
                               child: Container(
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
@@ -4860,7 +4955,7 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                                 ),
                                 child: const Icon(
                                   Icons.circle,
-                                  size: 10,
+                                  size: 15,
                                   color: Colors.red,
                                 ),
                               ),
@@ -4872,10 +4967,18 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                               point: _movingMarker!,
                               width: 40,
                               height: 40,
-                              child: const Icon(
-                                Icons.navigation,
-                                color: Colors.blue,
-                                size: 28,
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: tGreen8.withOpacity(0.7),
+                                ),
+                                child: const Icon(
+                                  Icons.navigation,
+                                  color: tGreen8,
+                                  size: 30,
+                                ),
                               ),
                             ),
                         ],
@@ -4900,8 +5003,11 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                           // borderRadius: BorderRadius.circular(8),
                           boxShadow: [
                             BoxShadow(
-                              color: tBlack.withOpacity(0.25),
-                              blurRadius: 8,
+                              color:
+                                  isDark
+                                      ? tWhite.withOpacity(0.25)
+                                      : tBlack.withOpacity(0.25),
+                              blurRadius: 4,
                             ),
                           ],
                         ),
@@ -4917,6 +5023,16 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                             _mapInfoRow(
                               "Odo",
                               _currentPlaybackData!.odo ?? '0',
+                              isDark,
+                            ),
+                            _mapInfoRow(
+                              "Location",
+                              _currentPlaybackData!.address ?? '0',
+                              isDark,
+                            ),
+                            _mapInfoRow(
+                              "Time",
+                              formatDateTime(_currentPlaybackData!.time ?? '0'),
                               isDark,
                             ),
                           ],

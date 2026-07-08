@@ -2900,7 +2900,9 @@ class _TripsScreenState extends State<TripsScreen> {
     required String EndSOCReading,
   }) {
     final displayEndTime =
-        status.toLowerCase() == "ongoing" ? DateTime.now().toUtc() : endTime;
+        status.toLowerCase() == "ongoing"
+            ? DateTime.now().toIso8601String()
+            : endTime;
     Color statusColor;
 
     switch (status.toLowerCase()) {
