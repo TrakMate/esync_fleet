@@ -4,7 +4,7 @@ class BaseURLConfig {
   // 'http://hero-trakmate.ap-south-1.elasticbeanstalk.com';
   // static const String baseURL = 'https://ev-backend.trakmatesolutions.com';
 
-  static const String baseURL = "https://fleet.trakmatesolutions.com";
+  static const String baseURL = "https://fleet-backend.trakmatesolutions.com";
   // static const String baseURL = 'http://localhost:8001';
 
   // login

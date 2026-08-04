@@ -4211,6 +4211,14 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                   //     ),
                                   //   ],
                                   // );
+                                  final distance =
+                                      (trip.endOdoReading ?? 0) -
+                                      (trip.startOdoReading ?? 0);
+
+                                  final duration =
+                                      ((trip.movingTime ?? 0) +
+                                          (trip.haltedTime ?? 0)) /
+                                      60;
                                   return DataRow(
                                     color:
                                         WidgetStateProperty.resolveWith<Color?>(
@@ -4230,13 +4238,14 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                         Text(formatDate(trip.tripEndTime)),
                                       ),
                                       DataCell(
-                                        Text("${trip.totalTime ?? '--'} mins"),
+                                        Text(
+                                          "${duration.toStringAsFixed(1)} mins",
+                                        ),
                                       ),
+
                                       DataCell(
                                         Text(
-                                          trip.totalDistance != null
-                                              ? "${trip.totalDistance!.toStringAsFixed(2)} kms"
-                                              : "--",
+                                          "${distance.toStringAsFixed(2)} kms",
                                         ),
                                       ),
 
