@@ -4215,10 +4215,29 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                       (trip.endOdoReading ?? 0) -
                                       (trip.startOdoReading ?? 0);
 
-                                  final duration =
-                                      ((trip.movingTime ?? 0) +
-                                          (trip.haltedTime ?? 0)) /
-                                      60;
+                                  final formatter = DateFormat(
+                                    'yyyy-MM-dd HH:mm:ss',
+                                  );
+
+                                  double duration = 0;
+
+                                  if (trip.tripStartTime != null &&
+                                      trip.tripEndTime != null &&
+                                      trip.tripStartTime!.isNotEmpty &&
+                                      trip.tripEndTime!.isNotEmpty) {
+                                    final start = formatter.parse(
+                                      trip.tripStartTime!,
+                                    );
+                                    final end = formatter.parse(
+                                      trip.tripEndTime!,
+                                    );
+
+                                    duration =
+                                        end
+                                            .difference(start)
+                                            .inMinutes
+                                            .toDouble();
+                                  }
                                   return DataRow(
                                     color:
                                         WidgetStateProperty.resolveWith<Color?>(
@@ -4239,13 +4258,18 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                                       ),
                                       DataCell(
                                         Text(
-                                          "${duration.toStringAsFixed(1)} mins",
+                                          status == "Ongoing"
+                                              ? "-"
+                                              : "${duration.toStringAsFixed(0)} mins",
                                         ),
                                       ),
 
+                                      // Distance
                                       DataCell(
                                         Text(
-                                          "${distance.toStringAsFixed(2)} kms",
+                                          status == "Ongoing"
+                                              ? "-"
+                                              : "${distance.toStringAsFixed(2)} kms",
                                         ),
                                       ),
 

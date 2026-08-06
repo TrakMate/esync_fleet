@@ -5,7 +5,6 @@ import '../../models/devicesModel.dart';
 import '../../ui/screens/deviceControlWidget.dart';
 import '../../ui/screens/deviceInformationScreen.dart';
 import '../../ui/screens/fleetModeSelectionScreen.dart';
-import '../../ui/screens/landingScreen.dart';
 import '../../ui/screens/loadingScreen.dart';
 import '../../ui/screens/loginScreen.dart';
 import '../../ui/screens/homeScreen.dart';
@@ -31,7 +30,7 @@ class AppRouter {
           state.matchedLocation == '/loading';
 
       if (!isLoggedIn && !isAuthRoute) {
-        return '/landing';
+        return '/login';
       }
 
       return null;
@@ -45,13 +44,6 @@ class AppRouter {
         name: 'loading',
         builder: (context, state) => const LoadingScreen(),
       ),
-
-      GoRoute(
-        path: '/landing',
-        name: 'landing',
-        builder: (context, state) => const LandingScreen(),
-      ),
-
       GoRoute(
         path: '/login',
         name: 'login',
