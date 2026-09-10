@@ -3855,8 +3855,44 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
     final tripPoints = tripMapModel?.data;
 
     if (tripPoints == null || tripPoints.isEmpty) {
-      return const Center(child: Text("No trip data available"));
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? tBlack : tWhite,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? tWhite.withOpacity(0.1) : tBlack.withOpacity(0.1),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              spreadRadius: 2,
+              blurRadius: 10,
+              color:
+                  isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.15),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 16),
+              Text(
+                "No trip data available",
+                style: GoogleFonts.urbanist(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
+
     final selectedData =
         (selectedIndex != null && selectedIndex! < tripPoints.length)
             ? tripPoints[selectedIndex!]
@@ -3876,7 +3912,59 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
             .toList();
 
     if (polylinePoints.isEmpty) {
-      return const Center(child: Text("No valid coordinates"));
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? tBlack : tWhite,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark ? tWhite.withOpacity(0.1) : tBlack.withOpacity(0.1),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              spreadRadius: 2,
+              blurRadius: 10,
+              color:
+                  isDark ? tWhite.withOpacity(0.15) : tBlack.withOpacity(0.15),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.location_off_outlined,
+                size: 60,
+                color:
+                    isDark ? tWhite.withOpacity(0.3) : tBlack.withOpacity(0.3),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "No valid coordinates found",
+                style: GoogleFonts.urbanist(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? tWhite : tBlack,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "The trip data contains invalid location coordinates",
+                style: GoogleFonts.urbanist(
+                  fontSize: 13,
+                  color:
+                      isDark
+                          ? tWhite.withOpacity(0.6)
+                          : tBlack.withOpacity(0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     final LatLng startPoint = polylinePoints.first;
@@ -3887,17 +3975,14 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
             ? polylinePoints.sublist(1, polylinePoints.length - 1)
             : [];
 
-    final tileUrl =
-        isDark
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    final tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
     return SizedBox(
-      height: 300,
+      height: double.infinity,
+      width: double.infinity,
       child: FlutterMap(
         options: MapOptions(
           initialCenter: startPoint,
-          // initialZoom: zoom,
           initialZoom: polylinePoints.length < 5 ? 18 : 13,
           maxZoom: 18,
           minZoom: 3,
@@ -3907,10 +3992,72 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
         ),
         children: [
           // MAP TILES
-          TileLayer(
-            urlTemplate: tileUrl,
-            subdomains: const ['a', 'b', 'c'],
-            userAgentPackageName: 'com.example.app',
+          ColorFiltered(
+            colorFilter:
+                isDark
+                    ? const ColorFilter.matrix([
+                      // Red
+                      -0.05315,
+                      -0.17880,
+                      -0.01805,
+                      0,
+                      64,
+
+                      // Green
+                      -0.05315,
+                      -0.17880,
+                      -0.01805,
+                      0,
+                      64,
+
+                      // Blue
+                      -0.05315,
+                      -0.17880,
+                      -0.01805,
+                      0,
+                      64,
+
+                      // Alpha
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                    ])
+                    : const ColorFilter.matrix([
+                      // Red
+                      1,
+                      0,
+                      0,
+                      0,
+                      0,
+
+                      // Green
+                      0,
+                      1,
+                      0,
+                      0,
+                      0,
+
+                      // Blue
+                      0,
+                      0,
+                      1,
+                      0,
+                      0,
+
+                      // Alpha
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                    ]),
+            child: TileLayer(
+              urlTemplate: tileUrl,
+              subdomains: const ['a', 'b', 'c'],
+              userAgentPackageName: 'com.example.app',
+            ),
           ),
 
           // TRIP POLYLINE
@@ -3919,7 +4066,7 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
               Polyline(
                 points: polylinePoints,
                 strokeWidth: 4,
-                color: tGreen8.withOpacity(0.6),
+                color: tBlue.withOpacity(0.6),
               ),
             ],
           ),
@@ -3975,16 +4122,18 @@ class _DeviceGeneralInfoScreenState extends State<DeviceGeneralInfoScreen> {
                     color: tWhite,
                     boxShadow: [
                       BoxShadow(
-                        color: tRedDark.withOpacity(0.7),
+                        color: tBlueSky.withOpacity(0.7),
                         blurRadius: 10,
                         spreadRadius: 2,
                       ),
                     ],
-                    border: Border.all(color: tRedDark, width: 2),
+                    border: Border.all(color: tBlueSky, width: 2),
                   ),
-                  child: const Icon(Icons.circle, size: 10, color: tRedDark),
+                  child: const Icon(Icons.circle, size: 10, color: tBlueSky),
                 ),
               ),
+
+              // SELECTED POINT INFO
               if (selectedPoint != null && selectedData != null)
                 Marker(
                   point: selectedPoint!,
@@ -4826,13 +4975,25 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                 ),
               ),
               TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: tRed.withOpacity(0.1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    // side: BorderSide(color: isDark ? tWhite : tBlack, width: 1),
+                    side: BorderSide(color: tRed, width: 1),
+                  ),
+                ),
                 onPressed: () {
                   widget.onBack?.call(); // or Navigator.pop(context);
                 },
                 child: Text(
                   "Close",
                   style: GoogleFonts.urbanist(
-                    color: isDark ? tWhite : tBlack,
+                    color: tRed,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -4909,13 +5070,73 @@ class _TripPlaybackWidgetState extends State<TripPlaybackWidget> {
                     ),
 
                     children: [
-                      TileLayer(
-                        urlTemplate:
+                      ColorFiltered(
+                        colorFilter:
                             isDark
-                                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        subdomains: const ['a', 'b', 'c'],
-                        userAgentPackageName: 'com.example.app',
+                                ? const ColorFilter.matrix([
+                                  // Red
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Green
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Blue
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Alpha
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ])
+                                : const ColorFilter.matrix([
+                                  // Red
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+
+                                  // Green
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+
+                                  // Blue
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+
+                                  // Alpha
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ]),
+                        child: TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          subdomains: const ['a', 'b', 'c'],
+                          userAgentPackageName: 'com.example.app',
+                        ),
                       ),
 
                       // Route polyline

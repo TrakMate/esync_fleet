@@ -11,11 +11,19 @@ class DeviceDiagnosticAPIService {
 
   Future<DeviceDiagnosticModel> fetchdevicediagnostic({
     required String imei,
+    String? date,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('accessToken') ?? '';
 
-    final uri = Uri.parse('$baseUrl/$imei');
+    Uri uri;
+    if (date != null && date.isNotEmpty) {
+      uri = Uri.parse('$baseUrl/$imei?date=$date');
+    } else {
+      uri = Uri.parse(
+        '$baseUrl/$imei?date=${DateTime.now().toIso8601String().split('T')[0]}',
+      );
+    }
 
     final response = await http.get(
       uri,

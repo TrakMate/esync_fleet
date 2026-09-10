@@ -3360,16 +3360,18 @@ class _TripsScreenState extends State<TripsScreen> {
                   color: isDark ? tWhite : tBlack,
                 ),
               ),
-              IconButton(
-                // onPressed: () {
-                //   if (Navigator.canPop(context)) {
-                //     Navigator.pop(context);
-                //   } else {
-                //     setState(() {
-                //       selectedTrip = null;
-                //     });
-                //   }
-                // },
+              TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: tRed.withOpacity(0.1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: tRed, width: 1),
+                  ),
+                ),
                 onPressed: () {
                   setState(() {
                     selectedTrip = null;
@@ -3391,12 +3393,14 @@ class _TripsScreenState extends State<TripsScreen> {
                     Navigator.pop(context);
                   }
                 },
-                icon: Icon(
-                  CupertinoIcons.xmark_circle_fill,
-                  color: isDark ? tRed : Colors.redAccent,
-                  size: 16,
+                child: Text(
+                  "Close",
+                  style: GoogleFonts.urbanist(
+                    color: tRed,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                tooltip: "Close",
               ),
             ],
           ),
@@ -3474,13 +3478,73 @@ class _TripsScreenState extends State<TripsScreen> {
                     ),
 
                     children: [
-                      TileLayer(
-                        urlTemplate:
+                      ColorFiltered(
+                        colorFilter:
                             isDark
-                                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        subdomains: const ['a', 'b', 'c'],
-                        userAgentPackageName: 'com.example.app',
+                                ? const ColorFilter.matrix([
+                                  // Red
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Green
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Blue
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Alpha
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ])
+                                : const ColorFilter.matrix([
+                                  // Red
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+
+                                  // Green
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+
+                                  // Blue
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+
+                                  // Alpha
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ]),
+                        child: TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          subdomains: const ['a', 'b', 'c'],
+                          userAgentPackageName: 'com.example.app',
+                        ),
                       ),
 
                       // Route polyline
@@ -3870,16 +3934,9 @@ class _TripsScreenState extends State<TripsScreen> {
                 icon,
                 width: 18,
                 height: 18,
-                colorFilter: ColorFilter.mode(
-                  isDark ? tWhite : tGreen8,
-                  BlendMode.srcIn,
-                ),
+                colorFilter: ColorFilter.mode(tGreen8, BlendMode.srcIn),
               )
-              : Icon(
-                icon as IconData,
-                size: 18,
-                color: isDark ? tWhite : tGreen8,
-              ),
+              : Icon(icon as IconData, size: 18, color: tGreen8),
       label: Text(
         text,
         style: GoogleFonts.urbanist(
@@ -4335,13 +4392,73 @@ class _MobileTripDetailsPageState extends State<MobileTripDetailsPage> {
                       },
                     ),
                     children: [
-                      TileLayer(
-                        urlTemplate:
+                      ColorFiltered(
+                        colorFilter:
                             isDark
-                                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        subdomains: const ['a', 'b', 'c'],
-                        userAgentPackageName: 'com.example.app',
+                                ? const ColorFilter.matrix([
+                                  // Red
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Green
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Blue
+                                  -0.05315,
+                                  -0.17880,
+                                  -0.01805,
+                                  0,
+                                  64,
+
+                                  // Alpha
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ])
+                                : const ColorFilter.matrix([
+                                  // Red
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+
+                                  // Green
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+                                  0,
+
+                                  // Blue
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                  0,
+
+                                  // Alpha
+                                  0,
+                                  0,
+                                  0,
+                                  1,
+                                  0,
+                                ]),
+                        child: TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          subdomains: const ['a', 'b', 'c'],
+                          userAgentPackageName: 'com.example.app',
+                        ),
                       ),
                       PolylineLayer(
                         polylines: [
@@ -4558,16 +4675,9 @@ class _MobileTripDetailsPageState extends State<MobileTripDetailsPage> {
                 icon,
                 width: 18,
                 height: 18,
-                colorFilter: ColorFilter.mode(
-                  isDark ? tWhite : tGreen8,
-                  BlendMode.srcIn,
-                ),
+                colorFilter: ColorFilter.mode(tGreen8, BlendMode.srcIn),
               )
-              : Icon(
-                icon as IconData,
-                size: 18,
-                color: isDark ? tWhite : tGreen8,
-              ),
+              : Icon(icon as IconData, size: 18, color: tGreen8),
       label: Text(
         text,
         style: GoogleFonts.urbanist(

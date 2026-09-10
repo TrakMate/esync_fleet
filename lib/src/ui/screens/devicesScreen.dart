@@ -1271,23 +1271,77 @@ class _DevicesScreenState extends State<DevicesScreen> {
           children: [
             // TileLayer(
             //   urlTemplate:
-            //       isDark
-            //           ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            //           : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            //       isSatelliteView
+            //           ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            //           : (isDark
+            //               ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+            //               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+
+            //   subdomains: const ['a', 'b', 'c'],
+
             //   userAgentPackageName: 'com.example.app',
-            //"https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png"
             // ),
-            TileLayer(
-              urlTemplate:
-                  isSatelliteView
-                      ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-                      : (isDark
-                          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+            ColorFiltered(
+              colorFilter:
+                  isDark && !isSatelliteView
+                      ? const ColorFilter.matrix([
+                        // Red
+                        -0.05315,
+                        -0.17880,
+                        -0.01805,
+                        0,
+                        64,
 
-              subdomains: const ['a', 'b', 'c'],
+                        // Green
+                        -0.05315,
+                        -0.17880,
+                        -0.01805,
+                        0,
+                        64,
 
-              userAgentPackageName: 'com.example.app',
+                        // Blue
+                        -0.05315,
+                        -0.17880,
+                        -0.01805,
+                        0,
+                        64,
+
+                        // Alpha
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                      ])
+                      : const ColorFilter.matrix([
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0,
+                      ]),
+              child: TileLayer(
+                urlTemplate:
+                    isSatelliteView
+                        ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.app',
+              ),
             ),
 
             MarkerClusterLayerWidget(

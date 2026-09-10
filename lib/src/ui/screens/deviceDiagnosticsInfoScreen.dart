@@ -390,8 +390,13 @@ class _DeviceDiagnosticsInfoScreenState
     setState(() => isLoading = true);
 
     try {
+      // Pass the selected date
       final result = await _deviceDiagnosticAPIService.fetchdevicediagnostic(
         imei: widget.device.imei!,
+        date:
+            selectedDate != null
+                ? DateFormat('yyyy-MM-dd').format(selectedDate!)
+                : null,
       );
 
       if (!mounted) return;
