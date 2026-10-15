@@ -1269,49 +1269,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     _onMapPositionChanged(position, hasGesture),
           ),
           children: [
-            // TileLayer(
-            //   urlTemplate:
-            //       isSatelliteView
-            //           ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-            //           : (isDark
-            //               ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            //               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
-
-            //   subdomains: const ['a', 'b', 'c'],
-
-            //   userAgentPackageName: 'com.example.app',
-            // ),
             ColorFiltered(
               colorFilter:
                   isDark && !isSatelliteView
-                      ? const ColorFilter.matrix([
-                        // Red
-                        -0.05315,
-                        -0.17880,
-                        -0.01805,
-                        0,
-                        64,
-
-                        // Green
-                        -0.05315,
-                        -0.17880,
-                        -0.01805,
-                        0,
-                        64,
-
-                        // Blue
-                        -0.05315,
-                        -0.17880,
-                        -0.01805,
-                        0,
-                        64,
-
-                        // Alpha
-                        0,
-                        0,
-                        0,
-                        1,
-                        0,
+                      ? const ColorFilter.matrix(<double>[
+                        -0.2126, -0.7152, -0.0722, 0, 255, // Red channel
+                        -0.2126, -0.7152, -0.0722, 0, 255, // Green channel
+                        -0.2126, -0.7152, -0.0722, 0, 255, // Blue channel
+                        0, 0, 0, 1, 0, // Alpha channel
                       ])
                       : const ColorFilter.matrix([
                         1,

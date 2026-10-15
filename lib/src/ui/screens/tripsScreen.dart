@@ -3481,34 +3481,23 @@ class _TripsScreenState extends State<TripsScreen> {
                       ColorFiltered(
                         colorFilter:
                             isDark
-                                ? const ColorFilter.matrix([
-                                  // Red
-                                  -0.05315,
-                                  -0.17880,
-                                  -0.01805,
+                                ? const ColorFilter.matrix(<double>[
+                                  -0.2126,
+                                  -0.7152,
+                                  -0.0722,
                                   0,
-                                  64,
-
-                                  // Green
-                                  -0.05315,
-                                  -0.17880,
-                                  -0.01805,
+                                  255, // Red channel
+                                  -0.2126,
+                                  -0.7152,
+                                  -0.0722,
                                   0,
-                                  64,
-
-                                  // Blue
-                                  -0.05315,
-                                  -0.17880,
-                                  -0.01805,
+                                  255, // Green channel
+                                  -0.2126,
+                                  -0.7152,
+                                  -0.0722,
                                   0,
-                                  64,
-
-                                  // Alpha
-                                  0,
-                                  0,
-                                  0,
-                                  1,
-                                  0,
+                                  255, // Blue channel
+                                  0, 0, 0, 1, 0, // Alpha channel
                                 ])
                                 : const ColorFilter.matrix([
                                   // Red
@@ -4395,34 +4384,23 @@ class _MobileTripDetailsPageState extends State<MobileTripDetailsPage> {
                       ColorFiltered(
                         colorFilter:
                             isDark
-                                ? const ColorFilter.matrix([
-                                  // Red
-                                  -0.05315,
-                                  -0.17880,
-                                  -0.01805,
+                                ? const ColorFilter.matrix(<double>[
+                                  -0.2126,
+                                  -0.7152,
+                                  -0.0722,
                                   0,
-                                  64,
-
-                                  // Green
-                                  -0.05315,
-                                  -0.17880,
-                                  -0.01805,
+                                  255, // Red channel
+                                  -0.2126,
+                                  -0.7152,
+                                  -0.0722,
                                   0,
-                                  64,
-
-                                  // Blue
-                                  -0.05315,
-                                  -0.17880,
-                                  -0.01805,
+                                  255, // Green channel
+                                  -0.2126,
+                                  -0.7152,
+                                  -0.0722,
                                   0,
-                                  64,
-
-                                  // Alpha
-                                  0,
-                                  0,
-                                  0,
-                                  1,
-                                  0,
+                                  255, // Blue channel
+                                  0, 0, 0, 1, 0, // Alpha channel
                                 ])
                                 : const ColorFilter.matrix([
                                   // Red
